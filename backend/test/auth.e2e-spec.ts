@@ -187,3 +187,82 @@ describe('Auth: login', () => {
     expect(response.status).toBe(401);
   });
 });
+
+describe('Auth: session lifecycle', () => {
+  let app: INestApplication;
+  let prisma: PrismaService;
+
+  beforeAll(async () => {
+    ({ app, prisma } = await createTestApp());
+  });
+
+  afterAll(async () => {
+    await app.close();
+  });
+
+  beforeEach(async () => {
+    await resetDatabase(prisma);
+  });
+
+  async function registerActivateAndLogin(mobile: string, password: string): Promise<string> {
+    const registerResponse = await request(app.getHttpServer()).post('/api/v1/auth/register').send({
+      fullName: 'Test Patient',
+      mobile,
+      password,
+      role: 'PATIENT',
+    });
+    await request(app.getHttpServer())
+      .post('/api/v1/auth/verify')
+      .send({ mobile, code: registerResponse.body.devOtpCode });
+    const loginResponse = await request(app.getHttpServer()).post('/api/v1/auth/login').send({ mobile, password });
+    return loginResponse.body.token;
+  }
+
+  it('rejects requests with no bearer token', async () => {
+    const response = await request(app.getHttpServer()).get('/api/v1/auth/sessions');
+    expect(response.status).toBe(401);
+  });
+
+  it('lists the active session after login', async () => {
+    const token = await registerActivateAndLogin('+966500000030', 'password123');
+
+    const response = await request(app.getHttpServer())
+      .get('/api/v1/auth/sessions')
+      .set('Authorization', `Bearer ${token}`);
+
+    expect(response.status).toBe(200);
+    expect(response.body).toHaveLength(1);
+  });
+
+  it('revokes a session so it can no longer authenticate', async () => {
+    const token = await registerActivateAndLogin('+966500000031', 'password123');
+    const sessionsResponse = await request(app.getHttpServer())
+      .get('/api/v1/auth/sessions')
+      .set('Authorization', `Bearer ${token}`);
+    const sessionId = sessionsResponse.body[0].id;
+
+    const revokeResponse = await request(app.getHttpServer())
+      .delete(`/api/v1/auth/sessions/${sessionId}`)
+      .set('Authorization', `Bearer ${token}`);
+    expect(revokeResponse.status).toBe(204);
+
+    const afterRevoke = await request(app.getHttpServer())
+      .get('/api/v1/auth/sessions')
+      .set('Authorization', `Bearer ${token}`);
+    expect(afterRevoke.status).toBe(401);
+  });
+
+  it('logs out and invalidates the current session', async () => {
+    const token = await registerActivateAndLogin('+966500000032', 'password123');
+
+    const logoutResponse = await request(app.getHttpServer())
+      .post('/api/v1/auth/logout')
+      .set('Authorization', `Bearer ${token}`);
+    expect(logoutResponse.status).toBe(204);
+
+    const afterLogout = await request(app.getHttpServer())
+      .get('/api/v1/auth/sessions')
+      .set('Authorization', `Bearer ${token}`);
+    expect(afterLogout.status).toBe(401);
+  });
+});

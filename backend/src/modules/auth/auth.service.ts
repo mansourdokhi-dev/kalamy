@@ -109,4 +109,37 @@ export class AuthService {
 
     return { token, expiresAt };
   }
+
+  async logout(sessionId: string): Promise<void> {
+    await this.prisma.session.update({
+      where: { id: sessionId },
+      data: { revokedAt: new Date() },
+    });
+  }
+
+  async listSessions(
+    userId: string,
+  ): Promise<Array<{ id: string; deviceInfo: string | null; createdAt: Date; expiresAt: Date }>> {
+    const sessions = await this.prisma.session.findMany({
+      where: { userId, revokedAt: null },
+      orderBy: { createdAt: 'desc' },
+    });
+    return sessions.map((s) => ({
+      id: s.id,
+      deviceInfo: s.deviceInfo,
+      createdAt: s.createdAt,
+      expiresAt: s.expiresAt,
+    }));
+  }
+
+  async revokeSession(userId: string, sessionId: string): Promise<void> {
+    const session = await this.prisma.session.findUnique({ where: { id: sessionId } });
+    if (!session || session.userId !== userId) {
+      throw new NotFoundException('Session not found');
+    }
+    await this.prisma.session.update({
+      where: { id: sessionId },
+      data: { revokedAt: new Date() },
+    });
+  }
 }
