@@ -101,3 +101,89 @@ describe('Auth: register + verify', () => {
     expect(verifyResponse.status).toBe(401);
   });
 });
+
+describe('Auth: login', () => {
+  let app: INestApplication;
+  let prisma: PrismaService;
+
+  beforeAll(async () => {
+    ({ app, prisma } = await createTestApp());
+  });
+
+  afterAll(async () => {
+    await app.close();
+  });
+
+  beforeEach(async () => {
+    await resetDatabase(prisma);
+  });
+
+  async function registerAndActivate(mobile: string, password: string) {
+    const registerResponse = await request(app.getHttpServer()).post('/api/v1/auth/register').send({
+      fullName: 'Test Patient',
+      mobile,
+      password,
+      role: 'PATIENT',
+    });
+    await request(app.getHttpServer())
+      .post('/api/v1/auth/verify')
+      .send({ mobile, code: registerResponse.body.devOtpCode });
+  }
+
+  it('logs in with correct credentials and returns a session token', async () => {
+    await registerAndActivate('+966500000020', 'password123');
+
+    const response = await request(app.getHttpServer())
+      .post('/api/v1/auth/login')
+      .send({ mobile: '+966500000020', password: 'password123' });
+
+    expect(response.status).toBe(200);
+    expect(typeof response.body.token).toBe('string');
+    expect(response.body.token.length).toBeGreaterThan(20);
+
+    const sessionCount = await prisma.session.count();
+    expect(sessionCount).toBe(1);
+  });
+
+  it('rejects an incorrect password without revealing the reason precisely', async () => {
+    await registerAndActivate('+966500000021', 'password123');
+
+    const response = await request(app.getHttpServer())
+      .post('/api/v1/auth/login')
+      .send({ mobile: '+966500000021', password: 'wrong-password' });
+
+    expect(response.status).toBe(401);
+  });
+
+  it('locks the account after 5 failed attempts', async () => {
+    await registerAndActivate('+966500000022', 'password123');
+
+    for (let i = 0; i < 5; i += 1) {
+      await request(app.getHttpServer())
+        .post('/api/v1/auth/login')
+        .send({ mobile: '+966500000022', password: 'wrong-password' });
+    }
+
+    const response = await request(app.getHttpServer())
+      .post('/api/v1/auth/login')
+      .send({ mobile: '+966500000022', password: 'password123' });
+
+    expect(response.status).toBe(401);
+    expect(response.body.message).toMatch(/locked/i);
+  });
+
+  it('rejects login for a user who has not verified OTP yet', async () => {
+    await request(app.getHttpServer()).post('/api/v1/auth/register').send({
+      fullName: 'Unverified User',
+      mobile: '+966500000023',
+      password: 'password123',
+      role: 'PATIENT',
+    });
+
+    const response = await request(app.getHttpServer())
+      .post('/api/v1/auth/login')
+      .send({ mobile: '+966500000023', password: 'password123' });
+
+    expect(response.status).toBe(401);
+  });
+});
