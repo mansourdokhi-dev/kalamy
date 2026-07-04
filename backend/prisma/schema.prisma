@@ -1,0 +1,140 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  PATIENT
+  CAREGIVER
+  CLINICIAN
+  SUPERVISOR
+  ADMIN
+}
+
+enum UserStatus {
+  PENDING_VERIFICATION
+  ACTIVE
+  LOCKED
+  DISABLED
+}
+
+enum OtpPurpose {
+  REGISTRATION
+  PASSWORD_RESET
+}
+
+enum Gender {
+  MALE
+  FEMALE
+}
+
+enum PatientProfileStatus {
+  ACTIVE
+  DISABLED
+}
+
+model User {
+  id                  String     @id @default(uuid())
+  fullName            String
+  email               String?    @unique
+  mobile              String     @unique
+  passwordHash        String
+  role                Role
+  status              UserStatus @default(PENDING_VERIFICATION)
+  failedLoginAttempts Int        @default(0)
+  lockedUntil         DateTime?
+  createdAt           DateTime   @default(now())
+  updatedAt           DateTime   @updatedAt
+
+  otpCodes                OtpCode[]
+  sessions                Session[]
+  auditLogs               AuditLog[]
+  patientProfile          PatientProfile? @relation("PatientProfileUser")
+  guardianLinksAsPatient  GuardianLink[]  @relation("GuardianLinkPatient")
+  guardianLinksAsGuardian GuardianLink[]  @relation("GuardianLinkGuardian")
+}
+
+model OtpCode {
+  id        String     @id @default(uuid())
+  userId    String
+  user      User       @relation(fields: [userId], references: [id])
+  code      String
+  purpose   OtpPurpose
+  expiresAt DateTime
+  attempts  Int        @default(0)
+  consumed  Boolean    @default(false)
+  createdAt DateTime   @default(now())
+
+  @@index([userId, purpose, consumed])
+}
+
+model Session {
+  id         String    @id @default(uuid())
+  userId     String
+  user       User      @relation(fields: [userId], references: [id])
+  tokenHash  String    @unique
+  deviceInfo String?
+  createdAt  DateTime  @default(now())
+  expiresAt  DateTime
+  revokedAt  DateTime?
+}
+
+model GuardianLink {
+  id             String   @id @default(uuid())
+  patientUserId  String
+  patientUser    User     @relation("GuardianLinkPatient", fields: [patientUserId], references: [id])
+  guardianUserId String
+  guardianUser   User     @relation("GuardianLinkGuardian", fields: [guardianUserId], references: [id])
+  relationship   String
+  createdAt      DateTime @default(now())
+
+  @@unique([patientUserId, guardianUserId])
+}
+
+model PatientProfile {
+  id             String               @id @default(uuid())
+  userId         String               @unique
+  user           User                 @relation("PatientProfileUser", fields: [userId], references: [id])
+  fullName       String
+  gender         Gender
+  dateOfBirth    DateTime
+  nationalId     String               @unique
+  address        String?
+  referralSource String?
+  status         PatientProfileStatus @default(ACTIVE)
+  createdAt      DateTime             @default(now())
+  updatedAt      DateTime             @updatedAt
+
+  clinicalInfo PatientClinicalInfo?
+}
+
+model PatientClinicalInfo {
+  id               String         @id @default(uuid())
+  patientProfileId String         @unique
+  patientProfile   PatientProfile @relation(fields: [patientProfileId], references: [id])
+  referralReason   String?
+  initialDiagnosis String?
+  medicalHistory   String?
+  medications      String?
+  allergies        String?
+  familyHistory    String?
+  consents         Json?
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+}
+
+model AuditLog {
+  id        String   @id @default(uuid())
+  userId    String?
+  user      User?    @relation(fields: [userId], references: [id])
+  action    String
+  entity    String
+  entityId  String?
+  before    Json?
+  after     Json?
+  createdAt DateTime @default(now())
+}
