@@ -1,8 +1,10 @@
-import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { PatientProfile, Role } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { calculateAge } from './patient-age.util';
 import { CreatePatientDto } from './dto/create-patient.dto';
+import { UpdatePatientDto } from './dto/update-patient.dto';
+import { AuthenticatedUser } from '../../common/auth/session.guard';
 
 @Injectable()
 export class PatientsService {
@@ -66,5 +68,57 @@ export class PatientsService {
 
       return created;
     });
+  }
+
+  async findById(id: string, actor: AuthenticatedUser): Promise<PatientProfile> {
+    const profile = await this.prisma.patientProfile.findUnique({
+      where: { id },
+      include: { clinicalInfo: true },
+    });
+    if (!profile) {
+      throw new NotFoundException('Patient profile not found');
+    }
+    await this.assertCanAccess(actor, profile);
+    return profile;
+  }
+
+  async update(id: string, dto: UpdatePatientDto, actor: AuthenticatedUser): Promise<PatientProfile> {
+    const profile = await this.prisma.patientProfile.findUnique({ where: { id } });
+    if (!profile) {
+      throw new NotFoundException('Patient profile not found');
+    }
+    await this.assertCanAccess(actor, profile);
+
+    return this.prisma.patientProfile.update({
+      where: { id },
+      data: {
+        fullName: dto.fullName,
+        address: dto.address,
+        referralSource: dto.referralSource,
+      },
+      include: { clinicalInfo: true },
+    });
+  }
+
+  private async assertCanAccess(actor: AuthenticatedUser, profile: PatientProfile): Promise<void> {
+    if (actor.role === Role.CLINICIAN || actor.role === Role.SUPERVISOR || actor.role === Role.ADMIN) {
+      return;
+    }
+    if (actor.role === Role.PATIENT) {
+      if (profile.userId === actor.id) {
+        return;
+      }
+      throw new ForbiddenException("Cannot access another patient's profile");
+    }
+    if (actor.role === Role.CAREGIVER) {
+      const link = await this.prisma.guardianLink.findFirst({
+        where: { guardianUserId: actor.id, patientUserId: profile.userId },
+      });
+      if (link) {
+        return;
+      }
+      throw new ForbiddenException('Not linked as guardian for this patient');
+    }
+    throw new ForbiddenException('Access denied');
   }
 }

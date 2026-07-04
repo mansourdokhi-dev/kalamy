@@ -171,3 +171,167 @@ describe('Patients: create profile', () => {
     expect(response.status).toBe(409);
   });
 });
+
+describe('Patients: get and update profile', () => {
+  let app: INestApplication;
+  let prisma: PrismaService;
+
+  beforeAll(async () => {
+    ({ app, prisma } = await createTestApp());
+  });
+
+  afterAll(async () => {
+    await app.close();
+  });
+
+  beforeEach(async () => {
+    await resetDatabase(prisma);
+  });
+
+  async function loginAs(mobile: string, password: string): Promise<string> {
+    const response = await request(app.getHttpServer()).post('/api/v1/auth/login').send({ mobile, password });
+    return response.body.token;
+  }
+
+  async function registerActivateAndLogin(mobile: string, password: string, role: 'PATIENT' | 'CAREGIVER') {
+    const registerResponse = await request(app.getHttpServer()).post('/api/v1/auth/register').send({
+      fullName: 'Test User',
+      mobile,
+      password,
+      role,
+    });
+    await request(app.getHttpServer())
+      .post('/api/v1/auth/verify')
+      .send({ mobile, code: registerResponse.body.devOtpCode });
+    return { token: await loginAs(mobile, password), userId: registerResponse.body.userId };
+  }
+
+  async function createClinicianToken(mobile: string, password: string): Promise<string> {
+    const registerResponse = await request(app.getHttpServer()).post('/api/v1/auth/register').send({
+      fullName: 'Clinician User',
+      mobile,
+      password,
+      role: 'PATIENT',
+    });
+    await request(app.getHttpServer())
+      .post('/api/v1/auth/verify')
+      .send({ mobile, code: registerResponse.body.devOtpCode });
+    await prisma.user.update({ where: { mobile }, data: { role: 'CLINICIAN' } });
+    return loginAs(mobile, password);
+  }
+
+  it('lets a patient view their own profile', async () => {
+    const clinicianToken = await createClinicianToken('+966500000080', 'password123');
+    const patient = await registerActivateAndLogin('+966500000081', 'password123', 'PATIENT');
+
+    const createResponse = await request(app.getHttpServer())
+      .post('/api/v1/patients')
+      .set('Authorization', `Bearer ${clinicianToken}`)
+      .send({
+        userId: patient.userId,
+        fullName: 'Own Profile Patient',
+        gender: 'MALE',
+        dateOfBirth: '1990-05-01',
+        nationalId: 'OWN-PROFILE-1',
+      });
+    const profileId = createResponse.body.id;
+
+    const response = await request(app.getHttpServer())
+      .get(`/api/v1/patients/${profileId}`)
+      .set('Authorization', `Bearer ${patient.token}`);
+
+    expect(response.status).toBe(200);
+    expect(response.body.id).toBe(profileId);
+  });
+
+  it('forbids a patient from viewing another patient\'s profile', async () => {
+    const clinicianToken = await createClinicianToken('+966500000082', 'password123');
+    const owner = await registerActivateAndLogin('+966500000083', 'password123', 'PATIENT');
+    const stranger = await registerActivateAndLogin('+966500000084', 'password123', 'PATIENT');
+
+    const createResponse = await request(app.getHttpServer())
+      .post('/api/v1/patients')
+      .set('Authorization', `Bearer ${clinicianToken}`)
+      .send({
+        userId: owner.userId,
+        fullName: 'Owner Patient',
+        gender: 'MALE',
+        dateOfBirth: '1990-05-01',
+        nationalId: 'OWN-PROFILE-2',
+      });
+    const profileId = createResponse.body.id;
+
+    const response = await request(app.getHttpServer())
+      .get(`/api/v1/patients/${profileId}`)
+      .set('Authorization', `Bearer ${stranger.token}`);
+
+    expect(response.status).toBe(403);
+  });
+
+  it('lets a linked caregiver view and update the patient profile', async () => {
+    const clinicianToken = await createClinicianToken('+966500000085', 'password123');
+    const minor = await registerActivateAndLogin('+966500000086', 'password123', 'PATIENT');
+    const guardian = await registerActivateAndLogin('+966500000087', 'password123', 'CAREGIVER');
+
+    const createResponse = await request(app.getHttpServer())
+      .post('/api/v1/patients')
+      .set('Authorization', `Bearer ${clinicianToken}`)
+      .send({
+        userId: minor.userId,
+        fullName: 'Minor Patient',
+        gender: 'FEMALE',
+        dateOfBirth: '2015-05-01',
+        nationalId: 'MINOR-PROFILE-1',
+        guardianUserId: guardian.userId,
+      });
+    const profileId = createResponse.body.id;
+
+    const getResponse = await request(app.getHttpServer())
+      .get(`/api/v1/patients/${profileId}`)
+      .set('Authorization', `Bearer ${guardian.token}`);
+    expect(getResponse.status).toBe(200);
+
+    const updateResponse = await request(app.getHttpServer())
+      .put(`/api/v1/patients/${profileId}`)
+      .set('Authorization', `Bearer ${guardian.token}`)
+      .send({ address: 'Riyadh, Saudi Arabia' });
+    expect(updateResponse.status).toBe(200);
+    expect(updateResponse.body.address).toBe('Riyadh, Saudi Arabia');
+  });
+
+  it('forbids an unlinked caregiver from viewing the profile', async () => {
+    const clinicianToken = await createClinicianToken('+966500000088', 'password123');
+    const minor = await registerActivateAndLogin('+966500000089', 'password123', 'PATIENT');
+    const guardian = await registerActivateAndLogin('+966500000090', 'password123', 'CAREGIVER');
+    const unrelatedCaregiver = await registerActivateAndLogin('+966500000091', 'password123', 'CAREGIVER');
+
+    const createResponse = await request(app.getHttpServer())
+      .post('/api/v1/patients')
+      .set('Authorization', `Bearer ${clinicianToken}`)
+      .send({
+        userId: minor.userId,
+        fullName: 'Minor Patient',
+        gender: 'FEMALE',
+        dateOfBirth: '2015-05-01',
+        nationalId: 'MINOR-PROFILE-2',
+        guardianUserId: guardian.userId,
+      });
+    const profileId = createResponse.body.id;
+
+    const response = await request(app.getHttpServer())
+      .get(`/api/v1/patients/${profileId}`)
+      .set('Authorization', `Bearer ${unrelatedCaregiver.token}`);
+
+    expect(response.status).toBe(403);
+  });
+
+  it('returns 404 for a non-existent profile', async () => {
+    const clinicianToken = await createClinicianToken('+966500000092', 'password123');
+
+    const response = await request(app.getHttpServer())
+      .get('/api/v1/patients/00000000-0000-0000-0000-000000000000')
+      .set('Authorization', `Bearer ${clinicianToken}`);
+
+    expect(response.status).toBe(404);
+  });
+});
