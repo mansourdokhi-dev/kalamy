@@ -287,3 +287,71 @@ describe('Auth: session lifecycle', () => {
     expect(stillValid.body).toHaveLength(1);
   });
 });
+
+describe('Auth: password reset', () => {
+  let app: INestApplication;
+  let prisma: PrismaService;
+
+  beforeAll(async () => {
+    ({ app, prisma } = await createTestApp());
+  });
+
+  afterAll(async () => {
+    await app.close();
+  });
+
+  beforeEach(async () => {
+    await resetDatabase(prisma);
+  });
+
+  async function registerAndActivate(mobile: string, password: string) {
+    const registerResponse = await request(app.getHttpServer()).post('/api/v1/auth/register').send({
+      fullName: 'Test Patient',
+      mobile,
+      password,
+      role: 'PATIENT',
+    });
+    await request(app.getHttpServer())
+      .post('/api/v1/auth/verify')
+      .send({ mobile, code: registerResponse.body.devOtpCode });
+  }
+
+  it('does not reveal whether a mobile number is registered', async () => {
+    const response = await request(app.getHttpServer())
+      .post('/api/v1/auth/forgot-password')
+      .send({ mobile: '+966500000099' });
+
+    expect(response.status).toBe(200);
+    expect(response.body.devOtpCode).toBeUndefined();
+  });
+
+  it('resets the password with a valid OTP and invalidates existing sessions', async () => {
+    await registerAndActivate('+966500000040', 'old-password1');
+    const loginResponse = await request(app.getHttpServer())
+      .post('/api/v1/auth/login')
+      .send({ mobile: '+966500000040', password: 'old-password1' });
+    const oldToken = loginResponse.body.token;
+
+    const forgotResponse = await request(app.getHttpServer())
+      .post('/api/v1/auth/forgot-password')
+      .send({ mobile: '+966500000040' });
+    const code = forgotResponse.body.devOtpCode;
+
+    const resetResponse = await request(app.getHttpServer()).post('/api/v1/auth/reset-password').send({
+      mobile: '+966500000040',
+      code,
+      newPassword: 'new-password2',
+    });
+    expect(resetResponse.status).toBe(200);
+
+    const oldSessionCheck = await request(app.getHttpServer())
+      .get('/api/v1/auth/sessions')
+      .set('Authorization', `Bearer ${oldToken}`);
+    expect(oldSessionCheck.status).toBe(401);
+
+    const loginWithNewPassword = await request(app.getHttpServer())
+      .post('/api/v1/auth/login')
+      .send({ mobile: '+966500000040', password: 'new-password2' });
+    expect(loginWithNewPassword.status).toBe(200);
+  });
+});

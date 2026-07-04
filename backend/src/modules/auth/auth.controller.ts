@@ -3,6 +3,8 @@ import { AuthService } from './auth.service';
 import { RegisterDto } from './dto/register.dto';
 import { VerifyOtpDto } from './dto/verify-otp.dto';
 import { LoginDto } from './dto/login.dto';
+import { ForgotPasswordDto } from './dto/forgot-password.dto';
+import { ResetPasswordDto } from './dto/reset-password.dto';
 import { SessionGuard, AuthenticatedUser } from '../../common/auth/session.guard';
 import { CurrentUser } from '../../common/auth/current-user.decorator';
 
@@ -24,6 +26,19 @@ export class AuthController {
   @HttpCode(200)
   login(@Body() dto: LoginDto, @Headers('user-agent') userAgent?: string) {
     return this.authService.login(dto, userAgent);
+  }
+
+  @Post('forgot-password')
+  @HttpCode(200)
+  forgotPassword(@Body() dto: ForgotPasswordDto) {
+    return this.authService.forgotPassword(dto);
+  }
+
+  @Post('reset-password')
+  @HttpCode(200)
+  async resetPassword(@Body() dto: ResetPasswordDto): Promise<{ reset: true }> {
+    await this.authService.resetPassword(dto);
+    return { reset: true };
   }
 
   @Post('logout')

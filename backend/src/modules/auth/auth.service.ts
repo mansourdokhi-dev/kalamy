@@ -7,6 +7,8 @@ import { generateSessionToken, hashToken } from '../../common/security/token-has
 import { RegisterDto } from './dto/register.dto';
 import { VerifyOtpDto } from './dto/verify-otp.dto';
 import { LoginDto } from './dto/login.dto';
+import { ForgotPasswordDto } from './dto/forgot-password.dto';
+import { ResetPasswordDto } from './dto/reset-password.dto';
 
 const LOGIN_MAX_ATTEMPTS = 5;
 const LOGIN_LOCKOUT_MINUTES = 15;
@@ -79,15 +81,23 @@ export class AuthService {
 
     const passwordMatches = await this.passwordService.compare(dto.password, user.passwordHash);
     if (!passwordMatches) {
-      const attempts = user.failedLoginAttempts + 1;
-      const shouldLock = attempts >= LOGIN_MAX_ATTEMPTS;
-      await this.prisma.user.update({
-        where: { id: user.id },
-        data: {
-          failedLoginAttempts: shouldLock ? 0 : attempts,
-          lockedUntil: shouldLock ? new Date(Date.now() + LOGIN_LOCKOUT_MINUTES * 60_000) : user.lockedUntil,
-        },
-      });
+      // Single atomic UPDATE (Postgres row lock) instead of read-then-write, so
+      // concurrent failed attempts on the same account can't under-count and
+      // slip past the 5-attempt lockout threshold.
+      const lockUntil = new Date(Date.now() + LOGIN_LOCKOUT_MINUTES * 60_000);
+      await this.prisma.$executeRaw`
+        UPDATE "User"
+        SET
+          "failedLoginAttempts" = CASE
+            WHEN "failedLoginAttempts" + 1 >= ${LOGIN_MAX_ATTEMPTS} THEN 0
+            ELSE "failedLoginAttempts" + 1
+          END,
+          "lockedUntil" = CASE
+            WHEN "failedLoginAttempts" + 1 >= ${LOGIN_MAX_ATTEMPTS} THEN ${lockUntil}
+            ELSE NULL
+          END
+        WHERE "id" = ${user.id}
+      `;
       throw new UnauthorizedException('Invalid credentials');
     }
 
@@ -139,6 +149,36 @@ export class AuthService {
     }
     await this.prisma.session.update({
       where: { id: sessionId },
+      data: { revokedAt: new Date() },
+    });
+  }
+
+  async forgotPassword(dto: ForgotPasswordDto): Promise<{ devOtpCode?: string }> {
+    const user = await this.prisma.user.findUnique({ where: { mobile: dto.mobile } });
+    if (!user) {
+      // Deliberately do not reveal whether the mobile number is registered.
+      return {};
+    }
+    const code = await this.otpService.issue(user.id, OtpPurpose.PASSWORD_RESET);
+    return { devOtpCode: process.env.DEV_MODE === 'true' ? code : undefined };
+  }
+
+  async resetPassword(dto: ResetPasswordDto): Promise<void> {
+    const user = await this.prisma.user.findUnique({ where: { mobile: dto.mobile } });
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+    const result = await this.otpService.verify(user.id, OtpPurpose.PASSWORD_RESET, dto.code);
+    if (!result.ok) {
+      throw new UnauthorizedException(`OTP verification failed: ${result.reason}`);
+    }
+    const passwordHash = await this.passwordService.hash(dto.newPassword);
+    await this.prisma.user.update({
+      where: { id: user.id },
+      data: { passwordHash, failedLoginAttempts: 0, lockedUntil: null },
+    });
+    await this.prisma.session.updateMany({
+      where: { userId: user.id, revokedAt: null },
       data: { revokedAt: new Date() },
     });
   }
