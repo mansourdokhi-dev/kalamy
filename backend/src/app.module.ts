@@ -7,9 +7,10 @@ import { PrismaModule } from './prisma/prisma.module';
 import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
 import { AuditInterceptor } from './common/audit/audit.interceptor';
 import { AuthModule } from './modules/auth/auth.module';
+import { PatientsModule } from './modules/patients/patients.module';
 
 @Module({
-  imports: [ConfigModule.forRoot({ isGlobal: true }), PrismaModule, AuthModule],
+  imports: [ConfigModule.forRoot({ isGlobal: true }), PrismaModule, AuthModule, PatientsModule],
   controllers: [AppController],
   providers: [
     { provide: APP_FILTER, useClass: AllExceptionsFilter },
