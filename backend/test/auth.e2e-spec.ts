@@ -265,4 +265,25 @@ describe('Auth: session lifecycle', () => {
       .set('Authorization', `Bearer ${token}`);
     expect(afterLogout.status).toBe(401);
   });
+
+  it('does not allow one user to revoke another user session', async () => {
+    const tokenA = await registerActivateAndLogin('+966500000033', 'password123');
+    const tokenB = await registerActivateAndLogin('+966500000034', 'password123');
+
+    const sessionsBResponse = await request(app.getHttpServer())
+      .get('/api/v1/auth/sessions')
+      .set('Authorization', `Bearer ${tokenB}`);
+    const sessionIdB = sessionsBResponse.body[0].id;
+
+    const revokeResponse = await request(app.getHttpServer())
+      .delete(`/api/v1/auth/sessions/${sessionIdB}`)
+      .set('Authorization', `Bearer ${tokenA}`);
+    expect(revokeResponse.status).toBe(404);
+
+    const stillValid = await request(app.getHttpServer())
+      .get('/api/v1/auth/sessions')
+      .set('Authorization', `Bearer ${tokenB}`);
+    expect(stillValid.status).toBe(200);
+    expect(stillValid.body).toHaveLength(1);
+  });
 });
