@@ -6,6 +6,31 @@ import { AuthenticatedUser } from '../auth/session.guard';
 
 const MUTATING_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
 
+// Field names that must never be persisted verbatim into the audit log — these
+// carry secrets (raw passwords, OTP codes, bearer tokens) that would otherwise
+// sit in plaintext forever in the AuditLog.before/after JSON columns.
+const SENSITIVE_FIELDS = new Set(['password', 'newPassword', 'passwordHash', 'token', 'code', 'devOtpCode']);
+const REDACTED = '[REDACTED]';
+
+/**
+ * Replaces the value of any top-level sensitive field with a redacted marker.
+ * All DTOs/response shapes audited today are flat, so a single-level walk is
+ * sufficient — this intentionally does not recurse into nested objects/arrays.
+ */
+export function redactSensitiveFields<T>(value: T): T {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    return value;
+  }
+
+  const result = { ...(value as Record<string, unknown>) };
+  for (const key of Object.keys(result)) {
+    if (SENSITIVE_FIELDS.has(key)) {
+      result[key] = REDACTED;
+    }
+  }
+  return result as T;
+}
+
 interface AuditableRequest {
   method: string;
   url: string;
@@ -55,6 +80,10 @@ export class AuditInterceptor implements NestInterceptor {
   }
 
   private toJson(body: unknown): Prisma.InputJsonValue | undefined {
-    return body ? (JSON.parse(JSON.stringify(body)) as Prisma.InputJsonValue) : undefined;
+    if (!body) {
+      return undefined;
+    }
+    const plain = JSON.parse(JSON.stringify(body)) as Prisma.InputJsonValue;
+    return redactSensitiveFields(plain);
   }
 }
