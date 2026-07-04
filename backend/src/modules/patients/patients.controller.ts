@@ -2,6 +2,7 @@ import { Body, Controller, Get, Param, Post, Put, UseGuards } from '@nestjs/comm
 import { PatientsService } from './patients.service';
 import { CreatePatientDto } from './dto/create-patient.dto';
 import { UpdatePatientDto } from './dto/update-patient.dto';
+import { LinkGuardianDto } from './dto/link-guardian.dto';
 import { SessionGuard, AuthenticatedUser } from '../../common/auth/session.guard';
 import { CurrentUser } from '../../common/auth/current-user.decorator';
 import { PermissionsGuard } from '../../common/rbac/permissions.guard';
@@ -29,5 +30,11 @@ export class PatientsController {
   @RequirePermission(Permission.EDIT_PATIENT_PROFILE)
   update(@Param('id') id: string, @Body() dto: UpdatePatientDto, @CurrentUser() user: AuthenticatedUser) {
     return this.patientsService.update(id, dto, user);
+  }
+
+  @Post(':id/guardian')
+  @RequirePermission(Permission.LINK_GUARDIAN)
+  linkGuardian(@Param('id') id: string, @Body() dto: LinkGuardianDto) {
+    return this.patientsService.linkGuardian(id, dto);
   }
 }

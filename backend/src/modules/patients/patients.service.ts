@@ -1,9 +1,10 @@
 import { BadRequestException, ConflictException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
-import { PatientProfile, Role } from '@prisma/client';
+import { GuardianLink, PatientProfile, Role } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { calculateAge } from './patient-age.util';
 import { CreatePatientDto } from './dto/create-patient.dto';
 import { UpdatePatientDto } from './dto/update-patient.dto';
+import { LinkGuardianDto } from './dto/link-guardian.dto';
 import { AuthenticatedUser } from '../../common/auth/session.guard';
 
 @Injectable()
@@ -120,5 +121,32 @@ export class PatientsService {
       throw new ForbiddenException('Not linked as guardian for this patient');
     }
     throw new ForbiddenException('Access denied');
+  }
+
+  async linkGuardian(patientProfileId: string, dto: LinkGuardianDto): Promise<GuardianLink> {
+    const profile = await this.prisma.patientProfile.findUnique({ where: { id: patientProfileId } });
+    if (!profile) {
+      throw new NotFoundException('Patient profile not found');
+    }
+
+    const guardian = await this.prisma.user.findUnique({ where: { id: dto.guardianUserId } });
+    if (!guardian || guardian.role !== Role.CAREGIVER) {
+      throw new BadRequestException('guardianUserId must reference an existing user with role CAREGIVER');
+    }
+
+    const existingLink = await this.prisma.guardianLink.findFirst({
+      where: { patientUserId: profile.userId, guardianUserId: dto.guardianUserId },
+    });
+    if (existingLink) {
+      throw new ConflictException('This guardian is already linked to this patient');
+    }
+
+    return this.prisma.guardianLink.create({
+      data: {
+        patientUserId: profile.userId,
+        guardianUserId: dto.guardianUserId,
+        relationship: dto.relationship,
+      },
+    });
   }
 }

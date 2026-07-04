@@ -335,3 +335,132 @@ describe('Patients: get and update profile', () => {
     expect(response.status).toBe(404);
   });
 });
+
+describe('Patients: link guardian', () => {
+  let app: INestApplication;
+  let prisma: PrismaService;
+
+  beforeAll(async () => {
+    ({ app, prisma } = await createTestApp());
+  });
+
+  afterAll(async () => {
+    await app.close();
+  });
+
+  beforeEach(async () => {
+    await resetDatabase(prisma);
+  });
+
+  async function loginAs(mobile: string, password: string): Promise<string> {
+    const response = await request(app.getHttpServer()).post('/api/v1/auth/login').send({ mobile, password });
+    return response.body.token;
+  }
+
+  async function registerActivateAndLogin(mobile: string, password: string, role: 'PATIENT' | 'CAREGIVER') {
+    const registerResponse = await request(app.getHttpServer()).post('/api/v1/auth/register').send({
+      fullName: 'Test User',
+      mobile,
+      password,
+      role,
+    });
+    await request(app.getHttpServer())
+      .post('/api/v1/auth/verify')
+      .send({ mobile, code: registerResponse.body.devOtpCode });
+    return { token: await loginAs(mobile, password), userId: registerResponse.body.userId };
+  }
+
+  async function createClinicianToken(mobile: string, password: string): Promise<string> {
+    const registerResponse = await request(app.getHttpServer()).post('/api/v1/auth/register').send({
+      fullName: 'Clinician User',
+      mobile,
+      password,
+      role: 'PATIENT',
+    });
+    await request(app.getHttpServer())
+      .post('/api/v1/auth/verify')
+      .send({ mobile, code: registerResponse.body.devOtpCode });
+    await prisma.user.update({ where: { mobile }, data: { role: 'CLINICIAN' } });
+    return loginAs(mobile, password);
+  }
+
+  it('lets a clinician link a second guardian to an adult patient', async () => {
+    const clinicianToken = await createClinicianToken('+966500000100', 'password123');
+    const adult = await registerActivateAndLogin('+966500000101', 'password123', 'PATIENT');
+    const secondGuardian = await registerActivateAndLogin('+966500000102', 'password123', 'CAREGIVER');
+
+    const createResponse = await request(app.getHttpServer())
+      .post('/api/v1/patients')
+      .set('Authorization', `Bearer ${clinicianToken}`)
+      .send({
+        userId: adult.userId,
+        fullName: 'Adult Patient',
+        gender: 'MALE',
+        dateOfBirth: '1990-05-01',
+        nationalId: 'LINK-GUARDIAN-1',
+      });
+    const profileId = createResponse.body.id;
+
+    const linkResponse = await request(app.getHttpServer())
+      .post(`/api/v1/patients/${profileId}/guardian`)
+      .set('Authorization', `Bearer ${clinicianToken}`)
+      .send({ guardianUserId: secondGuardian.userId, relationship: 'FAMILY_SUPPORT' });
+
+    expect(linkResponse.status).toBe(201);
+
+    const link = await prisma.guardianLink.findFirst({
+      where: { patientUserId: adult.userId, guardianUserId: secondGuardian.userId },
+    });
+    expect(link?.relationship).toBe('FAMILY_SUPPORT');
+  });
+
+  it('rejects linking a guardianUserId that is not a CAREGIVER role', async () => {
+    const clinicianToken = await createClinicianToken('+966500000103', 'password123');
+    const adult = await registerActivateAndLogin('+966500000104', 'password123', 'PATIENT');
+    const notAGuardian = await registerActivateAndLogin('+966500000105', 'password123', 'PATIENT');
+
+    const createResponse = await request(app.getHttpServer())
+      .post('/api/v1/patients')
+      .set('Authorization', `Bearer ${clinicianToken}`)
+      .send({
+        userId: adult.userId,
+        fullName: 'Adult Patient',
+        gender: 'MALE',
+        dateOfBirth: '1990-05-01',
+        nationalId: 'LINK-GUARDIAN-2',
+      });
+    const profileId = createResponse.body.id;
+
+    const linkResponse = await request(app.getHttpServer())
+      .post(`/api/v1/patients/${profileId}/guardian`)
+      .set('Authorization', `Bearer ${clinicianToken}`)
+      .send({ guardianUserId: notAGuardian.userId, relationship: 'FAMILY_SUPPORT' });
+
+    expect(linkResponse.status).toBe(400);
+  });
+
+  it('rejects a PATIENT trying to link a guardian', async () => {
+    const clinicianToken = await createClinicianToken('+966500000106', 'password123');
+    const adult = await registerActivateAndLogin('+966500000107', 'password123', 'PATIENT');
+    const guardian = await registerActivateAndLogin('+966500000108', 'password123', 'CAREGIVER');
+
+    const createResponse = await request(app.getHttpServer())
+      .post('/api/v1/patients')
+      .set('Authorization', `Bearer ${clinicianToken}`)
+      .send({
+        userId: adult.userId,
+        fullName: 'Adult Patient',
+        gender: 'MALE',
+        dateOfBirth: '1990-05-01',
+        nationalId: 'LINK-GUARDIAN-3',
+      });
+    const profileId = createResponse.body.id;
+
+    const linkResponse = await request(app.getHttpServer())
+      .post(`/api/v1/patients/${profileId}/guardian`)
+      .set('Authorization', `Bearer ${adult.token}`)
+      .send({ guardianUserId: guardian.userId, relationship: 'FAMILY_SUPPORT' });
+
+    expect(linkResponse.status).toBe(403);
+  });
+});
