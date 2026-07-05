@@ -168,7 +168,7 @@ describe('Auth: login', () => {
       .post('/api/v1/auth/login')
       .send({ mobile: '+966500000022', password: 'password123' });
 
-    expect(response.status).toBe(401);
+    expect(response.status).toBe(429);
     expect(response.body.message).toMatch(/locked/i);
   });
 

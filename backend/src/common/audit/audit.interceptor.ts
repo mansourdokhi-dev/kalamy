@@ -51,6 +51,8 @@ export class AuditInterceptor implements NestInterceptor {
       return next.handle();
     }
 
+    const entity = this.deriveEntity(context);
+
     return next.handle().pipe(
       tap((responseBody) => {
         this.prisma.auditLog
@@ -58,7 +60,7 @@ export class AuditInterceptor implements NestInterceptor {
             data: {
               userId: request.user?.id,
               action: `${request.method} ${request.url}`,
-              entity: request.url.split('/')[3] ?? 'unknown',
+              entity,
               entityId: this.extractEntityId(responseBody),
               before: this.toJson(request.body),
               after: this.toJson(responseBody),
@@ -67,6 +69,17 @@ export class AuditInterceptor implements NestInterceptor {
           .catch(() => undefined);
       }),
     );
+  }
+
+  /**
+   * Derives the audited "entity" name from the controller handling the
+   * request rather than the URL shape, so nested/renamed routes (e.g. a
+   * future `/api/v1/patients/:id/assessments`) or a changed global prefix
+   * don't silently break audit attribution.
+   */
+  private deriveEntity(context: ExecutionContext): string {
+    const controllerName = context.getClass().name;
+    return controllerName.replace(/Controller$/, '').toLowerCase() || 'unknown';
   }
 
   private extractEntityId(body: unknown): string | undefined {

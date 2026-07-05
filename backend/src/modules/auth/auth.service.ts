@@ -1,4 +1,11 @@
-import { ConflictException, Injectable, NotFoundException, UnauthorizedException } from '@nestjs/common';
+import {
+  ConflictException,
+  HttpException,
+  HttpStatus,
+  Injectable,
+  NotFoundException,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { OtpPurpose, UserStatus } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { OtpService } from './otp.service';
@@ -72,7 +79,7 @@ export class AuthService {
     }
 
     if (user.lockedUntil && user.lockedUntil > new Date()) {
-      throw new UnauthorizedException('Account temporarily locked. Try again later.');
+      throw new HttpException('Account temporarily locked. Try again later.', HttpStatus.TOO_MANY_REQUESTS);
     }
 
     if (user.status !== UserStatus.ACTIVE) {
