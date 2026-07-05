@@ -136,4 +136,22 @@ describe('Assessments: create, list, get', () => {
     expect(response.status).toBe(200);
     expect(response.body.id).toBe(createResponse.body.id);
   });
+
+  it('returns 404 when fetching an assessment via another patient\'s profile id', async () => {
+    const clinicianToken = await createClinicianToken('+966500000311', 'password123');
+    const patientA = await registerActivateAndLogin('+966500000312', 'password123', 'PATIENT');
+    const patientB = await registerActivateAndLogin('+966500000313', 'password123', 'PATIENT');
+    const profileAId = await createPatientProfile(clinicianToken, patientA.userId, 'ASM-TEST-6A');
+    const profileBId = await createPatientProfile(clinicianToken, patientB.userId, 'ASM-TEST-6B');
+    const createResponse = await request(app.getHttpServer())
+      .post(`/api/v1/patients/${profileAId}/assessments`)
+      .set('Authorization', `Bearer ${clinicianToken}`)
+      .send({ type: 'INITIAL' });
+
+    const response = await request(app.getHttpServer())
+      .get(`/api/v1/patients/${profileBId}/assessments/${createResponse.body.id}`)
+      .set('Authorization', `Bearer ${clinicianToken}`);
+
+    expect(response.status).toBe(404);
+  });
 });
