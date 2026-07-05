@@ -1,6 +1,8 @@
-import { Body, Controller, Get, Param, Post, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Param, Post, Put, UseGuards } from '@nestjs/common';
 import { TreatmentPlansService } from './treatment-plans.service';
 import { CreateTreatmentPlanDto } from './dto/create-treatment-plan.dto';
+import { UpdateTreatmentPlanDto } from './dto/update-treatment-plan.dto';
+import { PhaseTransitionDto } from './dto/phase-transition.dto';
 import { SessionGuard, AuthenticatedUser } from '../../common/auth/session.guard';
 import { CurrentUser } from '../../common/auth/current-user.decorator';
 import { PermissionsGuard } from '../../common/rbac/permissions.guard';
@@ -28,5 +30,22 @@ export class TreatmentPlansController {
   @RequirePermission(Permission.VIEW_TREATMENT_PLAN)
   findActive(@Param('patientId') patientId: string, @CurrentUser() user: AuthenticatedUser) {
     return this.treatmentPlansService.findActiveForPatient(patientId, user);
+  }
+
+  @Put(':id')
+  @RequirePermission(Permission.EDIT_TREATMENT_PLAN)
+  update(@Param('patientId') patientId: string, @Param('id') id: string, @Body() dto: UpdateTreatmentPlanDto) {
+    return this.treatmentPlansService.update(patientId, id, dto);
+  }
+
+  @Post(':id/phase-transition')
+  @RequirePermission(Permission.EDIT_TREATMENT_PLAN)
+  recordPhaseTransition(
+    @Param('patientId') patientId: string,
+    @Param('id') id: string,
+    @Body() dto: PhaseTransitionDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.treatmentPlansService.recordPhaseTransition(patientId, id, dto, user);
   }
 }

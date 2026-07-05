@@ -180,4 +180,69 @@ describe('Treatment Plans: create, list, get active', () => {
 
     expect(response.status).toBe(403);
   });
+
+  it('lets a CLINICIAN update plan goals and review date', async () => {
+    const clinicianToken = await createClinicianToken('+966500000410', 'password123');
+    const { profileId, assessmentId } = await setUpPatientWithApprovedAssessment(
+      clinicianToken,
+      '+966500000411',
+      'PLAN-UPD-1',
+    );
+    const planResponse = await request(app.getHttpServer())
+      .post(`/api/v1/patients/${profileId}/treatment-plans`)
+      .set('Authorization', `Bearer ${clinicianToken}`)
+      .send({ assessmentId, goals: 'Original goal', reviewDate: '2026-08-01' });
+
+    const response = await request(app.getHttpServer())
+      .put(`/api/v1/patients/${profileId}/treatment-plans/${planResponse.body.id}`)
+      .set('Authorization', `Bearer ${clinicianToken}`)
+      .send({ goals: 'Updated goal' });
+
+    expect(response.status).toBe(200);
+    expect(response.body.goals).toBe('Updated goal');
+  });
+
+  it('records a clinician-driven phase transition and updates the plan phase', async () => {
+    const clinicianToken = await createClinicianToken('+966500000412', 'password123');
+    const { profileId, assessmentId } = await setUpPatientWithApprovedAssessment(
+      clinicianToken,
+      '+966500000413',
+      'PLAN-UPD-2',
+    );
+    const planResponse = await request(app.getHttpServer())
+      .post(`/api/v1/patients/${profileId}/treatment-plans`)
+      .set('Authorization', `Bearer ${clinicianToken}`)
+      .send({ assessmentId, goals: 'Goal', reviewDate: '2026-08-01' });
+
+    const response = await request(app.getHttpServer())
+      .post(`/api/v1/patients/${profileId}/treatment-plans/${planResponse.body.id}/phase-transition`)
+      .set('Authorization', `Bearer ${clinicianToken}`)
+      .send({ toPhase: 'PHASE_2', rationale: 'Patient met Phase 1 success indicators' });
+
+    expect(response.status).toBe(201);
+    expect(response.body.phase).toBe('PHASE_2');
+  });
+
+  it('rejects a PATIENT trying to record a phase transition', async () => {
+    const clinicianToken = await createClinicianToken('+966500000414', 'password123');
+    const { profileId, assessmentId, patientMobile } = await setUpPatientWithApprovedAssessment(
+      clinicianToken,
+      '+966500000415',
+      'PLAN-UPD-3',
+    );
+    const planResponse = await request(app.getHttpServer())
+      .post(`/api/v1/patients/${profileId}/treatment-plans`)
+      .set('Authorization', `Bearer ${clinicianToken}`)
+      .send({ assessmentId, goals: 'Goal', reviewDate: '2026-08-01' });
+    const patientLogin = await request(app.getHttpServer())
+      .post('/api/v1/auth/login')
+      .send({ mobile: patientMobile, password: 'password123' });
+
+    const response = await request(app.getHttpServer())
+      .post(`/api/v1/patients/${profileId}/treatment-plans/${planResponse.body.id}/phase-transition`)
+      .set('Authorization', `Bearer ${patientLogin.body.token}`)
+      .send({ toPhase: 'PHASE_2' });
+
+    expect(response.status).toBe(403);
+  });
 });

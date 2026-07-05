@@ -1,7 +1,9 @@
 import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
-import { PatientProfile, Role, TreatmentPlan } from '@prisma/client';
+import { PatientProfile, PhaseTransition, Role, TreatmentPlan } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { CreateTreatmentPlanDto } from './dto/create-treatment-plan.dto';
+import { UpdateTreatmentPlanDto } from './dto/update-treatment-plan.dto';
+import { PhaseTransitionDto } from './dto/phase-transition.dto';
 import { AuthenticatedUser } from '../../common/auth/session.guard';
 
 @Injectable()
@@ -64,6 +66,43 @@ export class TreatmentPlansService {
       throw new NotFoundException('Treatment plan not found');
     }
     return plan;
+  }
+
+  async update(patientProfileId: string, id: string, dto: UpdateTreatmentPlanDto): Promise<TreatmentPlan> {
+    await this.findByIdOrThrow(patientProfileId, id);
+    return this.prisma.treatmentPlan.update({
+      where: { id },
+      data: {
+        goals: dto.goals,
+        reviewDate: dto.reviewDate ? new Date(dto.reviewDate) : undefined,
+      },
+    });
+  }
+
+  async recordPhaseTransition(
+    patientProfileId: string,
+    id: string,
+    dto: PhaseTransitionDto,
+    actor: AuthenticatedUser,
+  ): Promise<TreatmentPlan> {
+    const plan = await this.findByIdOrThrow(patientProfileId, id);
+
+    return this.prisma.$transaction(async (tx) => {
+      await tx.phaseTransition.create({
+        data: {
+          treatmentPlanId: id,
+          fromPhase: plan.phase,
+          toPhase: dto.toPhase,
+          clinicianUserId: actor.id,
+          rationale: dto.rationale,
+        },
+      });
+
+      return tx.treatmentPlan.update({
+        where: { id },
+        data: { phase: dto.toPhase },
+      });
+    });
   }
 
   private async findPatientProfileOrThrow(patientProfileId: string): Promise<PatientProfile> {
