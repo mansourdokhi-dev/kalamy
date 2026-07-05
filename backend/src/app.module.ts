@@ -10,6 +10,7 @@ import { AuthModule } from './modules/auth/auth.module';
 import { PatientsModule } from './modules/patients/patients.module';
 import { ExercisesModule } from './modules/exercises/exercises.module';
 import { AssessmentsModule } from './modules/assessments/assessments.module';
+import { TreatmentPlansModule } from './modules/treatment-plans/treatment-plans.module';
 
 @Module({
   imports: [
@@ -19,6 +20,7 @@ import { AssessmentsModule } from './modules/assessments/assessments.module';
     PatientsModule,
     ExercisesModule,
     AssessmentsModule,
+    TreatmentPlansModule,
   ],
   controllers: [AppController],
   providers: [
