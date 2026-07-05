@@ -155,3 +155,137 @@ describe('Assessments: create, list, get', () => {
     expect(response.status).toBe(404);
   });
 });
+
+describe('Assessments: update and approve', () => {
+  let app: INestApplication;
+  let prisma: PrismaService;
+
+  beforeAll(async () => {
+    ({ app, prisma } = await createTestApp());
+  });
+
+  afterAll(async () => {
+    await app.close();
+  });
+
+  beforeEach(async () => {
+    await resetDatabase(prisma);
+  });
+
+  async function createClinicianToken(mobile: string, password: string): Promise<string> {
+    const registerResponse = await request(app.getHttpServer()).post('/api/v1/auth/register').send({
+      fullName: 'Clinician User',
+      mobile,
+      password,
+      role: 'PATIENT',
+    });
+    await request(app.getHttpServer())
+      .post('/api/v1/auth/verify')
+      .send({ mobile, code: registerResponse.body.devOtpCode });
+    await prisma.user.update({ where: { mobile }, data: { role: 'CLINICIAN' } });
+    const loginResponse = await request(app.getHttpServer()).post('/api/v1/auth/login').send({ mobile, password });
+    return loginResponse.body.token;
+  }
+
+  async function setUpPatientWithDraftAssessment(clinicianToken: string, patientMobile: string, nationalId: string) {
+    const patientRegister = await request(app.getHttpServer()).post('/api/v1/auth/register').send({
+      fullName: 'Draft Assessment Patient',
+      mobile: patientMobile,
+      password: 'password123',
+      role: 'PATIENT',
+    });
+    await request(app.getHttpServer())
+      .post('/api/v1/auth/verify')
+      .send({ mobile: patientMobile, code: patientRegister.body.devOtpCode });
+    const profileResponse = await request(app.getHttpServer())
+      .post('/api/v1/patients')
+      .set('Authorization', `Bearer ${clinicianToken}`)
+      .send({
+        userId: patientRegister.body.userId,
+        fullName: 'Draft Assessment Patient',
+        gender: 'FEMALE',
+        dateOfBirth: '1995-01-01',
+        nationalId,
+      });
+    const assessmentResponse = await request(app.getHttpServer())
+      .post(`/api/v1/patients/${profileResponse.body.id}/assessments`)
+      .set('Authorization', `Bearer ${clinicianToken}`)
+      .send({ type: 'INITIAL' });
+    return { profileId: profileResponse.body.id, assessmentId: assessmentResponse.body.id };
+  }
+
+  it('lets a CLINICIAN update a draft assessment with SSI-4 scores', async () => {
+    const clinicianToken = await createClinicianToken('+966500000320', 'password123');
+    const { profileId, assessmentId } = await setUpPatientWithDraftAssessment(
+      clinicianToken,
+      '+966500000321',
+      'ASM-UPD-1',
+    );
+
+    const response = await request(app.getHttpServer())
+      .put(`/api/v1/patients/${profileId}/assessments/${assessmentId}`)
+      .set('Authorization', `Bearer ${clinicianToken}`)
+      .send({ ssi4Frequency: 12, ssi4Duration: 3, ssi4PhysicalConcomitants: 2, ssi4Total: 17 });
+
+    expect(response.status).toBe(200);
+    expect(response.body.ssi4Total).toBe(17);
+  });
+
+  it('approves a draft assessment with a clinician-assigned severity category', async () => {
+    const clinicianToken = await createClinicianToken('+966500000322', 'password123');
+    const { profileId, assessmentId } = await setUpPatientWithDraftAssessment(
+      clinicianToken,
+      '+966500000323',
+      'ASM-UPD-2',
+    );
+
+    const response = await request(app.getHttpServer())
+      .post(`/api/v1/patients/${profileId}/assessments/${assessmentId}/approve`)
+      .set('Authorization', `Bearer ${clinicianToken}`)
+      .send({ severityCategory: 'MODERATE' });
+
+    expect(response.status).toBe(201);
+    expect(response.body.status).toBe('APPROVED');
+    expect(response.body.severityCategory).toBe('MODERATE');
+    expect(response.body.approvedAt).not.toBeNull();
+  });
+
+  it('rejects updating an already-approved assessment', async () => {
+    const clinicianToken = await createClinicianToken('+966500000324', 'password123');
+    const { profileId, assessmentId } = await setUpPatientWithDraftAssessment(
+      clinicianToken,
+      '+966500000325',
+      'ASM-UPD-3',
+    );
+    await request(app.getHttpServer())
+      .post(`/api/v1/patients/${profileId}/assessments/${assessmentId}/approve`)
+      .set('Authorization', `Bearer ${clinicianToken}`)
+      .send({ severityCategory: 'MILD' });
+
+    const response = await request(app.getHttpServer())
+      .put(`/api/v1/patients/${profileId}/assessments/${assessmentId}`)
+      .set('Authorization', `Bearer ${clinicianToken}`)
+      .send({ clinicianNotes: 'Trying to edit after approval' });
+
+    expect(response.status).toBe(400);
+  });
+
+  it('rejects a PATIENT trying to approve an assessment', async () => {
+    const clinicianToken = await createClinicianToken('+966500000326', 'password123');
+    const { profileId, assessmentId } = await setUpPatientWithDraftAssessment(
+      clinicianToken,
+      '+966500000327',
+      'ASM-UPD-4',
+    );
+    const patientLogin = await request(app.getHttpServer())
+      .post('/api/v1/auth/login')
+      .send({ mobile: '+966500000327', password: 'password123' });
+
+    const response = await request(app.getHttpServer())
+      .post(`/api/v1/patients/${profileId}/assessments/${assessmentId}/approve`)
+      .set('Authorization', `Bearer ${patientLogin.body.token}`)
+      .send({ severityCategory: 'MILD' });
+
+    expect(response.status).toBe(403);
+  });
+});
