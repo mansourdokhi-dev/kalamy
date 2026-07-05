@@ -37,6 +37,42 @@ enum PatientProfileStatus {
   DISABLED
 }
 
+enum AssessmentType {
+  INITIAL
+  PERIODIC
+  FINAL
+}
+
+enum AssessmentStatus {
+  DRAFT
+  APPROVED
+}
+
+enum SeverityCategory {
+  MILD
+  MODERATE
+  SEVERE
+  VERY_SEVERE
+}
+
+enum TreatmentPhase {
+  PHASE_1
+  PHASE_2
+  PHASE_3
+  PHASE_4
+  PHASE_5
+}
+
+enum PlanStatus {
+  ACTIVE
+  INACTIVE
+}
+
+enum ExerciseStatus {
+  ACTIVE
+  ARCHIVED
+}
+
 model User {
   id                  String     @id @default(uuid())
   fullName            String
@@ -53,9 +89,13 @@ model User {
   otpCodes                OtpCode[]
   sessions                Session[]
   auditLogs               AuditLog[]
-  patientProfile          PatientProfile? @relation("PatientProfileUser")
-  guardianLinksAsPatient  GuardianLink[]  @relation("GuardianLinkPatient")
-  guardianLinksAsGuardian GuardianLink[]  @relation("GuardianLinkGuardian")
+  patientProfile          PatientProfile?   @relation("PatientProfileUser")
+  guardianLinksAsPatient  GuardianLink[]    @relation("GuardianLinkPatient")
+  guardianLinksAsGuardian GuardianLink[]    @relation("GuardianLinkGuardian")
+  assessments             Assessment[]
+  treatmentPlans          TreatmentPlan[]
+  phaseTransitions        PhaseTransition[]
+  exercisesCreated        Exercise[]
 }
 
 model OtpCode {
@@ -109,7 +149,9 @@ model PatientProfile {
   createdAt      DateTime             @default(now())
   updatedAt      DateTime             @updatedAt
 
-  clinicalInfo PatientClinicalInfo?
+  clinicalInfo   PatientClinicalInfo?
+  assessments    Assessment[]
+  treatmentPlans TreatmentPlan[]
 }
 
 model PatientClinicalInfo {
@@ -137,4 +179,94 @@ model AuditLog {
   before    Json?
   after     Json?
   createdAt DateTime @default(now())
+}
+
+model Assessment {
+  id                       String            @id @default(uuid())
+  patientProfileId         String
+  patientProfile           PatientProfile    @relation(fields: [patientProfileId], references: [id])
+  clinicianUserId          String
+  clinicianUser            User              @relation(fields: [clinicianUserId], references: [id])
+  type                     AssessmentType
+  status                   AssessmentStatus  @default(DRAFT)
+  medicalHistory           String?
+  difficultSituations      String?
+  anxietyLevel             String?
+  initialGoals             String?
+  clinicianNotes           String?
+  ssi4Frequency            Int?
+  ssi4Duration             Int?
+  ssi4PhysicalConcomitants Int?
+  ssi4Total                Int?
+  severityCategory         SeverityCategory?
+  approvedAt               DateTime?
+  createdAt                DateTime          @default(now())
+  updatedAt                DateTime          @updatedAt
+
+  treatmentPlans TreatmentPlan[]
+
+  @@index([patientProfileId, createdAt])
+}
+
+model TreatmentPlan {
+  id               String         @id @default(uuid())
+  patientProfileId String
+  patientProfile   PatientProfile @relation(fields: [patientProfileId], references: [id])
+  clinicianUserId  String
+  clinicianUser    User           @relation(fields: [clinicianUserId], references: [id])
+  assessmentId     String
+  assessment       Assessment     @relation(fields: [assessmentId], references: [id])
+  phase            TreatmentPhase @default(PHASE_1)
+  goals            String
+  reviewDate       DateTime
+  status           PlanStatus     @default(ACTIVE)
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+
+  phaseTransitions PhaseTransition[]
+  planExercises    PlanExercise[]
+
+  @@index([patientProfileId, status])
+}
+
+model PhaseTransition {
+  id              String         @id @default(uuid())
+  treatmentPlanId String
+  treatmentPlan   TreatmentPlan  @relation(fields: [treatmentPlanId], references: [id])
+  fromPhase       TreatmentPhase
+  toPhase         TreatmentPhase
+  clinicianUserId String
+  clinicianUser   User           @relation(fields: [clinicianUserId], references: [id])
+  rationale       String?
+  createdAt       DateTime       @default(now())
+}
+
+model Exercise {
+  id              String         @id @default(uuid())
+  title           String
+  category        String
+  phaseLevel      Int
+  instructions    String
+  mediaUrl        String?
+  durationMinutes Int
+  status          ExerciseStatus @default(ACTIVE)
+  createdByUserId String
+  createdByUser   User           @relation(fields: [createdByUserId], references: [id])
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+
+  planExercises PlanExercise[]
+}
+
+model PlanExercise {
+  id               String        @id @default(uuid())
+  treatmentPlanId  String
+  treatmentPlan    TreatmentPlan @relation(fields: [treatmentPlanId], references: [id])
+  exerciseId       String
+  exercise         Exercise      @relation(fields: [exerciseId], references: [id])
+  frequencyPerWeek Int
+  sequence         Int
+  createdAt        DateTime      @default(now())
+
+  @@unique([treatmentPlanId, exerciseId])
 }

@@ -18,6 +18,11 @@ export async function createTestApp(): Promise<{ app: INestApplication; prisma: 
 export async function resetDatabase(prisma: PrismaService): Promise<void> {
   await prisma.$transaction([
     prisma.auditLog.deleteMany(),
+    prisma.planExercise.deleteMany(),
+    prisma.phaseTransition.deleteMany(),
+    prisma.treatmentPlan.deleteMany(),
+    prisma.assessment.deleteMany(),
+    prisma.exercise.deleteMany(),
     prisma.patientClinicalInfo.deleteMany(),
     prisma.patientProfile.deleteMany(),
     prisma.guardianLink.deleteMany(),
