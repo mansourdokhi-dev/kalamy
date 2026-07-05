@@ -32,6 +32,16 @@ export class AssessmentsController {
     return this.assessmentsService.findById(patientId, id, user);
   }
 
+  @Get(':id/baseline-comparison')
+  @RequirePermission(Permission.VIEW_ASSESSMENT)
+  getBaselineComparison(
+    @Param('patientId') patientId: string,
+    @Param('id') id: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.assessmentsService.getBaselineComparison(patientId, id, user);
+  }
+
   @Put(':id')
   @RequirePermission(Permission.EDIT_ASSESSMENT)
   update(@Param('patientId') patientId: string, @Param('id') id: string, @Body() dto: UpdateAssessmentDto) {

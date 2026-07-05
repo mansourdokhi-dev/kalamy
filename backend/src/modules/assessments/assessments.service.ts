@@ -76,6 +76,40 @@ export class AssessmentsService {
     });
   }
 
+  async getBaselineComparison(
+    patientProfileId: string,
+    id: string,
+    actor: AuthenticatedUser,
+  ): Promise<{
+    current: Assessment;
+    baseline: Assessment | null;
+    delta: { ssi4FrequencyDelta: number; ssi4DurationDelta: number; ssi4PhysicalConcomitantsDelta: number; ssi4TotalDelta: number } | null;
+  }> {
+    const profile = await this.findPatientProfileOrThrow(patientProfileId);
+    await this.assertCanAccess(actor, profile);
+    const current = await this.findOwnAssessmentOrThrow(patientProfileId, id);
+
+    const baseline = await this.prisma.assessment.findFirst({
+      where: { patientProfileId, status: 'APPROVED' },
+      orderBy: { approvedAt: 'asc' },
+    });
+
+    if (!baseline || baseline.ssi4Total === null || current.ssi4Total === null) {
+      return { current, baseline, delta: null };
+    }
+
+    return {
+      current,
+      baseline,
+      delta: {
+        ssi4FrequencyDelta: (current.ssi4Frequency ?? 0) - (baseline.ssi4Frequency ?? 0),
+        ssi4DurationDelta: (current.ssi4Duration ?? 0) - (baseline.ssi4Duration ?? 0),
+        ssi4PhysicalConcomitantsDelta: (current.ssi4PhysicalConcomitants ?? 0) - (baseline.ssi4PhysicalConcomitants ?? 0),
+        ssi4TotalDelta: current.ssi4Total - baseline.ssi4Total,
+      },
+    };
+  }
+
   private async findOwnAssessmentOrThrow(patientProfileId: string, id: string): Promise<Assessment> {
     const assessment = await this.prisma.assessment.findUnique({ where: { id } });
     if (!assessment || assessment.patientProfileId !== patientProfileId) {

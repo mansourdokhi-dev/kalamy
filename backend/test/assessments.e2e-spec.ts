@@ -154,6 +154,65 @@ describe('Assessments: create, list, get', () => {
 
     expect(response.status).toBe(404);
   });
+
+  it('compares a re-assessment against the baseline (first approved assessment)', async () => {
+    const clinicianToken = await createClinicianToken('+966500000330', 'password123');
+    const patient = await registerActivateAndLogin('+966500000331', 'password123', 'PATIENT');
+    const profileId = await createPatientProfile(clinicianToken, patient.userId, 'ASM-BASE-1');
+
+    const initialResponse = await request(app.getHttpServer())
+      .post(`/api/v1/patients/${profileId}/assessments`)
+      .set('Authorization', `Bearer ${clinicianToken}`)
+      .send({ type: 'INITIAL' });
+    await request(app.getHttpServer())
+      .put(`/api/v1/patients/${profileId}/assessments/${initialResponse.body.id}`)
+      .set('Authorization', `Bearer ${clinicianToken}`)
+      .send({ ssi4Frequency: 15, ssi4Duration: 4, ssi4PhysicalConcomitants: 3, ssi4Total: 22 });
+    await request(app.getHttpServer())
+      .post(`/api/v1/patients/${profileId}/assessments/${initialResponse.body.id}/approve`)
+      .set('Authorization', `Bearer ${clinicianToken}`)
+      .send({ severityCategory: 'SEVERE' });
+
+    const periodicResponse = await request(app.getHttpServer())
+      .post(`/api/v1/patients/${profileId}/assessments`)
+      .set('Authorization', `Bearer ${clinicianToken}`)
+      .send({ type: 'PERIODIC' });
+    await request(app.getHttpServer())
+      .put(`/api/v1/patients/${profileId}/assessments/${periodicResponse.body.id}`)
+      .set('Authorization', `Bearer ${clinicianToken}`)
+      .send({ ssi4Frequency: 9, ssi4Duration: 2, ssi4PhysicalConcomitants: 1, ssi4Total: 12 });
+    await request(app.getHttpServer())
+      .post(`/api/v1/patients/${profileId}/assessments/${periodicResponse.body.id}/approve`)
+      .set('Authorization', `Bearer ${clinicianToken}`)
+      .send({ severityCategory: 'MODERATE' });
+
+    const response = await request(app.getHttpServer())
+      .get(`/api/v1/patients/${profileId}/assessments/${periodicResponse.body.id}/baseline-comparison`)
+      .set('Authorization', `Bearer ${clinicianToken}`);
+
+    expect(response.status).toBe(200);
+    expect(response.body.baseline.id).toBe(initialResponse.body.id);
+    expect(response.body.current.id).toBe(periodicResponse.body.id);
+    expect(response.body.delta.ssi4TotalDelta).toBe(-10);
+  });
+
+  it('returns a null baseline when no approved assessment exists yet', async () => {
+    const clinicianToken = await createClinicianToken('+966500000332', 'password123');
+    const patient = await registerActivateAndLogin('+966500000333', 'password123', 'PATIENT');
+    const profileId = await createPatientProfile(clinicianToken, patient.userId, 'ASM-BASE-2');
+    const draftResponse = await request(app.getHttpServer())
+      .post(`/api/v1/patients/${profileId}/assessments`)
+      .set('Authorization', `Bearer ${clinicianToken}`)
+      .send({ type: 'INITIAL' });
+
+    const response = await request(app.getHttpServer())
+      .get(`/api/v1/patients/${profileId}/assessments/${draftResponse.body.id}/baseline-comparison`)
+      .set('Authorization', `Bearer ${clinicianToken}`);
+
+    expect(response.status).toBe(200);
+    expect(response.body.baseline).toBeNull();
+    expect(response.body.delta).toBeNull();
+  });
 });
 
 describe('Assessments: update and approve', () => {
