@@ -9,9 +9,17 @@ import { AuditInterceptor } from './common/audit/audit.interceptor';
 import { AuthModule } from './modules/auth/auth.module';
 import { PatientsModule } from './modules/patients/patients.module';
 import { ExercisesModule } from './modules/exercises/exercises.module';
+import { AssessmentsModule } from './modules/assessments/assessments.module';
 
 @Module({
-  imports: [ConfigModule.forRoot({ isGlobal: true }), PrismaModule, AuthModule, PatientsModule, ExercisesModule],
+  imports: [
+    ConfigModule.forRoot({ isGlobal: true }),
+    PrismaModule,
+    AuthModule,
+    PatientsModule,
+    ExercisesModule,
+    AssessmentsModule,
+  ],
   controllers: [AppController],
   providers: [
     { provide: APP_FILTER, useClass: AllExceptionsFilter },
