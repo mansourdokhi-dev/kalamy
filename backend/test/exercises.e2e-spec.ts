@@ -182,4 +182,113 @@ describe('Exercises: create, list, get', () => {
 
     expect(response.status).toBe(404);
   });
+
+  it('lets a CLINICIAN update an exercise', async () => {
+    const token = await createClinicianToken('+966500000215', 'password123');
+    const createResponse = await request(app.getHttpServer())
+      .post('/api/v1/exercises')
+      .set('Authorization', `Bearer ${token}`)
+      .send({
+        title: 'Original Title',
+        category: 'Breathing',
+        phaseLevel: 1,
+        instructions: 'N/A',
+        durationMinutes: 5,
+      });
+
+    const response = await request(app.getHttpServer())
+      .put(`/api/v1/exercises/${createResponse.body.id}`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({ title: 'Updated Title' });
+
+    expect(response.status).toBe(200);
+    expect(response.body.title).toBe('Updated Title');
+  });
+
+  it('archives an exercise not referenced by any active plan', async () => {
+    const token = await createClinicianToken('+966500000216', 'password123');
+    const createResponse = await request(app.getHttpServer())
+      .post('/api/v1/exercises')
+      .set('Authorization', `Bearer ${token}`)
+      .send({
+        title: 'Unused Exercise',
+        category: 'Breathing',
+        phaseLevel: 1,
+        instructions: 'N/A',
+        durationMinutes: 5,
+      });
+
+    const response = await request(app.getHttpServer())
+      .patch(`/api/v1/exercises/${createResponse.body.id}/status`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({ status: 'ARCHIVED' });
+
+    expect(response.status).toBe(200);
+    expect(response.body.status).toBe('ARCHIVED');
+  });
+
+  it('rejects archiving an exercise referenced by an active plan', async () => {
+    const token = await createClinicianToken('+966500000217', 'password123');
+    const patientRegister = await request(app.getHttpServer()).post('/api/v1/auth/register').send({
+      fullName: 'Plan Patient',
+      mobile: '+966500000218',
+      password: 'password123',
+      role: 'PATIENT',
+    });
+    await request(app.getHttpServer())
+      .post('/api/v1/auth/verify')
+      .send({ mobile: '+966500000218', code: patientRegister.body.devOtpCode });
+
+    const patientProfileResponse = await request(app.getHttpServer())
+      .post('/api/v1/patients')
+      .set('Authorization', `Bearer ${token}`)
+      .send({
+        userId: patientRegister.body.userId,
+        fullName: 'Plan Patient',
+        gender: 'MALE',
+        dateOfBirth: '1990-01-01',
+        nationalId: 'ARCHIVE-TEST-1',
+      });
+
+    const exerciseResponse = await request(app.getHttpServer())
+      .post('/api/v1/exercises')
+      .set('Authorization', `Bearer ${token}`)
+      .send({
+        title: 'In-Use Exercise',
+        category: 'Breathing',
+        phaseLevel: 1,
+        instructions: 'N/A',
+        durationMinutes: 5,
+      });
+
+    const assessmentResponse = await request(app.getHttpServer())
+      .post(`/api/v1/patients/${patientProfileResponse.body.id}/assessments`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({ type: 'INITIAL' });
+    await request(app.getHttpServer())
+      .post(`/api/v1/patients/${patientProfileResponse.body.id}/assessments/${assessmentResponse.body.id}/approve`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({ severityCategory: 'MILD' });
+
+    const planResponse = await request(app.getHttpServer())
+      .post(`/api/v1/patients/${patientProfileResponse.body.id}/treatment-plans`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({
+        assessmentId: assessmentResponse.body.id,
+        goals: 'Reduce stuttering frequency',
+        reviewDate: '2026-08-01',
+      });
+
+    await request(app.getHttpServer())
+      .post(`/api/v1/patients/${patientProfileResponse.body.id}/treatment-plans/${planResponse.body.id}/exercises`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({ exerciseId: exerciseResponse.body.id, frequencyPerWeek: 3, sequence: 1 });
+
+    const archiveResponse = await request(app.getHttpServer())
+      .patch(`/api/v1/exercises/${exerciseResponse.body.id}/status`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({ status: 'ARCHIVED' });
+
+    expect(archiveResponse.status).toBe(400);
+  });
 });
