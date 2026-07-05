@@ -5,6 +5,7 @@ import { calculateAge } from './patient-age.util';
 import { CreatePatientDto } from './dto/create-patient.dto';
 import { UpdatePatientDto } from './dto/update-patient.dto';
 import { LinkGuardianDto } from './dto/link-guardian.dto';
+import { UpdateStatusDto } from './dto/update-status.dto';
 import { AuthenticatedUser } from '../../common/auth/session.guard';
 
 @Injectable()
@@ -147,6 +148,29 @@ export class PatientsService {
         guardianUserId: dto.guardianUserId,
         relationship: dto.relationship,
       },
+    });
+  }
+
+  async updateStatus(id: string, dto: UpdateStatusDto): Promise<PatientProfile> {
+    const profile = await this.prisma.patientProfile.findUnique({ where: { id } });
+    if (!profile) {
+      throw new NotFoundException('Patient profile not found');
+    }
+    return this.prisma.patientProfile.update({
+      where: { id },
+      data: { status: dto.status },
+    });
+  }
+
+  async search(query: string | undefined): Promise<PatientProfile[]> {
+    return this.prisma.patientProfile.findMany({
+      where: query
+        ? {
+            OR: [{ fullName: { contains: query, mode: 'insensitive' } }, { nationalId: { contains: query } }],
+          }
+        : undefined,
+      include: { clinicalInfo: true },
+      take: 50,
     });
   }
 }

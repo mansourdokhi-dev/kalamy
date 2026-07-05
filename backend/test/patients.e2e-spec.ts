@@ -464,3 +464,138 @@ describe('Patients: link guardian', () => {
     expect(linkResponse.status).toBe(403);
   });
 });
+
+describe('Patients: disable and search', () => {
+  let app: INestApplication;
+  let prisma: PrismaService;
+
+  beforeAll(async () => {
+    ({ app, prisma } = await createTestApp());
+  });
+
+  afterAll(async () => {
+    await app.close();
+  });
+
+  beforeEach(async () => {
+    await resetDatabase(prisma);
+  });
+
+  async function loginAs(mobile: string, password: string): Promise<string> {
+    const response = await request(app.getHttpServer()).post('/api/v1/auth/login').send({ mobile, password });
+    return response.body.token;
+  }
+
+  async function registerActivateAndLogin(mobile: string, password: string, role: 'PATIENT' | 'CAREGIVER') {
+    const registerResponse = await request(app.getHttpServer()).post('/api/v1/auth/register').send({
+      fullName: 'Test User',
+      mobile,
+      password,
+      role,
+    });
+    await request(app.getHttpServer())
+      .post('/api/v1/auth/verify')
+      .send({ mobile, code: registerResponse.body.devOtpCode });
+    return { token: await loginAs(mobile, password), userId: registerResponse.body.userId };
+  }
+
+  async function createClinicianToken(mobile: string, password: string): Promise<string> {
+    const registerResponse = await request(app.getHttpServer()).post('/api/v1/auth/register').send({
+      fullName: 'Clinician User',
+      mobile,
+      password,
+      role: 'PATIENT',
+    });
+    await request(app.getHttpServer())
+      .post('/api/v1/auth/verify')
+      .send({ mobile, code: registerResponse.body.devOtpCode });
+    await prisma.user.update({ where: { mobile }, data: { role: 'CLINICIAN' } });
+    return loginAs(mobile, password);
+  }
+
+  it('disables a profile without deleting the row', async () => {
+    const clinicianToken = await createClinicianToken('+966500000110', 'password123');
+    const patient = await registerActivateAndLogin('+966500000111', 'password123', 'PATIENT');
+
+    const createResponse = await request(app.getHttpServer())
+      .post('/api/v1/patients')
+      .set('Authorization', `Bearer ${clinicianToken}`)
+      .send({
+        userId: patient.userId,
+        fullName: 'To Be Disabled',
+        gender: 'MALE',
+        dateOfBirth: '1990-05-01',
+        nationalId: 'DISABLE-TEST-1',
+      });
+    const profileId = createResponse.body.id;
+
+    const disableResponse = await request(app.getHttpServer())
+      .patch(`/api/v1/patients/${profileId}/status`)
+      .set('Authorization', `Bearer ${clinicianToken}`)
+      .send({ status: 'DISABLED' });
+
+    expect(disableResponse.status).toBe(200);
+    expect(disableResponse.body.status).toBe('DISABLED');
+
+    const stillExists = await prisma.patientProfile.findUnique({ where: { id: profileId } });
+    expect(stillExists).not.toBeNull();
+  });
+
+  it('rejects a PATIENT trying to disable a profile', async () => {
+    const clinicianToken = await createClinicianToken('+966500000112', 'password123');
+    const patient = await registerActivateAndLogin('+966500000113', 'password123', 'PATIENT');
+
+    const createResponse = await request(app.getHttpServer())
+      .post('/api/v1/patients')
+      .set('Authorization', `Bearer ${clinicianToken}`)
+      .send({
+        userId: patient.userId,
+        fullName: 'Protected Profile',
+        gender: 'MALE',
+        dateOfBirth: '1990-05-01',
+        nationalId: 'DISABLE-TEST-2',
+      });
+    const profileId = createResponse.body.id;
+
+    const disableResponse = await request(app.getHttpServer())
+      .patch(`/api/v1/patients/${profileId}/status`)
+      .set('Authorization', `Bearer ${patient.token}`)
+      .send({ status: 'DISABLED' });
+
+    expect(disableResponse.status).toBe(403);
+  });
+
+  it('lets a clinician search patients by name', async () => {
+    const clinicianToken = await createClinicianToken('+966500000114', 'password123');
+    const patient = await registerActivateAndLogin('+966500000115', 'password123', 'PATIENT');
+
+    await request(app.getHttpServer())
+      .post('/api/v1/patients')
+      .set('Authorization', `Bearer ${clinicianToken}`)
+      .send({
+        userId: patient.userId,
+        fullName: 'Findable Patient Name',
+        gender: 'MALE',
+        dateOfBirth: '1990-05-01',
+        nationalId: 'SEARCH-TEST-1',
+      });
+
+    const response = await request(app.getHttpServer())
+      .get('/api/v1/patients?q=Findable')
+      .set('Authorization', `Bearer ${clinicianToken}`);
+
+    expect(response.status).toBe(200);
+    expect(response.body).toHaveLength(1);
+    expect(response.body[0].fullName).toBe('Findable Patient Name');
+  });
+
+  it('rejects a PATIENT trying to search', async () => {
+    const patient = await registerActivateAndLogin('+966500000116', 'password123', 'PATIENT');
+
+    const response = await request(app.getHttpServer())
+      .get('/api/v1/patients?q=anything')
+      .set('Authorization', `Bearer ${patient.token}`);
+
+    expect(response.status).toBe(403);
+  });
+});

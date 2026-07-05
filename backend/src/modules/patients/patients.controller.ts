@@ -1,8 +1,9 @@
-import { Body, Controller, Get, Param, Post, Put, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Param, Patch, Post, Put, Query, UseGuards } from '@nestjs/common';
 import { PatientsService } from './patients.service';
 import { CreatePatientDto } from './dto/create-patient.dto';
 import { UpdatePatientDto } from './dto/update-patient.dto';
 import { LinkGuardianDto } from './dto/link-guardian.dto';
+import { UpdateStatusDto } from './dto/update-status.dto';
 import { SessionGuard, AuthenticatedUser } from '../../common/auth/session.guard';
 import { CurrentUser } from '../../common/auth/current-user.decorator';
 import { PermissionsGuard } from '../../common/rbac/permissions.guard';
@@ -36,5 +37,17 @@ export class PatientsController {
   @RequirePermission(Permission.LINK_GUARDIAN)
   linkGuardian(@Param('id') id: string, @Body() dto: LinkGuardianDto) {
     return this.patientsService.linkGuardian(id, dto);
+  }
+
+  @Get()
+  @RequirePermission(Permission.SEARCH_PATIENTS)
+  search(@Query('q') q?: string) {
+    return this.patientsService.search(q);
+  }
+
+  @Patch(':id/status')
+  @RequirePermission(Permission.DISABLE_PATIENT_PROFILE)
+  updateStatus(@Param('id') id: string, @Body() dto: UpdateStatusDto) {
+    return this.patientsService.updateStatus(id, dto);
   }
 }
