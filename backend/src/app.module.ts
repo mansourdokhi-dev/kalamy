@@ -11,6 +11,7 @@ import { PatientsModule } from './modules/patients/patients.module';
 import { ExercisesModule } from './modules/exercises/exercises.module';
 import { AssessmentsModule } from './modules/assessments/assessments.module';
 import { TreatmentPlansModule } from './modules/treatment-plans/treatment-plans.module';
+import { SessionsModule } from './modules/sessions/sessions.module';
 
 @Module({
   imports: [
@@ -21,6 +22,7 @@ import { TreatmentPlansModule } from './modules/treatment-plans/treatment-plans.
     ExercisesModule,
     AssessmentsModule,
     TreatmentPlansModule,
+    SessionsModule,
   ],
   controllers: [AppController],
   providers: [
