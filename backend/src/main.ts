@@ -10,7 +10,7 @@ async function bootstrap() {
 
   const config = new DocumentBuilder()
     .setTitle('Kalamy API')
-    .setDescription('Kalamy foundation: Auth + Patient Profile modules')
+    .setDescription('Kalamy foundation: Auth + Patient Profile, Assessment, Treatment Plan, and Exercise Library modules')
     .setVersion('0.1.0')
     .addBearerAuth()
     .build();
