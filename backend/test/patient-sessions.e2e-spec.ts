@@ -308,6 +308,62 @@ describe('Patient Sessions: start the program', () => {
     expect(currentResponse.body.attemptNumber).toBe(1);
   });
 
+  it('does not create a session 31 phantom attempt when the clinician approves session 30', async () => {
+    const clinicianToken = await createClinicianToken('+966500000738', 'password123');
+    await request(app.getHttpServer()).post('/api/v1/session-templates').set('Authorization', `Bearer ${clinicianToken}`).send({
+      sessionNumber: 1,
+      category: 1,
+      trainingDurationDays: 3,
+      instructions: 'Session 1 instructions.',
+    });
+    const session30Template = await request(app.getHttpServer())
+      .post('/api/v1/session-templates')
+      .set('Authorization', `Bearer ${clinicianToken}`)
+      .send({
+        sessionNumber: 30,
+        category: 11,
+        trainingDurationDays: 7,
+        instructions: 'Session 30 instructions.',
+      });
+    const { profileId, patientToken } = await setUpPatientWithActivePlan(clinicianToken, '+966500000739', 'SES-TEST-13');
+
+    await request(app.getHttpServer())
+      .post(`/api/v1/patients/${profileId}/sessions/start`)
+      .set('Authorization', `Bearer ${patientToken}`);
+    // Point the patient's current attempt at session 30 instead of session 1, and backdate
+    // trainingStartedAt so the 7-day requirement has already elapsed.
+    await prisma.patientSession.updateMany({
+      where: { patientProfileId: profileId },
+      data: {
+        sessionTemplateId: session30Template.body.id,
+        trainingStartedAt: new Date(Date.now() - 8 * 24 * 60 * 60 * 1000),
+      },
+    });
+
+    const submitResponse = await request(app.getHttpServer())
+      .post(`/api/v1/patients/${profileId}/sessions/current/submit`)
+      .set('Authorization', `Bearer ${patientToken}`)
+      .send({ sampleVideoUrl: 'https://example.com/sample.mp4' });
+    expect(submitResponse.status).toBe(201);
+
+    const reviewResponse = await request(app.getHttpServer())
+      .post(`/api/v1/patients/${profileId}/sessions/current/review`)
+      .set('Authorization', `Bearer ${clinicianToken}`)
+      .send({ decision: 'APPROVE', reviewNotes: 'Program complete.', clinicianOpinionScore: 9 });
+
+    expect(reviewResponse.status).toBe(201);
+    expect(reviewResponse.body.status).toBe('APPROVED');
+
+    const allSessions = await prisma.patientSession.findMany({ where: { patientProfileId: profileId } });
+    expect(allSessions).toHaveLength(1);
+
+    const currentResponse = await request(app.getHttpServer())
+      .get(`/api/v1/patients/${profileId}/sessions/current`)
+      .set('Authorization', `Bearer ${patientToken}`);
+    expect(currentResponse.body.status).toBe('APPROVED');
+    expect(currentResponse.body.sessionTemplateId).toBe(session30Template.body.id);
+  });
+
   it('creates a new attempt at the same session when the clinician requires a repeat', async () => {
     const clinicianToken = await createClinicianToken('+966500000732', 'password123');
     await request(app.getHttpServer()).post('/api/v1/session-templates').set('Authorization', `Bearer ${clinicianToken}`).send({
