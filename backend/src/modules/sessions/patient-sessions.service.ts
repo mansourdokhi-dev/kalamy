@@ -6,6 +6,7 @@ import { SessionTemplatesService } from './session-templates.service';
 import { AuthenticatedUser } from '../../common/auth/session.guard';
 import { SubmitRatingsDto } from './dto/submit-ratings.dto';
 import { SubmitSampleDto } from './dto/submit-sample.dto';
+import { ReviewSessionDto } from './dto/review-session.dto';
 
 @Injectable()
 export class PatientSessionsService {
@@ -104,6 +105,71 @@ export class PatientSessionsService {
         sampleSubmittedAt: new Date(),
         status: 'SUBMITTED',
       },
+    });
+  }
+
+  async review(patientProfileId: string, dto: ReviewSessionDto, actor: AuthenticatedUser): Promise<PatientSession> {
+    await this.findPatientProfileOrThrow(patientProfileId);
+
+    const current = await this.prisma.patientSession.findFirst({
+      where: { patientProfileId },
+      orderBy: { createdAt: 'desc' },
+    });
+    if (!current) {
+      throw new NotFoundException('No session has been started for this patient yet');
+    }
+    if (current.status !== 'SUBMITTED') {
+      throw new BadRequestException('Only a submitted attempt can be reviewed');
+    }
+
+    return this.prisma.$transaction(async (tx) => {
+      const decisionStatus = dto.decision === 'APPROVE' ? 'APPROVED' : 'REPEAT_REQUIRED';
+      const reviewed = await tx.patientSession.update({
+        where: { id: current.id },
+        data: {
+          status: decisionStatus,
+          clinicianUserId: actor.id,
+          reviewNotes: dto.reviewNotes,
+          clinicianOpinionScore: dto.clinicianOpinionScore,
+          reviewedAt: new Date(),
+        },
+      });
+
+      if (dto.decision === 'REPEAT') {
+        await tx.patientSession.create({
+          data: {
+            patientProfileId,
+            treatmentPlanId: current.treatmentPlanId,
+            sessionTemplateId: current.sessionTemplateId,
+            attemptNumber: current.attemptNumber + 1,
+          },
+        });
+        return reviewed;
+      }
+
+      const currentTemplate = await tx.sessionTemplate.findUnique({ where: { id: current.sessionTemplateId } });
+      if (!currentTemplate) {
+        throw new NotFoundException('Session template not found');
+      }
+
+      if (currentTemplate.sessionNumber < 30) {
+        const nextTemplate = await tx.sessionTemplate.findUnique({
+          where: { sessionNumber: currentTemplate.sessionNumber + 1 },
+        });
+        if (!nextTemplate) {
+          throw new NotFoundException(`Session template ${currentTemplate.sessionNumber + 1} not found`);
+        }
+        await tx.patientSession.create({
+          data: {
+            patientProfileId,
+            treatmentPlanId: current.treatmentPlanId,
+            sessionTemplateId: nextTemplate.id,
+            attemptNumber: 1,
+          },
+        });
+      }
+
+      return reviewed;
     });
   }
 }

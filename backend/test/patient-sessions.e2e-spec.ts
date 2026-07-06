@@ -261,4 +261,116 @@ describe('Patient Sessions: start the program', () => {
     expect(response.body.status).toBe('SUBMITTED');
     expect(response.body.sampleVideoUrl).toBe('https://example.com/sample.mp4');
   });
+
+  async function startAndSubmitSample(clinicianToken: string, profileId: string, patientToken: string) {
+    await request(app.getHttpServer())
+      .post(`/api/v1/patients/${profileId}/sessions/start`)
+      .set('Authorization', `Bearer ${patientToken}`);
+    await prisma.patientSession.updateMany({
+      where: { patientProfileId: profileId },
+      data: { trainingStartedAt: new Date(Date.now() - 4 * 24 * 60 * 60 * 1000) },
+    });
+    await request(app.getHttpServer())
+      .post(`/api/v1/patients/${profileId}/sessions/current/submit`)
+      .set('Authorization', `Bearer ${patientToken}`)
+      .send({ sampleVideoUrl: 'https://example.com/sample.mp4' });
+  }
+
+  it('advances the patient to session 2 when the clinician approves', async () => {
+    const clinicianToken = await createClinicianToken('+966500000730', 'password123');
+    await request(app.getHttpServer()).post('/api/v1/session-templates').set('Authorization', `Bearer ${clinicianToken}`).send({
+      sessionNumber: 1,
+      category: 1,
+      trainingDurationDays: 3,
+      instructions: 'Session 1 instructions.',
+    });
+    await request(app.getHttpServer()).post('/api/v1/session-templates').set('Authorization', `Bearer ${clinicianToken}`).send({
+      sessionNumber: 2,
+      category: 1,
+      trainingDurationDays: 3,
+      instructions: 'Session 2 instructions.',
+    });
+    const { profileId, patientToken } = await setUpPatientWithActivePlan(clinicianToken, '+966500000731', 'SES-TEST-9');
+    await startAndSubmitSample(clinicianToken, profileId, patientToken);
+
+    const response = await request(app.getHttpServer())
+      .post(`/api/v1/patients/${profileId}/sessions/current/review`)
+      .set('Authorization', `Bearer ${clinicianToken}`)
+      .send({ decision: 'APPROVE', reviewNotes: 'Good progress.', clinicianOpinionScore: 8 });
+
+    expect(response.status).toBe(201);
+    expect(response.body.status).toBe('APPROVED');
+
+    const currentResponse = await request(app.getHttpServer())
+      .get(`/api/v1/patients/${profileId}/sessions/current`)
+      .set('Authorization', `Bearer ${patientToken}`);
+    expect(currentResponse.body.status).toBe('IN_TRAINING');
+    expect(currentResponse.body.attemptNumber).toBe(1);
+  });
+
+  it('creates a new attempt at the same session when the clinician requires a repeat', async () => {
+    const clinicianToken = await createClinicianToken('+966500000732', 'password123');
+    await request(app.getHttpServer()).post('/api/v1/session-templates').set('Authorization', `Bearer ${clinicianToken}`).send({
+      sessionNumber: 1,
+      category: 1,
+      trainingDurationDays: 3,
+      instructions: 'Session 1 instructions.',
+    });
+    const { profileId, patientToken } = await setUpPatientWithActivePlan(clinicianToken, '+966500000733', 'SES-TEST-10');
+    await startAndSubmitSample(clinicianToken, profileId, patientToken);
+
+    const response = await request(app.getHttpServer())
+      .post(`/api/v1/patients/${profileId}/sessions/current/review`)
+      .set('Authorization', `Bearer ${clinicianToken}`)
+      .send({ decision: 'REPEAT', reviewNotes: 'Needs more practice.' });
+
+    expect(response.status).toBe(201);
+    expect(response.body.status).toBe('REPEAT_REQUIRED');
+
+    const currentResponse = await request(app.getHttpServer())
+      .get(`/api/v1/patients/${profileId}/sessions/current`)
+      .set('Authorization', `Bearer ${patientToken}`);
+    expect(currentResponse.body.attemptNumber).toBe(2);
+    expect(currentResponse.body.status).toBe('IN_TRAINING');
+  });
+
+  it('rejects a PATIENT trying to review their own session', async () => {
+    const clinicianToken = await createClinicianToken('+966500000734', 'password123');
+    await request(app.getHttpServer()).post('/api/v1/session-templates').set('Authorization', `Bearer ${clinicianToken}`).send({
+      sessionNumber: 1,
+      category: 1,
+      trainingDurationDays: 3,
+      instructions: 'Session 1 instructions.',
+    });
+    const { profileId, patientToken } = await setUpPatientWithActivePlan(clinicianToken, '+966500000735', 'SES-TEST-11');
+    await startAndSubmitSample(clinicianToken, profileId, patientToken);
+
+    const response = await request(app.getHttpServer())
+      .post(`/api/v1/patients/${profileId}/sessions/current/review`)
+      .set('Authorization', `Bearer ${patientToken}`)
+      .send({ decision: 'APPROVE' });
+
+    expect(response.status).toBe(403);
+  });
+
+  it('rejects reviewing an attempt that has not been submitted yet', async () => {
+    const clinicianToken = await createClinicianToken('+966500000736', 'password123');
+    await request(app.getHttpServer()).post('/api/v1/session-templates').set('Authorization', `Bearer ${clinicianToken}`).send({
+      sessionNumber: 1,
+      category: 1,
+      trainingDurationDays: 3,
+      instructions: 'Session 1 instructions.',
+    });
+    const { profileId, patientToken } = await setUpPatientWithActivePlan(clinicianToken, '+966500000737', 'SES-TEST-12');
+    await request(app.getHttpServer())
+      .post(`/api/v1/patients/${profileId}/sessions/start`)
+      .set('Authorization', `Bearer ${patientToken}`);
+
+    const response = await request(app.getHttpServer())
+      .post(`/api/v1/patients/${profileId}/sessions/current/review`)
+      .set('Authorization', `Bearer ${clinicianToken}`)
+      .send({ decision: 'APPROVE' });
+
+    expect(response.status).toBe(400);
+  });
 });
