@@ -177,4 +177,39 @@ describe('Patient Sessions: start the program', () => {
 
     expect(response.status).toBe(403);
   });
+
+  it('lets a PATIENT submit self-ratings while in training', async () => {
+    const clinicianToken = await createClinicianToken('+966500000710', 'password123');
+    await request(app.getHttpServer()).post('/api/v1/session-templates').set('Authorization', `Bearer ${clinicianToken}`).send({
+      sessionNumber: 1,
+      category: 1,
+      trainingDurationDays: 3,
+      instructions: 'Session 1 instructions.',
+    });
+    const { profileId, patientToken } = await setUpPatientWithActivePlan(clinicianToken, '+966500000711', 'SES-TEST-5');
+    await request(app.getHttpServer())
+      .post(`/api/v1/patients/${profileId}/sessions/start`)
+      .set('Authorization', `Bearer ${patientToken}`);
+
+    const response = await request(app.getHttpServer())
+      .put(`/api/v1/patients/${profileId}/sessions/current/ratings`)
+      .set('Authorization', `Bearer ${patientToken}`)
+      .send({ selfSeverityCurrent: 4, selfSeverityExpectedNext: 3, camperdownPerformanceRating: 6, clientOpinionScore: 7 });
+
+    expect(response.status).toBe(200);
+    expect(response.body.selfSeverityCurrent).toBe(4);
+    expect(response.body.camperdownPerformanceRating).toBe(6);
+  });
+
+  it('rejects submitting ratings when no session has been started', async () => {
+    const clinicianToken = await createClinicianToken('+966500000712', 'password123');
+    const { profileId, patientToken } = await setUpPatientWithActivePlan(clinicianToken, '+966500000713', 'SES-TEST-6');
+
+    const response = await request(app.getHttpServer())
+      .put(`/api/v1/patients/${profileId}/sessions/current/ratings`)
+      .set('Authorization', `Bearer ${patientToken}`)
+      .send({ selfSeverityCurrent: 2 });
+
+    expect(response.status).toBe(404);
+  });
 });
