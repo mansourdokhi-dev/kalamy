@@ -6,6 +6,7 @@ import { PermissionsGuard } from '../../common/rbac/permissions.guard';
 import { RequirePermission } from '../../common/rbac/require-permission.decorator';
 import { Permission } from '../../common/rbac/permissions';
 import { SubmitRatingsDto } from './dto/submit-ratings.dto';
+import { SubmitSampleDto } from './dto/submit-sample.dto';
 
 @Controller('api/v1/patients/:patientId/sessions')
 @UseGuards(SessionGuard, PermissionsGuard)
@@ -22,5 +23,11 @@ export class PatientSessionsController {
   @RequirePermission(Permission.SUBMIT_SESSION)
   submitRatings(@Param('patientId') patientId: string, @Body() dto: SubmitRatingsDto, @CurrentUser() user: AuthenticatedUser) {
     return this.patientSessionsService.submitRatings(patientId, dto, user);
+  }
+
+  @Post('current/submit')
+  @RequirePermission(Permission.SUBMIT_SESSION)
+  submitSample(@Param('patientId') patientId: string, @Body() dto: SubmitSampleDto, @CurrentUser() user: AuthenticatedUser) {
+    return this.patientSessionsService.submitSample(patientId, dto, user);
   }
 }

@@ -5,6 +5,7 @@ import { PatientAccessService } from '../../common/patient-access/patient-access
 import { SessionTemplatesService } from './session-templates.service';
 import { AuthenticatedUser } from '../../common/auth/session.guard';
 import { SubmitRatingsDto } from './dto/submit-ratings.dto';
+import { SubmitSampleDto } from './dto/submit-sample.dto';
 
 @Injectable()
 export class PatientSessionsService {
@@ -77,6 +78,31 @@ export class PatientSessionsService {
         selfSeverityExpectedNext: dto.selfSeverityExpectedNext,
         camperdownPerformanceRating: dto.camperdownPerformanceRating,
         clientOpinionScore: dto.clientOpinionScore,
+      },
+    });
+  }
+
+  async submitSample(patientProfileId: string, dto: SubmitSampleDto, actor: AuthenticatedUser): Promise<PatientSession> {
+    const current = await this.findCurrentOrThrow(patientProfileId, actor);
+    if (current.status !== 'IN_TRAINING') {
+      throw new BadRequestException('The sample can only be submitted while the current attempt is in training');
+    }
+
+    const template = await this.sessionTemplatesService.findById(current.sessionTemplateId);
+    const requiredMillis = template.trainingDurationDays * 24 * 60 * 60 * 1000;
+    const elapsedMillis = Date.now() - current.trainingStartedAt.getTime();
+    if (elapsedMillis < requiredMillis) {
+      throw new BadRequestException(
+        `The required training period (${template.trainingDurationDays} day(s)) has not elapsed yet`,
+      );
+    }
+
+    return this.prisma.patientSession.update({
+      where: { id: current.id },
+      data: {
+        sampleVideoUrl: dto.sampleVideoUrl,
+        sampleSubmittedAt: new Date(),
+        status: 'SUBMITTED',
       },
     });
   }

@@ -212,4 +212,53 @@ describe('Patient Sessions: start the program', () => {
 
     expect(response.status).toBe(404);
   });
+
+  it('rejects submitting the sample before the training duration has elapsed', async () => {
+    const clinicianToken = await createClinicianToken('+966500000720', 'password123');
+    await request(app.getHttpServer()).post('/api/v1/session-templates').set('Authorization', `Bearer ${clinicianToken}`).send({
+      sessionNumber: 1,
+      category: 1,
+      trainingDurationDays: 3,
+      instructions: 'Session 1 instructions.',
+    });
+    const { profileId, patientToken } = await setUpPatientWithActivePlan(clinicianToken, '+966500000721', 'SES-TEST-7');
+    await request(app.getHttpServer())
+      .post(`/api/v1/patients/${profileId}/sessions/start`)
+      .set('Authorization', `Bearer ${patientToken}`);
+
+    const response = await request(app.getHttpServer())
+      .post(`/api/v1/patients/${profileId}/sessions/current/submit`)
+      .set('Authorization', `Bearer ${patientToken}`)
+      .send({ sampleVideoUrl: 'https://example.com/sample.mp4' });
+
+    expect(response.status).toBe(400);
+  });
+
+  it('lets a PATIENT submit the sample once the training duration has elapsed', async () => {
+    const clinicianToken = await createClinicianToken('+966500000722', 'password123');
+    await request(app.getHttpServer()).post('/api/v1/session-templates').set('Authorization', `Bearer ${clinicianToken}`).send({
+      sessionNumber: 1,
+      category: 1,
+      trainingDurationDays: 3,
+      instructions: 'Session 1 instructions.',
+    });
+    const { profileId, patientToken } = await setUpPatientWithActivePlan(clinicianToken, '+966500000723', 'SES-TEST-8');
+    await request(app.getHttpServer())
+      .post(`/api/v1/patients/${profileId}/sessions/start`)
+      .set('Authorization', `Bearer ${patientToken}`);
+    // Backdate trainingStartedAt so the 3-day requirement has already elapsed.
+    await prisma.patientSession.updateMany({
+      where: { patientProfileId: profileId },
+      data: { trainingStartedAt: new Date(Date.now() - 4 * 24 * 60 * 60 * 1000) },
+    });
+
+    const response = await request(app.getHttpServer())
+      .post(`/api/v1/patients/${profileId}/sessions/current/submit`)
+      .set('Authorization', `Bearer ${patientToken}`)
+      .send({ sampleVideoUrl: 'https://example.com/sample.mp4' });
+
+    expect(response.status).toBe(201);
+    expect(response.body.status).toBe('SUBMITTED');
+    expect(response.body.sampleVideoUrl).toBe('https://example.com/sample.mp4');
+  });
 });
