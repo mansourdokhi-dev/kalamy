@@ -80,6 +80,17 @@ enum SessionStatus {
   REPEAT_REQUIRED
 }
 
+enum ComplaintType {
+  COMPLAINT
+  SUGGESTION
+}
+
+enum ComplaintStatus {
+  OPEN
+  REVIEWED
+  RESOLVED
+}
+
 model User {
   id                  String     @id @default(uuid())
   fullName            String
@@ -104,6 +115,8 @@ model User {
   phaseTransitions        PhaseTransition[]
   exercisesCreated        Exercise[]
   reviewedPatientSessions PatientSession[]
+  complaintsSubmitted     Complaint[] @relation("ComplaintSubmitter")
+  complaintsAboutMe       Complaint[] @relation("ComplaintRelatedClinician")
 }
 
 model OtpCode {
@@ -321,4 +334,21 @@ model PatientSession {
   updatedAt                   DateTime        @updatedAt
 
   @@index([patientProfileId, createdAt])
+}
+
+model Complaint {
+  id                     String          @id @default(uuid())
+  submittedByUserId      String
+  submittedByUser        User            @relation("ComplaintSubmitter", fields: [submittedByUserId], references: [id])
+  relatedClinicianUserId String?
+  relatedClinicianUser   User?           @relation("ComplaintRelatedClinician", fields: [relatedClinicianUserId], references: [id])
+  type                   ComplaintType
+  subject                String
+  description            String
+  status                 ComplaintStatus @default(OPEN)
+  createdAt              DateTime        @default(now())
+  updatedAt              DateTime        @updatedAt
+
+  @@index([status])
+  @@index([relatedClinicianUserId])
 }
