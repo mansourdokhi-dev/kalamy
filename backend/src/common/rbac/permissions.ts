@@ -26,6 +26,11 @@ export enum Permission {
   VIEW_SESSION = 'VIEW_SESSION',
   REVIEW_SESSION = 'REVIEW_SESSION',
   VIEW_PROGRESS = 'VIEW_PROGRESS',
+  SUBMIT_COMPLAINT = 'SUBMIT_COMPLAINT',
+  VIEW_COMPLAINT = 'VIEW_COMPLAINT',
+  MANAGE_COMPLAINTS = 'MANAGE_COMPLAINTS',
+  VIEW_PATIENT_REPORTS = 'VIEW_PATIENT_REPORTS',
+  VIEW_ADMIN_REPORTS = 'VIEW_ADMIN_REPORTS',
 }
 
 export const ROLE_PERMISSIONS: Record<Role, Permission[]> = {
@@ -40,6 +45,9 @@ export const ROLE_PERMISSIONS: Record<Role, Permission[]> = {
     Permission.SUBMIT_SESSION,
     Permission.VIEW_SESSION,
     Permission.VIEW_PROGRESS,
+    Permission.SUBMIT_COMPLAINT,
+    Permission.VIEW_COMPLAINT,
+    Permission.VIEW_PATIENT_REPORTS,
   ],
   CAREGIVER: [
     Permission.VIEW_PATIENT_PROFILE,
@@ -52,6 +60,9 @@ export const ROLE_PERMISSIONS: Record<Role, Permission[]> = {
     Permission.SUBMIT_SESSION,
     Permission.VIEW_SESSION,
     Permission.VIEW_PROGRESS,
+    Permission.SUBMIT_COMPLAINT,
+    Permission.VIEW_COMPLAINT,
+    Permission.VIEW_PATIENT_REPORTS,
   ],
   CLINICIAN: [
     Permission.CREATE_PATIENT_PROFILE,
@@ -76,6 +87,8 @@ export const ROLE_PERMISSIONS: Record<Role, Permission[]> = {
     Permission.VIEW_SESSION,
     Permission.REVIEW_SESSION,
     Permission.VIEW_PROGRESS,
+    Permission.VIEW_COMPLAINT,
+    Permission.VIEW_PATIENT_REPORTS,
   ],
   SUPERVISOR: [
     Permission.VIEW_PATIENT_PROFILE,
@@ -86,6 +99,10 @@ export const ROLE_PERMISSIONS: Record<Role, Permission[]> = {
     Permission.VIEW_SESSION_TEMPLATES,
     Permission.VIEW_SESSION,
     Permission.VIEW_PROGRESS,
+    Permission.VIEW_COMPLAINT,
+    Permission.MANAGE_COMPLAINTS,
+    Permission.VIEW_PATIENT_REPORTS,
+    Permission.VIEW_ADMIN_REPORTS,
   ],
   ADMIN: [
     Permission.CREATE_PATIENT_PROFILE,
@@ -111,6 +128,10 @@ export const ROLE_PERMISSIONS: Record<Role, Permission[]> = {
     Permission.VIEW_SESSION,
     Permission.REVIEW_SESSION,
     Permission.VIEW_PROGRESS,
+    Permission.VIEW_COMPLAINT,
+    Permission.MANAGE_COMPLAINTS,
+    Permission.VIEW_PATIENT_REPORTS,
+    Permission.VIEW_ADMIN_REPORTS,
   ],
 };
 
