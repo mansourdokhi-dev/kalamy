@@ -73,6 +73,13 @@ enum ExerciseStatus {
   ARCHIVED
 }
 
+enum SessionStatus {
+  IN_TRAINING
+  SUBMITTED
+  APPROVED
+  REPEAT_REQUIRED
+}
+
 model User {
   id                  String     @id @default(uuid())
   fullName            String
@@ -96,6 +103,7 @@ model User {
   treatmentPlans          TreatmentPlan[]
   phaseTransitions        PhaseTransition[]
   exercisesCreated        Exercise[]
+  reviewedPatientSessions PatientSession[]
 }
 
 model OtpCode {
@@ -149,9 +157,10 @@ model PatientProfile {
   createdAt      DateTime             @default(now())
   updatedAt      DateTime             @updatedAt
 
-  clinicalInfo   PatientClinicalInfo?
-  assessments    Assessment[]
-  treatmentPlans TreatmentPlan[]
+  clinicalInfo    PatientClinicalInfo?
+  assessments     Assessment[]
+  treatmentPlans  TreatmentPlan[]
+  patientSessions PatientSession[]
 }
 
 model PatientClinicalInfo {
@@ -225,6 +234,7 @@ model TreatmentPlan {
 
   phaseTransitions PhaseTransition[]
   planExercises    PlanExercise[]
+  patientSessions  PatientSession[]
 
   @@index([patientProfileId, status])
 }
@@ -269,4 +279,46 @@ model PlanExercise {
   createdAt        DateTime      @default(now())
 
   @@unique([treatmentPlanId, exerciseId])
+}
+
+model SessionTemplate {
+  id                   String   @id @default(uuid())
+  sessionNumber        Int      @unique
+  category             Int
+  cognitiveVideoUrl    String?
+  behavioralVideoUrl   String?
+  trainingDurationDays Int
+  instructions         String
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  patientSessions PatientSession[]
+}
+
+model PatientSession {
+  id                          String          @id @default(uuid())
+  patientProfileId            String
+  patientProfile              PatientProfile  @relation(fields: [patientProfileId], references: [id])
+  treatmentPlanId             String
+  treatmentPlan               TreatmentPlan   @relation(fields: [treatmentPlanId], references: [id])
+  sessionTemplateId           String
+  sessionTemplate             SessionTemplate @relation(fields: [sessionTemplateId], references: [id])
+  attemptNumber               Int             @default(1)
+  status                      SessionStatus   @default(IN_TRAINING)
+  trainingStartedAt           DateTime        @default(now())
+  sampleVideoUrl              String?
+  sampleSubmittedAt           DateTime?
+  selfSeverityCurrent         Int?
+  selfSeverityExpectedNext    Int?
+  camperdownPerformanceRating Int?
+  clientOpinionScore          Int?
+  clinicianOpinionScore       Int?
+  clinicianUserId             String?
+  clinicianUser               User?           @relation(fields: [clinicianUserId], references: [id])
+  reviewNotes                 String?
+  reviewedAt                  DateTime?
+  createdAt                   DateTime        @default(now())
+  updatedAt                   DateTime        @updatedAt
+
+  @@index([patientProfileId, createdAt])
 }
