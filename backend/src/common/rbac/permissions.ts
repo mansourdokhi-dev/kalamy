@@ -19,6 +19,13 @@ export enum Permission {
   CREATE_TREATMENT_PLAN = 'CREATE_TREATMENT_PLAN',
   EDIT_TREATMENT_PLAN = 'EDIT_TREATMENT_PLAN',
   VIEW_TREATMENT_PLAN = 'VIEW_TREATMENT_PLAN',
+  MANAGE_SESSION_TEMPLATES = 'MANAGE_SESSION_TEMPLATES',
+  VIEW_SESSION_TEMPLATES = 'VIEW_SESSION_TEMPLATES',
+  START_SESSION = 'START_SESSION',
+  SUBMIT_SESSION = 'SUBMIT_SESSION',
+  VIEW_SESSION = 'VIEW_SESSION',
+  REVIEW_SESSION = 'REVIEW_SESSION',
+  VIEW_PROGRESS = 'VIEW_PROGRESS',
 }
 
 export const ROLE_PERMISSIONS: Record<Role, Permission[]> = {
@@ -28,6 +35,11 @@ export const ROLE_PERMISSIONS: Record<Role, Permission[]> = {
     Permission.VIEW_EXERCISE,
     Permission.VIEW_ASSESSMENT,
     Permission.VIEW_TREATMENT_PLAN,
+    Permission.VIEW_SESSION_TEMPLATES,
+    Permission.START_SESSION,
+    Permission.SUBMIT_SESSION,
+    Permission.VIEW_SESSION,
+    Permission.VIEW_PROGRESS,
   ],
   CAREGIVER: [
     Permission.VIEW_PATIENT_PROFILE,
@@ -35,6 +47,11 @@ export const ROLE_PERMISSIONS: Record<Role, Permission[]> = {
     Permission.VIEW_EXERCISE,
     Permission.VIEW_ASSESSMENT,
     Permission.VIEW_TREATMENT_PLAN,
+    Permission.VIEW_SESSION_TEMPLATES,
+    Permission.START_SESSION,
+    Permission.SUBMIT_SESSION,
+    Permission.VIEW_SESSION,
+    Permission.VIEW_PROGRESS,
   ],
   CLINICIAN: [
     Permission.CREATE_PATIENT_PROFILE,
@@ -54,6 +71,11 @@ export const ROLE_PERMISSIONS: Record<Role, Permission[]> = {
     Permission.CREATE_TREATMENT_PLAN,
     Permission.EDIT_TREATMENT_PLAN,
     Permission.VIEW_TREATMENT_PLAN,
+    Permission.MANAGE_SESSION_TEMPLATES,
+    Permission.VIEW_SESSION_TEMPLATES,
+    Permission.VIEW_SESSION,
+    Permission.REVIEW_SESSION,
+    Permission.VIEW_PROGRESS,
   ],
   SUPERVISOR: [
     Permission.VIEW_PATIENT_PROFILE,
@@ -61,6 +83,9 @@ export const ROLE_PERMISSIONS: Record<Role, Permission[]> = {
     Permission.VIEW_EXERCISE,
     Permission.VIEW_ASSESSMENT,
     Permission.VIEW_TREATMENT_PLAN,
+    Permission.VIEW_SESSION_TEMPLATES,
+    Permission.VIEW_SESSION,
+    Permission.VIEW_PROGRESS,
   ],
   ADMIN: [
     Permission.CREATE_PATIENT_PROFILE,
@@ -81,6 +106,11 @@ export const ROLE_PERMISSIONS: Record<Role, Permission[]> = {
     Permission.CREATE_TREATMENT_PLAN,
     Permission.EDIT_TREATMENT_PLAN,
     Permission.VIEW_TREATMENT_PLAN,
+    Permission.MANAGE_SESSION_TEMPLATES,
+    Permission.VIEW_SESSION_TEMPLATES,
+    Permission.VIEW_SESSION,
+    Permission.REVIEW_SESSION,
+    Permission.VIEW_PROGRESS,
   ],
 };
 
