@@ -3,6 +3,7 @@ import { Complaint } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { AuthenticatedUser } from '../../common/auth/session.guard';
 import { CreateComplaintDto } from './dto/create-complaint.dto';
+import { UpdateComplaintStatusDto } from './dto/update-complaint-status.dto';
 
 export interface ComplaintFilters {
   status?: 'OPEN' | 'REVIEWED' | 'RESOLVED';
@@ -53,5 +54,13 @@ export class ComplaintsService {
       return complaint;
     }
     throw new ForbiddenException("Cannot view another user's complaint");
+  }
+
+  async updateStatus(id: string, dto: UpdateComplaintStatusDto): Promise<Complaint> {
+    const complaint = await this.prisma.complaint.findUnique({ where: { id } });
+    if (!complaint) {
+      throw new NotFoundException('Complaint not found');
+    }
+    return this.prisma.complaint.update({ where: { id }, data: { status: dto.status } });
   }
 }

@@ -177,3 +177,69 @@ describe('Complaints: submit, list, get', () => {
     expect(response.status).toBe(403);
   });
 });
+
+describe('Complaints: update status', () => {
+  let app: INestApplication;
+  let prisma: PrismaService;
+
+  beforeAll(async () => {
+    ({ app, prisma } = await createTestApp());
+  });
+
+  afterAll(async () => {
+    await app.close();
+  });
+
+  beforeEach(async () => {
+    await resetDatabase(prisma);
+  });
+
+  async function createUserToken(mobile: string, password: string, role: 'PATIENT' | 'ADMIN'): Promise<string> {
+    const registerResponse = await request(app.getHttpServer()).post('/api/v1/auth/register').send({
+      fullName: 'Complaint Status Test User',
+      mobile,
+      password,
+      role: 'PATIENT',
+    });
+    await request(app.getHttpServer())
+      .post('/api/v1/auth/verify')
+      .send({ mobile, code: registerResponse.body.devOtpCode });
+    if (role !== 'PATIENT') {
+      await prisma.user.update({ where: { mobile }, data: { role } });
+    }
+    const loginResponse = await request(app.getHttpServer()).post('/api/v1/auth/login').send({ mobile, password });
+    return loginResponse.body.token;
+  }
+
+  it('lets an ADMIN move a complaint from OPEN to RESOLVED', async () => {
+    const adminToken = await createUserToken('+966500000910', 'password123', 'ADMIN');
+    const patientToken = await createUserToken('+966500000911', 'password123', 'PATIENT');
+    const createResponse = await request(app.getHttpServer())
+      .post('/api/v1/complaints')
+      .set('Authorization', `Bearer ${patientToken}`)
+      .send({ type: 'COMPLAINT', subject: 'Issue D', description: 'Description D' });
+
+    const response = await request(app.getHttpServer())
+      .patch(`/api/v1/complaints/${createResponse.body.id}/status`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ status: 'RESOLVED' });
+
+    expect(response.status).toBe(200);
+    expect(response.body.status).toBe('RESOLVED');
+  });
+
+  it('rejects a PATIENT updating complaint status', async () => {
+    const patientToken = await createUserToken('+966500000912', 'password123', 'PATIENT');
+    const createResponse = await request(app.getHttpServer())
+      .post('/api/v1/complaints')
+      .set('Authorization', `Bearer ${patientToken}`)
+      .send({ type: 'COMPLAINT', subject: 'Issue E', description: 'Description E' });
+
+    const response = await request(app.getHttpServer())
+      .patch(`/api/v1/complaints/${createResponse.body.id}/status`)
+      .set('Authorization', `Bearer ${patientToken}`)
+      .send({ status: 'REVIEWED' });
+
+    expect(response.status).toBe(403);
+  });
+});
