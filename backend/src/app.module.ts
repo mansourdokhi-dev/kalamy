@@ -13,6 +13,7 @@ import { AssessmentsModule } from './modules/assessments/assessments.module';
 import { TreatmentPlansModule } from './modules/treatment-plans/treatment-plans.module';
 import { SessionsModule } from './modules/sessions/sessions.module';
 import { ProgressModule } from './modules/progress/progress.module';
+import { ComplaintsModule } from './modules/complaints/complaints.module';
 
 @Module({
   imports: [
@@ -25,6 +26,7 @@ import { ProgressModule } from './modules/progress/progress.module';
     TreatmentPlansModule,
     SessionsModule,
     ProgressModule,
+    ComplaintsModule,
   ],
   controllers: [AppController],
   providers: [
