@@ -58,8 +58,8 @@ export class TreatmentPlansController {
 
   @Get(':id/exercises')
   @RequirePermission(Permission.VIEW_TREATMENT_PLAN)
-  listExercises(@Param('patientId') patientId: string, @Param('id') id: string) {
-    return this.treatmentPlansService.listExercises(patientId, id);
+  listExercises(@Param('patientId') patientId: string, @Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
+    return this.treatmentPlansService.listExercises(patientId, id, user);
   }
 
   @Delete(':id/exercises/:exerciseId')

@@ -131,7 +131,9 @@ export class TreatmentPlansService {
     });
   }
 
-  async listExercises(patientProfileId: string, planId: string) {
+  async listExercises(patientProfileId: string, planId: string, actor: AuthenticatedUser) {
+    const profile = await this.findPatientProfileOrThrow(patientProfileId);
+    await this.assertCanAccess(actor, profile);
     await this.findByIdOrThrow(patientProfileId, planId);
     return this.prisma.planExercise.findMany({
       where: { treatmentPlanId: planId },

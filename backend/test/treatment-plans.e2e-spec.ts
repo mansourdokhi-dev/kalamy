@@ -383,4 +383,80 @@ describe('Treatment Plans: create, list, get active', () => {
       .set('Authorization', `Bearer ${clinicianToken}`);
     expect(listResponse.body).toHaveLength(0);
   });
+
+  it('rejects an unrelated PATIENT listing another patient\'s treatment plan exercises', async () => {
+    const clinicianToken = await createClinicianToken('+966500000428', 'password123');
+    const { profileId, assessmentId } = await setUpPatientWithApprovedAssessment(
+      clinicianToken,
+      '+966500000429',
+      'PLAN-EX-5',
+    );
+    const planResponse = await request(app.getHttpServer())
+      .post(`/api/v1/patients/${profileId}/treatment-plans`)
+      .set('Authorization', `Bearer ${clinicianToken}`)
+      .send({ assessmentId, goals: 'Goal', reviewDate: '2026-08-01' });
+    const exerciseResponse = await request(app.getHttpServer())
+      .post('/api/v1/exercises')
+      .set('Authorization', `Bearer ${clinicianToken}`)
+      .send({
+        title: 'Unrelated-Patient Exercise',
+        category: 'Breathing',
+        phaseLevel: 1,
+        instructions: 'N/A',
+        durationMinutes: 5,
+      });
+    await request(app.getHttpServer())
+      .post(`/api/v1/patients/${profileId}/treatment-plans/${planResponse.body.id}/exercises`)
+      .set('Authorization', `Bearer ${clinicianToken}`)
+      .send({ exerciseId: exerciseResponse.body.id, frequencyPerWeek: 2, sequence: 1 });
+
+    const unrelatedPatientMobile = '+966500000430';
+    const unrelatedPatientRegister = await request(app.getHttpServer()).post('/api/v1/auth/register').send({
+      fullName: 'Unrelated Patient',
+      mobile: unrelatedPatientMobile,
+      password: 'password123',
+      role: 'PATIENT',
+    });
+    await request(app.getHttpServer())
+      .post('/api/v1/auth/verify')
+      .send({ mobile: unrelatedPatientMobile, code: unrelatedPatientRegister.body.devOtpCode });
+    const unrelatedPatientLogin = await request(app.getHttpServer())
+      .post('/api/v1/auth/login')
+      .send({ mobile: unrelatedPatientMobile, password: 'password123' });
+
+    const response = await request(app.getHttpServer())
+      .get(`/api/v1/patients/${profileId}/treatment-plans/${planResponse.body.id}/exercises`)
+      .set('Authorization', `Bearer ${unrelatedPatientLogin.body.token}`);
+
+    expect(response.status).toBe(403);
+  });
+
+  it('rejects an unrelated PATIENT listing another patient\'s treatment plans', async () => {
+    const clinicianToken = await createClinicianToken('+966500000431', 'password123');
+    const { profileId } = await setUpPatientWithApprovedAssessment(
+      clinicianToken,
+      '+966500000432',
+      'PLAN-EX-6',
+    );
+
+    const unrelatedPatientMobile = '+966500000433';
+    const unrelatedPatientRegister = await request(app.getHttpServer()).post('/api/v1/auth/register').send({
+      fullName: 'Unrelated Patient',
+      mobile: unrelatedPatientMobile,
+      password: 'password123',
+      role: 'PATIENT',
+    });
+    await request(app.getHttpServer())
+      .post('/api/v1/auth/verify')
+      .send({ mobile: unrelatedPatientMobile, code: unrelatedPatientRegister.body.devOtpCode });
+    const unrelatedPatientLogin = await request(app.getHttpServer())
+      .post('/api/v1/auth/login')
+      .send({ mobile: unrelatedPatientMobile, password: 'password123' });
+
+    const response = await request(app.getHttpServer())
+      .get(`/api/v1/patients/${profileId}/treatment-plans`)
+      .set('Authorization', `Bearer ${unrelatedPatientLogin.body.token}`);
+
+    expect(response.status).toBe(403);
+  });
 });
