@@ -14,6 +14,7 @@ import { TreatmentPlansModule } from './modules/treatment-plans/treatment-plans.
 import { SessionsModule } from './modules/sessions/sessions.module';
 import { ProgressModule } from './modules/progress/progress.module';
 import { ComplaintsModule } from './modules/complaints/complaints.module';
+import { ReportsModule } from './modules/reports/reports.module';
 
 @Module({
   imports: [
@@ -27,6 +28,7 @@ import { ComplaintsModule } from './modules/complaints/complaints.module';
     SessionsModule,
     ProgressModule,
     ComplaintsModule,
+    ReportsModule,
   ],
   controllers: [AppController],
   providers: [
