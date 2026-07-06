@@ -1,0 +1,19 @@
+import { Controller, Param, Post, UseGuards } from '@nestjs/common';
+import { PatientSessionsService } from './patient-sessions.service';
+import { SessionGuard, AuthenticatedUser } from '../../common/auth/session.guard';
+import { CurrentUser } from '../../common/auth/current-user.decorator';
+import { PermissionsGuard } from '../../common/rbac/permissions.guard';
+import { RequirePermission } from '../../common/rbac/require-permission.decorator';
+import { Permission } from '../../common/rbac/permissions';
+
+@Controller('api/v1/patients/:patientId/sessions')
+@UseGuards(SessionGuard, PermissionsGuard)
+export class PatientSessionsController {
+  constructor(private readonly patientSessionsService: PatientSessionsService) {}
+
+  @Post('start')
+  @RequirePermission(Permission.START_SESSION)
+  start(@Param('patientId') patientId: string, @CurrentUser() user: AuthenticatedUser) {
+    return this.patientSessionsService.start(patientId, user);
+  }
+}
