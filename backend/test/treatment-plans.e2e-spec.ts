@@ -245,4 +245,142 @@ describe('Treatment Plans: create, list, get active', () => {
 
     expect(response.status).toBe(403);
   });
+
+  it('links an exercise to a treatment plan', async () => {
+    const clinicianToken = await createClinicianToken('+966500000420', 'password123');
+    const { profileId, assessmentId } = await setUpPatientWithApprovedAssessment(
+      clinicianToken,
+      '+966500000421',
+      'PLAN-EX-1',
+    );
+    const planResponse = await request(app.getHttpServer())
+      .post(`/api/v1/patients/${profileId}/treatment-plans`)
+      .set('Authorization', `Bearer ${clinicianToken}`)
+      .send({ assessmentId, goals: 'Goal', reviewDate: '2026-08-01' });
+    const exerciseResponse = await request(app.getHttpServer())
+      .post('/api/v1/exercises')
+      .set('Authorization', `Bearer ${clinicianToken}`)
+      .send({
+        title: 'Linked Exercise',
+        category: 'Breathing',
+        phaseLevel: 1,
+        instructions: 'N/A',
+        durationMinutes: 5,
+      });
+
+    const response = await request(app.getHttpServer())
+      .post(`/api/v1/patients/${profileId}/treatment-plans/${planResponse.body.id}/exercises`)
+      .set('Authorization', `Bearer ${clinicianToken}`)
+      .send({ exerciseId: exerciseResponse.body.id, frequencyPerWeek: 3, sequence: 1 });
+
+    expect(response.status).toBe(201);
+    expect(response.body.frequencyPerWeek).toBe(3);
+  });
+
+  it('lists exercises linked to a treatment plan', async () => {
+    const clinicianToken = await createClinicianToken('+966500000422', 'password123');
+    const { profileId, assessmentId } = await setUpPatientWithApprovedAssessment(
+      clinicianToken,
+      '+966500000423',
+      'PLAN-EX-2',
+    );
+    const planResponse = await request(app.getHttpServer())
+      .post(`/api/v1/patients/${profileId}/treatment-plans`)
+      .set('Authorization', `Bearer ${clinicianToken}`)
+      .send({ assessmentId, goals: 'Goal', reviewDate: '2026-08-01' });
+    const exerciseResponse = await request(app.getHttpServer())
+      .post('/api/v1/exercises')
+      .set('Authorization', `Bearer ${clinicianToken}`)
+      .send({
+        title: 'Listed Exercise',
+        category: 'Breathing',
+        phaseLevel: 1,
+        instructions: 'N/A',
+        durationMinutes: 5,
+      });
+    await request(app.getHttpServer())
+      .post(`/api/v1/patients/${profileId}/treatment-plans/${planResponse.body.id}/exercises`)
+      .set('Authorization', `Bearer ${clinicianToken}`)
+      .send({ exerciseId: exerciseResponse.body.id, frequencyPerWeek: 2, sequence: 1 });
+
+    const response = await request(app.getHttpServer())
+      .get(`/api/v1/patients/${profileId}/treatment-plans/${planResponse.body.id}/exercises`)
+      .set('Authorization', `Bearer ${clinicianToken}`);
+
+    expect(response.status).toBe(200);
+    expect(response.body).toHaveLength(1);
+    expect(response.body[0].exercise.title).toBe('Listed Exercise');
+  });
+
+  it('rejects linking the same exercise to a plan twice', async () => {
+    const clinicianToken = await createClinicianToken('+966500000424', 'password123');
+    const { profileId, assessmentId } = await setUpPatientWithApprovedAssessment(
+      clinicianToken,
+      '+966500000425',
+      'PLAN-EX-3',
+    );
+    const planResponse = await request(app.getHttpServer())
+      .post(`/api/v1/patients/${profileId}/treatment-plans`)
+      .set('Authorization', `Bearer ${clinicianToken}`)
+      .send({ assessmentId, goals: 'Goal', reviewDate: '2026-08-01' });
+    const exerciseResponse = await request(app.getHttpServer())
+      .post('/api/v1/exercises')
+      .set('Authorization', `Bearer ${clinicianToken}`)
+      .send({
+        title: 'Duplicate-Link Exercise',
+        category: 'Breathing',
+        phaseLevel: 1,
+        instructions: 'N/A',
+        durationMinutes: 5,
+      });
+    await request(app.getHttpServer())
+      .post(`/api/v1/patients/${profileId}/treatment-plans/${planResponse.body.id}/exercises`)
+      .set('Authorization', `Bearer ${clinicianToken}`)
+      .send({ exerciseId: exerciseResponse.body.id, frequencyPerWeek: 2, sequence: 1 });
+
+    const response = await request(app.getHttpServer())
+      .post(`/api/v1/patients/${profileId}/treatment-plans/${planResponse.body.id}/exercises`)
+      .set('Authorization', `Bearer ${clinicianToken}`)
+      .send({ exerciseId: exerciseResponse.body.id, frequencyPerWeek: 4, sequence: 2 });
+
+    expect(response.status).toBe(409);
+  });
+
+  it('unlinks an exercise from a treatment plan', async () => {
+    const clinicianToken = await createClinicianToken('+966500000426', 'password123');
+    const { profileId, assessmentId } = await setUpPatientWithApprovedAssessment(
+      clinicianToken,
+      '+966500000427',
+      'PLAN-EX-4',
+    );
+    const planResponse = await request(app.getHttpServer())
+      .post(`/api/v1/patients/${profileId}/treatment-plans`)
+      .set('Authorization', `Bearer ${clinicianToken}`)
+      .send({ assessmentId, goals: 'Goal', reviewDate: '2026-08-01' });
+    const exerciseResponse = await request(app.getHttpServer())
+      .post('/api/v1/exercises')
+      .set('Authorization', `Bearer ${clinicianToken}`)
+      .send({
+        title: 'Unlink-Me Exercise',
+        category: 'Breathing',
+        phaseLevel: 1,
+        instructions: 'N/A',
+        durationMinutes: 5,
+      });
+    await request(app.getHttpServer())
+      .post(`/api/v1/patients/${profileId}/treatment-plans/${planResponse.body.id}/exercises`)
+      .set('Authorization', `Bearer ${clinicianToken}`)
+      .send({ exerciseId: exerciseResponse.body.id, frequencyPerWeek: 2, sequence: 1 });
+
+    const response = await request(app.getHttpServer())
+      .delete(`/api/v1/patients/${profileId}/treatment-plans/${planResponse.body.id}/exercises/${exerciseResponse.body.id}`)
+      .set('Authorization', `Bearer ${clinicianToken}`);
+
+    expect(response.status).toBe(200);
+
+    const listResponse = await request(app.getHttpServer())
+      .get(`/api/v1/patients/${profileId}/treatment-plans/${planResponse.body.id}/exercises`)
+      .set('Authorization', `Bearer ${clinicianToken}`);
+    expect(listResponse.body).toHaveLength(0);
+  });
 });

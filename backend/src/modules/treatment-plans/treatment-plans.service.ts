@@ -1,14 +1,19 @@
-import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
-import { PatientProfile, PhaseTransition, Role, TreatmentPlan } from '@prisma/client';
+import { BadRequestException, ConflictException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import { PatientProfile, PhaseTransition, PlanExercise, Role, TreatmentPlan } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { CreateTreatmentPlanDto } from './dto/create-treatment-plan.dto';
 import { UpdateTreatmentPlanDto } from './dto/update-treatment-plan.dto';
 import { PhaseTransitionDto } from './dto/phase-transition.dto';
+import { LinkExerciseDto } from './dto/link-exercise.dto';
 import { AuthenticatedUser } from '../../common/auth/session.guard';
+import { ExercisesService } from '../exercises/exercises.service';
 
 @Injectable()
 export class TreatmentPlansService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly exercisesService: ExercisesService,
+  ) {}
 
   async create(patientProfileId: string, dto: CreateTreatmentPlanDto, actor: AuthenticatedUser): Promise<TreatmentPlan> {
     await this.findPatientProfileOrThrow(patientProfileId);
@@ -103,6 +108,47 @@ export class TreatmentPlansService {
         data: { phase: dto.toPhase },
       });
     });
+  }
+
+  async linkExercise(patientProfileId: string, planId: string, dto: LinkExerciseDto): Promise<PlanExercise> {
+    await this.findByIdOrThrow(patientProfileId, planId);
+    await this.exercisesService.findById(dto.exerciseId);
+
+    const existingLink = await this.prisma.planExercise.findUnique({
+      where: { treatmentPlanId_exerciseId: { treatmentPlanId: planId, exerciseId: dto.exerciseId } },
+    });
+    if (existingLink) {
+      throw new ConflictException('This exercise is already linked to this plan');
+    }
+
+    return this.prisma.planExercise.create({
+      data: {
+        treatmentPlanId: planId,
+        exerciseId: dto.exerciseId,
+        frequencyPerWeek: dto.frequencyPerWeek,
+        sequence: dto.sequence,
+      },
+    });
+  }
+
+  async listExercises(patientProfileId: string, planId: string) {
+    await this.findByIdOrThrow(patientProfileId, planId);
+    return this.prisma.planExercise.findMany({
+      where: { treatmentPlanId: planId },
+      include: { exercise: true },
+      orderBy: { sequence: 'asc' },
+    });
+  }
+
+  async unlinkExercise(patientProfileId: string, planId: string, exerciseId: string): Promise<void> {
+    await this.findByIdOrThrow(patientProfileId, planId);
+    const link = await this.prisma.planExercise.findUnique({
+      where: { treatmentPlanId_exerciseId: { treatmentPlanId: planId, exerciseId } },
+    });
+    if (!link) {
+      throw new NotFoundException('This exercise is not linked to this plan');
+    }
+    await this.prisma.planExercise.delete({ where: { id: link.id } });
   }
 
   private async findPatientProfileOrThrow(patientProfileId: string): Promise<PatientProfile> {
