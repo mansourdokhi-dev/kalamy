@@ -12,6 +12,7 @@ import { ExercisesModule } from './modules/exercises/exercises.module';
 import { AssessmentsModule } from './modules/assessments/assessments.module';
 import { TreatmentPlansModule } from './modules/treatment-plans/treatment-plans.module';
 import { SessionsModule } from './modules/sessions/sessions.module';
+import { ProgressModule } from './modules/progress/progress.module';
 
 @Module({
   imports: [
@@ -23,6 +24,7 @@ import { SessionsModule } from './modules/sessions/sessions.module';
     AssessmentsModule,
     TreatmentPlansModule,
     SessionsModule,
+    ProgressModule,
   ],
   controllers: [AppController],
   providers: [
