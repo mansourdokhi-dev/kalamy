@@ -429,4 +429,63 @@ describe('Patient Sessions: start the program', () => {
 
     expect(response.status).toBe(400);
   });
+
+  it('lists the full attempt history for a patient, oldest first', async () => {
+    const clinicianToken = await createClinicianToken('+966500000740', 'password123');
+    await request(app.getHttpServer()).post('/api/v1/session-templates').set('Authorization', `Bearer ${clinicianToken}`).send({
+      sessionNumber: 1,
+      category: 1,
+      trainingDurationDays: 3,
+      instructions: 'Session 1 instructions.',
+    });
+    const { profileId, patientToken } = await setUpPatientWithActivePlan(clinicianToken, '+966500000741', 'SES-TEST-13');
+    await startAndSubmitSample(clinicianToken, profileId, patientToken);
+    await request(app.getHttpServer())
+      .post(`/api/v1/patients/${profileId}/sessions/current/review`)
+      .set('Authorization', `Bearer ${clinicianToken}`)
+      .send({ decision: 'REPEAT' });
+
+    const response = await request(app.getHttpServer())
+      .get(`/api/v1/patients/${profileId}/sessions`)
+      .set('Authorization', `Bearer ${patientToken}`);
+
+    expect(response.status).toBe(200);
+    expect(response.body).toHaveLength(2);
+    expect(response.body[0].attemptNumber).toBe(1);
+    expect(response.body[0].status).toBe('REPEAT_REQUIRED');
+    expect(response.body[1].attemptNumber).toBe(2);
+    expect(response.body[1].status).toBe('IN_TRAINING');
+  });
+
+  it('rejects an unrelated PATIENT viewing another patient\'s session history', async () => {
+    const clinicianToken = await createClinicianToken('+966500000742', 'password123');
+    await request(app.getHttpServer()).post('/api/v1/session-templates').set('Authorization', `Bearer ${clinicianToken}`).send({
+      sessionNumber: 1,
+      category: 1,
+      trainingDurationDays: 3,
+      instructions: 'Session 1 instructions.',
+    });
+    const { profileId, patientToken } = await setUpPatientWithActivePlan(clinicianToken, '+966500000743', 'SES-TEST-14');
+    await request(app.getHttpServer())
+      .post(`/api/v1/patients/${profileId}/sessions/start`)
+      .set('Authorization', `Bearer ${patientToken}`);
+    const otherPatientRegister = await request(app.getHttpServer()).post('/api/v1/auth/register').send({
+      fullName: 'Unrelated Patient',
+      mobile: '+966500000744',
+      password: 'password123',
+      role: 'PATIENT',
+    });
+    await request(app.getHttpServer())
+      .post('/api/v1/auth/verify')
+      .send({ mobile: '+966500000744', code: otherPatientRegister.body.devOtpCode });
+    const otherLogin = await request(app.getHttpServer())
+      .post('/api/v1/auth/login')
+      .send({ mobile: '+966500000744', password: 'password123' });
+
+    const response = await request(app.getHttpServer())
+      .get(`/api/v1/patients/${profileId}/sessions`)
+      .set('Authorization', `Bearer ${otherLogin.body.token}`);
+
+    expect(response.status).toBe(403);
+  });
 });

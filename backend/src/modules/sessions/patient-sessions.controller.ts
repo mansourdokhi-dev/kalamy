@@ -38,6 +38,12 @@ export class PatientSessionsController {
     return this.patientSessionsService.findCurrentOrThrow(patientId, user);
   }
 
+  @Get()
+  @RequirePermission(Permission.VIEW_SESSION)
+  listHistory(@Param('patientId') patientId: string, @CurrentUser() user: AuthenticatedUser) {
+    return this.patientSessionsService.listHistory(patientId, user);
+  }
+
   @Post('current/review')
   @RequirePermission(Permission.REVIEW_SESSION)
   review(@Param('patientId') patientId: string, @Body() dto: ReviewSessionDto, @CurrentUser() user: AuthenticatedUser) {

@@ -172,4 +172,14 @@ export class PatientSessionsService {
       return reviewed;
     });
   }
+
+  async listHistory(patientProfileId: string, actor: AuthenticatedUser): Promise<PatientSession[]> {
+    const profile = await this.findPatientProfileOrThrow(patientProfileId);
+    await this.patientAccessService.assertCanAccess(actor, profile);
+
+    return this.prisma.patientSession.findMany({
+      where: { patientProfileId },
+      orderBy: { createdAt: 'asc' },
+    });
+  }
 }
