@@ -136,3 +136,98 @@ describe('Supervision: assign, reassign, unassign', () => {
     expect(response.status).toBe(403);
   });
 });
+
+describe('Supervision: view assigned clinicians', () => {
+  let app: INestApplication;
+  let prisma: PrismaService;
+
+  beforeAll(async () => {
+    ({ app, prisma } = await createTestApp());
+  });
+
+  afterAll(async () => {
+    await app.close();
+  });
+
+  beforeEach(async () => {
+    await resetDatabase(prisma);
+  });
+
+  async function createAdminToken(mobile: string, password: string): Promise<string> {
+    const registerResponse = await request(app.getHttpServer()).post('/api/v1/auth/register').send({
+      fullName: 'Admin User',
+      mobile,
+      password,
+      role: 'PATIENT',
+    });
+    await request(app.getHttpServer())
+      .post('/api/v1/auth/verify')
+      .send({ mobile, code: registerResponse.body.devOtpCode });
+    await prisma.user.update({ where: { mobile }, data: { role: 'ADMIN' } });
+    const loginResponse = await request(app.getHttpServer()).post('/api/v1/auth/login').send({ mobile, password });
+    return loginResponse.body.token;
+  }
+
+  async function createStaffWithLogin(
+    adminToken: string,
+    mobile: string,
+    role: 'CLINICIAN' | 'SUPERVISOR',
+  ): Promise<{ id: string; token: string }> {
+    const response = await request(app.getHttpServer())
+      .post('/api/v1/admin/staff')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ fullName: `Staff ${mobile}`, mobile, password: 'password123', role });
+    const loginResponse = await request(app.getHttpServer())
+      .post('/api/v1/auth/login')
+      .send({ mobile, password: 'password123' });
+    return { id: response.body.id, token: loginResponse.body.token };
+  }
+
+  it('lets a SUPERVISOR view their own assigned clinicians', async () => {
+    const adminToken = await createAdminToken('+966500002500', 'password123');
+    const supervisor = await createStaffWithLogin(adminToken, '+966500002501', 'SUPERVISOR');
+    const clinician = await createStaffWithLogin(adminToken, '+966500002502', 'CLINICIAN');
+    await request(app.getHttpServer())
+      .put(`/api/v1/admin/supervision/${clinician.id}`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ supervisorUserId: supervisor.id });
+
+    const response = await request(app.getHttpServer())
+      .get(`/api/v1/admin/supervision/${supervisor.id}/clinicians`)
+      .set('Authorization', `Bearer ${supervisor.token}`);
+
+    expect(response.status).toBe(200);
+    expect(response.body).toHaveLength(1);
+    expect(response.body[0].id).toBe(clinician.id);
+    expect(response.body[0].passwordHash).toBeUndefined();
+  });
+
+  it("rejects a different SUPERVISOR viewing another supervisor's clinician list", async () => {
+    const adminToken = await createAdminToken('+966500002503', 'password123');
+    const supervisor = await createStaffWithLogin(adminToken, '+966500002504', 'SUPERVISOR');
+    const otherSupervisor = await createStaffWithLogin(adminToken, '+966500002505', 'SUPERVISOR');
+
+    const response = await request(app.getHttpServer())
+      .get(`/api/v1/admin/supervision/${supervisor.id}/clinicians`)
+      .set('Authorization', `Bearer ${otherSupervisor.token}`);
+
+    expect(response.status).toBe(403);
+  });
+
+  it('lets an ADMIN view any supervisor\'s clinician list', async () => {
+    const adminToken = await createAdminToken('+966500002506', 'password123');
+    const supervisor = await createStaffWithLogin(adminToken, '+966500002507', 'SUPERVISOR');
+    const clinician = await createStaffWithLogin(adminToken, '+966500002508', 'CLINICIAN');
+    await request(app.getHttpServer())
+      .put(`/api/v1/admin/supervision/${clinician.id}`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ supervisorUserId: supervisor.id });
+
+    const response = await request(app.getHttpServer())
+      .get(`/api/v1/admin/supervision/${supervisor.id}/clinicians`)
+      .set('Authorization', `Bearer ${adminToken}`);
+
+    expect(response.status).toBe(200);
+    expect(response.body).toHaveLength(1);
+  });
+});

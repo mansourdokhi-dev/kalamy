@@ -1,7 +1,8 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { AssignSupervisorDto } from './dto/assign-supervisor.dto';
 import { StaffAccountSummary } from '../admin-users/admin-users.service';
+import { AuthenticatedUser } from '../../common/auth/session.guard';
 
 const SUPERVISION_ACCOUNT_SELECT = {
   id: true,
@@ -41,6 +42,20 @@ export class SupervisionService {
     return this.prisma.user.update({
       where: { id: clinicianUserId },
       data: { supervisorUserId: dto.supervisorUserId },
+      select: SUPERVISION_ACCOUNT_SELECT,
+    });
+  }
+
+  async listClinicians(
+    supervisorUserId: string,
+    actor: AuthenticatedUser,
+  ): Promise<Array<StaffAccountSummary & { supervisorUserId: string | null }>> {
+    if (actor.role === 'SUPERVISOR' && actor.id !== supervisorUserId) {
+      throw new ForbiddenException('Cannot view another supervisor\'s clinician list');
+    }
+    return this.prisma.user.findMany({
+      where: { supervisorUserId, role: 'CLINICIAN' },
+      orderBy: { createdAt: 'asc' },
       select: SUPERVISION_ACCOUNT_SELECT,
     });
   }
