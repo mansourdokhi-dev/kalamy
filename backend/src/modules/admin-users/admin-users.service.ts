@@ -5,6 +5,17 @@ import { PasswordService } from '../../common/security/password.service';
 import { CreateStaffDto } from './dto/create-staff.dto';
 import { UpdateUserStatusDto } from './dto/update-user-status.dto';
 
+const STAFF_ACCOUNT_SUMMARY_SELECT = {
+  id: true,
+  fullName: true,
+  mobile: true,
+  email: true,
+  role: true,
+  status: true,
+  mustChangePassword: true,
+  createdAt: true,
+} as const;
+
 export interface StaffAccountSummary {
   id: string;
   fullName: string;
@@ -41,16 +52,7 @@ export class AdminUsersService {
         status: 'ACTIVE',
         mustChangePassword: true,
       },
-      select: {
-        id: true,
-        fullName: true,
-        mobile: true,
-        email: true,
-        role: true,
-        status: true,
-        mustChangePassword: true,
-        createdAt: true,
-      },
+      select: STAFF_ACCOUNT_SUMMARY_SELECT,
     });
   }
 
@@ -61,32 +63,14 @@ export class AdminUsersService {
         status: filters.status as never,
       },
       orderBy: { createdAt: 'asc' },
-      select: {
-        id: true,
-        fullName: true,
-        mobile: true,
-        email: true,
-        role: true,
-        status: true,
-        mustChangePassword: true,
-        createdAt: true,
-      },
+      select: STAFF_ACCOUNT_SUMMARY_SELECT,
     });
   }
 
   async findById(id: string): Promise<StaffAccountSummary> {
     const user = await this.prisma.user.findUnique({
       where: { id },
-      select: {
-        id: true,
-        fullName: true,
-        mobile: true,
-        email: true,
-        role: true,
-        status: true,
-        mustChangePassword: true,
-        createdAt: true,
-      },
+      select: STAFF_ACCOUNT_SUMMARY_SELECT,
     });
     if (!user) {
       throw new NotFoundException('User not found');
@@ -99,16 +83,7 @@ export class AdminUsersService {
     return this.prisma.user.update({
       where: { id },
       data: { status: dto.status },
-      select: {
-        id: true,
-        fullName: true,
-        mobile: true,
-        email: true,
-        role: true,
-        status: true,
-        mustChangePassword: true,
-        createdAt: true,
-      },
+      select: STAFF_ACCOUNT_SUMMARY_SELECT,
     });
   }
 }
