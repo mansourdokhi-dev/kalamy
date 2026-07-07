@@ -119,3 +119,37 @@ describe('hasPermission — reports and complaints', () => {
     expect(hasPermission('PATIENT', Permission.VIEW_ADMIN_REPORTS)).toBe(false);
   });
 });
+
+describe('hasPermission — administration', () => {
+  it('allows an ADMIN to create a staff account', () => {
+    expect(hasPermission('ADMIN', Permission.CREATE_STAFF_ACCOUNT)).toBe(true);
+  });
+
+  it('does not allow a SUPERVISOR to create a staff account', () => {
+    expect(hasPermission('SUPERVISOR', Permission.CREATE_STAFF_ACCOUNT)).toBe(false);
+  });
+
+  it('allows an ADMIN to manage user accounts', () => {
+    expect(hasPermission('ADMIN', Permission.MANAGE_USER_ACCOUNTS)).toBe(true);
+  });
+
+  it('does not allow a CLINICIAN to manage user accounts', () => {
+    expect(hasPermission('CLINICIAN', Permission.MANAGE_USER_ACCOUNTS)).toBe(false);
+  });
+
+  it('allows an ADMIN to manage supervision assignments', () => {
+    expect(hasPermission('ADMIN', Permission.MANAGE_SUPERVISION)).toBe(true);
+  });
+
+  it('does not allow a SUPERVISOR to manage supervision assignments', () => {
+    expect(hasPermission('SUPERVISOR', Permission.MANAGE_SUPERVISION)).toBe(false);
+  });
+
+  it('allows a SUPERVISOR to view supervision assignments (ownership enforced elsewhere)', () => {
+    expect(hasPermission('SUPERVISOR', Permission.VIEW_SUPERVISION)).toBe(true);
+  });
+
+  it('does not allow a PATIENT to view supervision assignments', () => {
+    expect(hasPermission('PATIENT', Permission.VIEW_SUPERVISION)).toBe(false);
+  });
+});

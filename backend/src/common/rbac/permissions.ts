@@ -31,6 +31,10 @@ export enum Permission {
   MANAGE_COMPLAINTS = 'MANAGE_COMPLAINTS',
   VIEW_PATIENT_REPORTS = 'VIEW_PATIENT_REPORTS',
   VIEW_ADMIN_REPORTS = 'VIEW_ADMIN_REPORTS',
+  CREATE_STAFF_ACCOUNT = 'CREATE_STAFF_ACCOUNT',
+  MANAGE_USER_ACCOUNTS = 'MANAGE_USER_ACCOUNTS',
+  MANAGE_SUPERVISION = 'MANAGE_SUPERVISION',
+  VIEW_SUPERVISION = 'VIEW_SUPERVISION',
 }
 
 export const ROLE_PERMISSIONS: Record<Role, Permission[]> = {
@@ -103,6 +107,7 @@ export const ROLE_PERMISSIONS: Record<Role, Permission[]> = {
     Permission.MANAGE_COMPLAINTS,
     Permission.VIEW_PATIENT_REPORTS,
     Permission.VIEW_ADMIN_REPORTS,
+    Permission.VIEW_SUPERVISION,
   ],
   ADMIN: [
     Permission.CREATE_PATIENT_PROFILE,
@@ -132,6 +137,10 @@ export const ROLE_PERMISSIONS: Record<Role, Permission[]> = {
     Permission.MANAGE_COMPLAINTS,
     Permission.VIEW_PATIENT_REPORTS,
     Permission.VIEW_ADMIN_REPORTS,
+    Permission.CREATE_STAFF_ACCOUNT,
+    Permission.MANAGE_USER_ACCOUNTS,
+    Permission.MANAGE_SUPERVISION,
+    Permission.VIEW_SUPERVISION,
   ],
 };
 
