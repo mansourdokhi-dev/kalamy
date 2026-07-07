@@ -101,6 +101,8 @@ model User {
   status              UserStatus @default(PENDING_VERIFICATION)
   failedLoginAttempts Int        @default(0)
   lockedUntil         DateTime?
+  mustChangePassword  Boolean    @default(false)
+  supervisorUserId    String?
   createdAt           DateTime   @default(now())
   updatedAt           DateTime   @updatedAt
 
@@ -117,6 +119,8 @@ model User {
   reviewedPatientSessions PatientSession[]
   complaintsSubmitted     Complaint[] @relation("ComplaintSubmitter")
   complaintsAboutMe       Complaint[] @relation("ComplaintRelatedClinician")
+  supervisorUser        User?            @relation("ClinicianSupervisor", fields: [supervisorUserId], references: [id])
+  supervisedClinicians   User[]           @relation("ClinicianSupervisor")
 }
 
 model OtpCode {
