@@ -1,8 +1,19 @@
 import { ConflictException, Injectable } from '@nestjs/common';
-import { User } from '@prisma/client';
+import { Role, UserStatus } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { PasswordService } from '../../common/security/password.service';
 import { CreateStaffDto } from './dto/create-staff.dto';
+
+export interface StaffAccountSummary {
+  id: string;
+  fullName: string;
+  mobile: string;
+  email: string | null;
+  role: Role;
+  status: UserStatus;
+  mustChangePassword: boolean;
+  createdAt: Date;
+}
 
 @Injectable()
 export class AdminUsersService {
@@ -11,7 +22,7 @@ export class AdminUsersService {
     private readonly passwordService: PasswordService,
   ) {}
 
-  async createStaff(dto: CreateStaffDto): Promise<User> {
+  async createStaff(dto: CreateStaffDto): Promise<StaffAccountSummary> {
     const existing = await this.prisma.user.findUnique({ where: { mobile: dto.mobile } });
     if (existing) {
       throw new ConflictException('Mobile number already registered');
@@ -28,6 +39,16 @@ export class AdminUsersService {
         role: dto.role,
         status: 'ACTIVE',
         mustChangePassword: true,
+      },
+      select: {
+        id: true,
+        fullName: true,
+        mobile: true,
+        email: true,
+        role: true,
+        status: true,
+        mustChangePassword: true,
+        createdAt: true,
       },
     });
   }

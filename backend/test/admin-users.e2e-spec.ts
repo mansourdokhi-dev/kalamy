@@ -98,6 +98,7 @@ describe('Admin Users: staff account creation', () => {
     expect(response.body.role).toBe('CLINICIAN');
     expect(response.body.status).toBe('ACTIVE');
     expect(response.body.mustChangePassword).toBe(true);
+    expect(response.body.passwordHash).toBeUndefined();
 
     const loginResponse = await request(app.getHttpServer())
       .post('/api/v1/auth/login')
