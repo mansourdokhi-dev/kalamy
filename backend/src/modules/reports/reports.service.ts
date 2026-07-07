@@ -46,6 +46,23 @@ export interface MedicalReport {
   } | null;
 }
 
+export interface OperationalStatusReport {
+  usersByRole: Record<string, number>;
+  patientProfilesByStatus: Record<string, number>;
+  treatmentPlansByStatus: Record<string, number>;
+  patientSessionsByStatus: Record<string, number>;
+}
+
+export interface RegisteredUserSummary {
+  id: string;
+  fullName: string;
+  mobile: string;
+  role: string;
+  status: string;
+  createdAt: Date;
+  caseProgressSummary: string | null;
+}
+
 @Injectable()
 export class ReportsService {
   constructor(
@@ -123,6 +140,74 @@ export class ReportsService {
           }
         : null,
     };
+  }
+
+  async getOperationalStatusReport(): Promise<OperationalStatusReport> {
+    const [usersByRoleRaw, profilesByStatusRaw, plansByStatusRaw, sessionsByStatusRaw] = await Promise.all([
+      this.prisma.user.groupBy({ by: ['role'], _count: { _all: true } }),
+      this.prisma.patientProfile.groupBy({ by: ['status'], _count: { _all: true } }),
+      this.prisma.treatmentPlan.groupBy({ by: ['status'], _count: { _all: true } }),
+      this.prisma.patientSession.groupBy({ by: ['status'], _count: { _all: true } }),
+    ]);
+
+    return {
+      usersByRole: this.zeroFillCounts(['PATIENT', 'CAREGIVER', 'CLINICIAN', 'SUPERVISOR', 'ADMIN'], usersByRoleRaw, 'role'),
+      patientProfilesByStatus: this.zeroFillCounts(['ACTIVE', 'DISABLED'], profilesByStatusRaw, 'status'),
+      treatmentPlansByStatus: this.zeroFillCounts(['ACTIVE', 'INACTIVE'], plansByStatusRaw, 'status'),
+      patientSessionsByStatus: this.zeroFillCounts(
+        ['IN_TRAINING', 'SUBMITTED', 'APPROVED', 'REPEAT_REQUIRED'],
+        sessionsByStatusRaw,
+        'status',
+      ),
+    };
+  }
+
+  async getRegisteredUsersReport(): Promise<RegisteredUserSummary[]> {
+    const users = await this.prisma.user.findMany({
+      orderBy: { createdAt: 'asc' },
+      include: { patientProfile: true },
+    });
+
+    const summaries: RegisteredUserSummary[] = [];
+    for (const user of users) {
+      let caseProgressSummary: string | null = null;
+      if (user.role === 'PATIENT') {
+        caseProgressSummary = 'Not started';
+        if (user.patientProfile) {
+          const latestSession = await this.prisma.patientSession.findFirst({
+            where: { patientProfileId: user.patientProfile.id },
+            orderBy: { createdAt: 'desc' },
+            include: { sessionTemplate: true },
+          });
+          if (latestSession) {
+            caseProgressSummary = `Session ${latestSession.sessionTemplate.sessionNumber} (${latestSession.status})`;
+          }
+        }
+      }
+      summaries.push({
+        id: user.id,
+        fullName: user.fullName,
+        mobile: user.mobile,
+        role: user.role,
+        status: user.status,
+        createdAt: user.createdAt,
+        caseProgressSummary,
+      });
+    }
+    return summaries;
+  }
+
+  private zeroFillCounts<K extends string>(
+    allKeys: K[],
+    rows: Array<Record<string, unknown> & { _count: { _all: number } }>,
+    keyField: string,
+  ): Record<K, number> {
+    const result = Object.fromEntries(allKeys.map((key) => [key, 0])) as Record<K, number>;
+    for (const row of rows) {
+      const key = row[keyField] as K;
+      result[key] = row._count._all;
+    }
+    return result;
   }
 
   private async findPatientProfileOrThrow(patientProfileId: string): Promise<PatientProfile> {

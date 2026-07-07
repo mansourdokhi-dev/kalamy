@@ -22,4 +22,16 @@ export class ReportsController {
   getMedicalReport(@Param('patientId') patientId: string, @CurrentUser() user: AuthenticatedUser) {
     return this.reportsService.getMedicalReport(patientId, user);
   }
+
+  @Get('operational-status')
+  @RequirePermission(Permission.VIEW_ADMIN_REPORTS)
+  getOperationalStatusReport() {
+    return this.reportsService.getOperationalStatusReport();
+  }
+
+  @Get('registered-users')
+  @RequirePermission(Permission.VIEW_ADMIN_REPORTS)
+  getRegisteredUsersReport() {
+    return this.reportsService.getRegisteredUsersReport();
+  }
 }
