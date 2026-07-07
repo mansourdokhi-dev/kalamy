@@ -37,10 +37,18 @@ export async function apiRequest<T>(path: string, options: ApiRequestOptions = {
     body: options.body !== undefined ? JSON.stringify(options.body) : undefined,
   });
 
-  const data = await response.json();
+  let data: any;
+  try {
+    data = await response.json();
+  } catch {
+    if (!response.ok) {
+      throw new ApiError(response.status, 'PARSE_ERROR', `Request failed with status ${response.status}`);
+    }
+    data = undefined;
+  }
 
   if (!response.ok) {
-    throw new ApiError(response.status, data.code ?? 'UNKNOWN_ERROR', data.message ?? 'Request failed', data.details);
+    throw new ApiError(response.status, data?.code ?? 'UNKNOWN_ERROR', data?.message ?? 'Request failed', data?.details);
   }
 
   return data as T;

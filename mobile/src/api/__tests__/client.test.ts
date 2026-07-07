@@ -53,4 +53,19 @@ describe('apiRequest', () => {
       }),
     );
   });
+
+  it('throws a status-carrying ApiError when the error response body is not valid JSON', async () => {
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: false,
+      status: 502,
+      json: async () => {
+        throw new SyntaxError('Unexpected token < in JSON');
+      },
+    }) as unknown as typeof fetch;
+
+    await expect(apiRequest('/api/v1/auth/login', { method: 'POST', body: {} })).rejects.toMatchObject({
+      status: 502,
+      code: 'PARSE_ERROR',
+    });
+  });
 });
