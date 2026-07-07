@@ -145,3 +145,128 @@ describe('Admin Users: staff account creation', () => {
     expect(response.status).toBe(409);
   });
 });
+
+describe('Admin Users: list, view, enable/disable', () => {
+  let app: INestApplication;
+  let prisma: PrismaService;
+
+  beforeAll(async () => {
+    ({ app, prisma } = await createTestApp());
+  });
+
+  afterAll(async () => {
+    await app.close();
+  });
+
+  beforeEach(async () => {
+    await resetDatabase(prisma);
+  });
+
+  async function createAdminToken(mobile: string, password: string): Promise<string> {
+    const registerResponse = await request(app.getHttpServer()).post('/api/v1/auth/register').send({
+      fullName: 'Admin User',
+      mobile,
+      password,
+      role: 'PATIENT',
+    });
+    await request(app.getHttpServer())
+      .post('/api/v1/auth/verify')
+      .send({ mobile, code: registerResponse.body.devOtpCode });
+    await prisma.user.update({ where: { mobile }, data: { role: 'ADMIN' } });
+    const loginResponse = await request(app.getHttpServer()).post('/api/v1/auth/login').send({ mobile, password });
+    return loginResponse.body.token;
+  }
+
+  it('lets an ADMIN list and filter users by role', async () => {
+    const adminToken = await createAdminToken('+966500002300', 'password123');
+    await request(app.getHttpServer())
+      .post('/api/v1/admin/staff')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ fullName: 'A Clinician', mobile: '+966500002301', password: 'password123', role: 'CLINICIAN' });
+
+    const response = await request(app.getHttpServer())
+      .get('/api/v1/admin/users?role=CLINICIAN')
+      .set('Authorization', `Bearer ${adminToken}`);
+
+    expect(response.status).toBe(200);
+    expect(response.body).toHaveLength(1);
+    expect(response.body[0].mobile).toBe('+966500002301');
+    expect(response.body[0].passwordHash).toBeUndefined();
+  });
+
+  it('lets an ADMIN view a single user by id', async () => {
+    const adminToken = await createAdminToken('+966500002302', 'password123');
+    const createResponse = await request(app.getHttpServer())
+      .post('/api/v1/admin/staff')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ fullName: 'View Me', mobile: '+966500002303', password: 'password123', role: 'SUPERVISOR' });
+
+    const response = await request(app.getHttpServer())
+      .get(`/api/v1/admin/users/${createResponse.body.id}`)
+      .set('Authorization', `Bearer ${adminToken}`);
+
+    expect(response.status).toBe(200);
+    expect(response.body.fullName).toBe('View Me');
+    expect(response.body.passwordHash).toBeUndefined();
+  });
+
+  it('404s when viewing a nonexistent user', async () => {
+    const adminToken = await createAdminToken('+966500002304', 'password123');
+
+    const response = await request(app.getHttpServer())
+      .get('/api/v1/admin/users/00000000-0000-0000-0000-000000000000')
+      .set('Authorization', `Bearer ${adminToken}`);
+
+    expect(response.status).toBe(404);
+  });
+
+  it('lets an ADMIN disable and re-enable a user account', async () => {
+    const adminToken = await createAdminToken('+966500002305', 'password123');
+    const createResponse = await request(app.getHttpServer())
+      .post('/api/v1/admin/staff')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ fullName: 'To Disable', mobile: '+966500002306', password: 'password123', role: 'CLINICIAN' });
+
+    const disableResponse = await request(app.getHttpServer())
+      .patch(`/api/v1/admin/users/${createResponse.body.id}/status`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ status: 'DISABLED' });
+    expect(disableResponse.status).toBe(200);
+    expect(disableResponse.body.status).toBe('DISABLED');
+    expect(disableResponse.body.passwordHash).toBeUndefined();
+
+    const loginAttempt = await request(app.getHttpServer())
+      .post('/api/v1/auth/login')
+      .send({ mobile: '+966500002306', password: 'password123' });
+    expect(loginAttempt.status).toBe(401);
+
+    const enableResponse = await request(app.getHttpServer())
+      .patch(`/api/v1/admin/users/${createResponse.body.id}/status`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ status: 'ACTIVE' });
+    expect(enableResponse.status).toBe(200);
+    expect(enableResponse.body.status).toBe('ACTIVE');
+  });
+
+  it('rejects a non-ADMIN listing users', async () => {
+    const clinicianRegister = await request(app.getHttpServer()).post('/api/v1/auth/register').send({
+      fullName: 'Clinician User',
+      mobile: '+966500002307',
+      password: 'password123',
+      role: 'PATIENT',
+    });
+    await request(app.getHttpServer())
+      .post('/api/v1/auth/verify')
+      .send({ mobile: '+966500002307', code: clinicianRegister.body.devOtpCode });
+    await prisma.user.update({ where: { mobile: '+966500002307' }, data: { role: 'CLINICIAN' } });
+    const loginResponse = await request(app.getHttpServer())
+      .post('/api/v1/auth/login')
+      .send({ mobile: '+966500002307', password: 'password123' });
+
+    const response = await request(app.getHttpServer())
+      .get('/api/v1/admin/users')
+      .set('Authorization', `Bearer ${loginResponse.body.token}`);
+
+    expect(response.status).toBe(403);
+  });
+});

@@ -1,8 +1,9 @@
-import { ConflictException, Injectable } from '@nestjs/common';
+import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { Role, UserStatus } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { PasswordService } from '../../common/security/password.service';
 import { CreateStaffDto } from './dto/create-staff.dto';
+import { UpdateUserStatusDto } from './dto/update-user-status.dto';
 
 export interface StaffAccountSummary {
   id: string;
@@ -40,6 +41,64 @@ export class AdminUsersService {
         status: 'ACTIVE',
         mustChangePassword: true,
       },
+      select: {
+        id: true,
+        fullName: true,
+        mobile: true,
+        email: true,
+        role: true,
+        status: true,
+        mustChangePassword: true,
+        createdAt: true,
+      },
+    });
+  }
+
+  async list(filters: { role?: string; status?: string }): Promise<StaffAccountSummary[]> {
+    return this.prisma.user.findMany({
+      where: {
+        role: filters.role as never,
+        status: filters.status as never,
+      },
+      orderBy: { createdAt: 'asc' },
+      select: {
+        id: true,
+        fullName: true,
+        mobile: true,
+        email: true,
+        role: true,
+        status: true,
+        mustChangePassword: true,
+        createdAt: true,
+      },
+    });
+  }
+
+  async findById(id: string): Promise<StaffAccountSummary> {
+    const user = await this.prisma.user.findUnique({
+      where: { id },
+      select: {
+        id: true,
+        fullName: true,
+        mobile: true,
+        email: true,
+        role: true,
+        status: true,
+        mustChangePassword: true,
+        createdAt: true,
+      },
+    });
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+    return user;
+  }
+
+  async updateStatus(id: string, dto: UpdateUserStatusDto): Promise<StaffAccountSummary> {
+    await this.findById(id);
+    return this.prisma.user.update({
+      where: { id },
+      data: { status: dto.status },
       select: {
         id: true,
         fullName: true,
