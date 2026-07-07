@@ -109,6 +109,29 @@ describe('Reports: patient-scoped (assessment results, medical)', () => {
     expect(response.status).toBe(403);
   });
 
+  it("rejects an unrelated PATIENT viewing another patient's medical report", async () => {
+    const clinicianToken = await createClinicianToken('+966500001009', 'password123');
+    const { profileId } = await setUpPatientWithApprovedAssessmentAndPlan(clinicianToken, '+966500001010', 'REP-TEST-5');
+    const otherRegister = await request(app.getHttpServer()).post('/api/v1/auth/register').send({
+      fullName: 'Unrelated Patient',
+      mobile: '+966500001011',
+      password: 'password123',
+      role: 'PATIENT',
+    });
+    await request(app.getHttpServer())
+      .post('/api/v1/auth/verify')
+      .send({ mobile: '+966500001011', code: otherRegister.body.devOtpCode });
+    const otherLogin = await request(app.getHttpServer())
+      .post('/api/v1/auth/login')
+      .send({ mobile: '+966500001011', password: 'password123' });
+
+    const response = await request(app.getHttpServer())
+      .get(`/api/v1/reports/patients/${profileId}/medical`)
+      .set('Authorization', `Bearer ${otherLogin.body.token}`);
+
+    expect(response.status).toBe(403);
+  });
+
   it('returns the medical report combining clinical info, latest approved assessment, and active plan', async () => {
     const clinicianToken = await createClinicianToken('+966500001005', 'password123');
     const { profileId, patientToken } = await setUpPatientWithApprovedAssessmentAndPlan(clinicianToken, '+966500001006', 'REP-TEST-3');

@@ -1,5 +1,5 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
-import { PatientProfile } from '@prisma/client';
+import { PatientProfile, Complaint } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { PatientAccessService } from '../../common/patient-access/patient-access.service';
 import { AuthenticatedUser } from '../../common/auth/session.guard';
@@ -281,7 +281,7 @@ export class ReportsService {
     return summaries;
   }
 
-  async getComplaintsReport(filters: ComplaintReportFilters) {
+  async getComplaintsReport(filters: ComplaintReportFilters): Promise<Complaint[]> {
     return this.prisma.complaint.findMany({
       where: {
         status: filters.status,
