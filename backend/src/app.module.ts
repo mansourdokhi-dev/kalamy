@@ -15,6 +15,7 @@ import { SessionsModule } from './modules/sessions/sessions.module';
 import { ProgressModule } from './modules/progress/progress.module';
 import { ComplaintsModule } from './modules/complaints/complaints.module';
 import { ReportsModule } from './modules/reports/reports.module';
+import { AdminUsersModule } from './modules/admin-users/admin-users.module';
 
 @Module({
   imports: [
@@ -29,6 +30,7 @@ import { ReportsModule } from './modules/reports/reports.module';
     ProgressModule,
     ComplaintsModule,
     ReportsModule,
+    AdminUsersModule,
   ],
   controllers: [AppController],
   providers: [
