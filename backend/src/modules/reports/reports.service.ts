@@ -73,6 +73,21 @@ export interface ServiceModificationLogEntry {
   createdAt: Date;
 }
 
+export interface StaffPerformanceSummary {
+  clinicianUserId: string;
+  fullName: string;
+  role: string;
+  patientsHandled: number;
+  reviewsApproved: number;
+  reviewsRepeatRequired: number;
+  complaintsAgainst: number;
+}
+
+export interface ComplaintReportFilters {
+  status?: 'OPEN' | 'REVIEWED' | 'RESOLVED';
+  relatedClinicianUserId?: string;
+}
+
 @Injectable()
 export class ReportsService {
   constructor(
@@ -228,6 +243,52 @@ export class ReportsService {
       actorRole: log.user?.role ?? null,
       createdAt: log.createdAt,
     }));
+  }
+
+  async getStaffPerformanceReport(): Promise<StaffPerformanceSummary[]> {
+    const staff = await this.prisma.user.findMany({
+      where: { role: { in: ['CLINICIAN', 'SUPERVISOR'] } },
+      orderBy: { createdAt: 'asc' },
+    });
+
+    const summaries: StaffPerformanceSummary[] = [];
+    for (const member of staff) {
+      const patientsHandled = await this.prisma.assessment.findMany({
+        where: { clinicianUserId: member.id },
+        distinct: ['patientProfileId'],
+        select: { patientProfileId: true },
+      });
+      const reviewsApproved = await this.prisma.patientSession.count({
+        where: { clinicianUserId: member.id, status: 'APPROVED' },
+      });
+      const reviewsRepeatRequired = await this.prisma.patientSession.count({
+        where: { clinicianUserId: member.id, status: 'REPEAT_REQUIRED' },
+      });
+      const complaintsAgainst = await this.prisma.complaint.count({
+        where: { relatedClinicianUserId: member.id },
+      });
+
+      summaries.push({
+        clinicianUserId: member.id,
+        fullName: member.fullName,
+        role: member.role,
+        patientsHandled: patientsHandled.length,
+        reviewsApproved,
+        reviewsRepeatRequired,
+        complaintsAgainst,
+      });
+    }
+    return summaries;
+  }
+
+  async getComplaintsReport(filters: ComplaintReportFilters) {
+    return this.prisma.complaint.findMany({
+      where: {
+        status: filters.status,
+        relatedClinicianUserId: filters.relatedClinicianUserId,
+      },
+      orderBy: { createdAt: 'desc' },
+    });
   }
 
   private zeroFillCounts<K extends string>(

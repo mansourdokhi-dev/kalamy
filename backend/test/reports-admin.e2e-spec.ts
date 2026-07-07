@@ -172,3 +172,83 @@ describe('Reports: service modification log', () => {
     expect(response.status).toBe(403);
   });
 });
+
+describe('Reports: staff performance and complaints', () => {
+  let app: INestApplication;
+  let prisma: PrismaService;
+
+  beforeAll(async () => {
+    ({ app, prisma } = await createTestApp());
+  });
+
+  afterAll(async () => {
+    await app.close();
+  });
+
+  beforeEach(async () => {
+    await resetDatabase(prisma);
+  });
+
+  async function createUserToken(
+    mobile: string,
+    password: string,
+    role: 'PATIENT' | 'CLINICIAN' | 'ADMIN',
+  ): Promise<{ token: string; userId: string }> {
+    const registerResponse = await request(app.getHttpServer()).post('/api/v1/auth/register').send({
+      fullName: 'Staff Performance Test User',
+      mobile,
+      password,
+      role: 'PATIENT',
+    });
+    await request(app.getHttpServer())
+      .post('/api/v1/auth/verify')
+      .send({ mobile, code: registerResponse.body.devOtpCode });
+    if (role !== 'PATIENT') {
+      await prisma.user.update({ where: { mobile }, data: { role } });
+    }
+    const loginResponse = await request(app.getHttpServer()).post('/api/v1/auth/login').send({ mobile, password });
+    return { token: loginResponse.body.token, userId: registerResponse.body.userId };
+  }
+
+  it('counts a complaint against the named clinician in both reports', async () => {
+    const { token: adminToken } = await createUserToken('+966500001300', 'password123', 'ADMIN');
+    const { userId: clinicianUserId } = await createUserToken('+966500001301', 'password123', 'CLINICIAN');
+    const { token: patientToken } = await createUserToken('+966500001302', 'password123', 'PATIENT');
+    await request(app.getHttpServer())
+      .post('/api/v1/complaints')
+      .set('Authorization', `Bearer ${patientToken}`)
+      .send({
+        type: 'COMPLAINT',
+        subject: 'Slow review',
+        description: 'Took too long.',
+        relatedClinicianUserId: clinicianUserId,
+      });
+
+    const performanceResponse = await request(app.getHttpServer())
+      .get('/api/v1/reports/staff-performance')
+      .set('Authorization', `Bearer ${adminToken}`);
+    const complaintsResponse = await request(app.getHttpServer())
+      .get(`/api/v1/reports/complaints?relatedClinicianUserId=${clinicianUserId}`)
+      .set('Authorization', `Bearer ${adminToken}`);
+
+    expect(performanceResponse.status).toBe(200);
+    const clinicianSummary = performanceResponse.body.find(
+      (s: { clinicianUserId: string }) => s.clinicianUserId === clinicianUserId,
+    );
+    expect(clinicianSummary.complaintsAgainst).toBe(1);
+
+    expect(complaintsResponse.status).toBe(200);
+    expect(complaintsResponse.body).toHaveLength(1);
+    expect(complaintsResponse.body[0].subject).toBe('Slow review');
+  });
+
+  it('rejects a CLINICIAN viewing the staff performance report', async () => {
+    const { token } = await createUserToken('+966500001303', 'password123', 'CLINICIAN');
+
+    const response = await request(app.getHttpServer())
+      .get('/api/v1/reports/staff-performance')
+      .set('Authorization', `Bearer ${token}`);
+
+    expect(response.status).toBe(403);
+  });
+});

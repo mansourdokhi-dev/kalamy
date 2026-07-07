@@ -43,4 +43,19 @@ export class ReportsController {
       to: to ? new Date(to) : undefined,
     });
   }
+
+  @Get('staff-performance')
+  @RequirePermission(Permission.VIEW_ADMIN_REPORTS)
+  getStaffPerformanceReport() {
+    return this.reportsService.getStaffPerformanceReport();
+  }
+
+  @Get('complaints')
+  @RequirePermission(Permission.VIEW_ADMIN_REPORTS)
+  getComplaintsReport(
+    @Query('status') status?: 'OPEN' | 'REVIEWED' | 'RESOLVED',
+    @Query('relatedClinicianUserId') relatedClinicianUserId?: string,
+  ) {
+    return this.reportsService.getComplaintsReport({ status, relatedClinicianUserId });
+  }
 }
