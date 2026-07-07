@@ -16,6 +16,7 @@ import { VerifyOtpDto } from './dto/verify-otp.dto';
 import { LoginDto } from './dto/login.dto';
 import { ForgotPasswordDto } from './dto/forgot-password.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
+import { ChangePasswordDto } from './dto/change-password.dto';
 
 const LOGIN_MAX_ATTEMPTS = 5;
 const LOGIN_LOCKOUT_MINUTES = 15;
@@ -72,7 +73,7 @@ export class AuthService {
     return { verified: true };
   }
 
-  async login(dto: LoginDto, deviceInfo?: string): Promise<{ token: string; expiresAt: Date }> {
+  async login(dto: LoginDto, deviceInfo?: string): Promise<{ token: string; expiresAt: Date; mustChangePassword: boolean }> {
     const user = await this.prisma.user.findUnique({ where: { mobile: dto.mobile } });
     if (!user) {
       throw new UnauthorizedException('Invalid credentials');
@@ -116,7 +117,23 @@ export class AuthService {
       },
     });
 
-    return { token, expiresAt };
+    return { token, expiresAt, mustChangePassword: user.mustChangePassword };
+  }
+
+  async changePassword(userId: string, dto: ChangePasswordDto): Promise<void> {
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+    const currentMatches = await this.passwordService.compare(dto.currentPassword, user.passwordHash);
+    if (!currentMatches) {
+      throw new UnauthorizedException('Current password is incorrect');
+    }
+    const newPasswordHash = await this.passwordService.hash(dto.newPassword);
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: { passwordHash: newPasswordHash, mustChangePassword: false },
+    });
   }
 
   async logout(sessionId: string): Promise<void> {

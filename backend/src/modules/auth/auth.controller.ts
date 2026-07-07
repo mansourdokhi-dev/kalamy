@@ -5,6 +5,7 @@ import { VerifyOtpDto } from './dto/verify-otp.dto';
 import { LoginDto } from './dto/login.dto';
 import { ForgotPasswordDto } from './dto/forgot-password.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
+import { ChangePasswordDto } from './dto/change-password.dto';
 import { SessionGuard, AuthenticatedUser } from '../../common/auth/session.guard';
 import { CurrentUser } from '../../common/auth/current-user.decorator';
 
@@ -59,5 +60,13 @@ export class AuthController {
   @HttpCode(204)
   async revokeSession(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser): Promise<void> {
     await this.authService.revokeSession(user.id, id);
+  }
+
+  @Post('change-password')
+  @UseGuards(SessionGuard)
+  @HttpCode(200)
+  async changePassword(@Body() dto: ChangePasswordDto, @CurrentUser() user: AuthenticatedUser): Promise<{ changed: true }> {
+    await this.authService.changePassword(user.id, dto);
+    return { changed: true };
   }
 }

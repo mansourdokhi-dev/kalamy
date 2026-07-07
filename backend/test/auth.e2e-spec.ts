@@ -355,3 +355,86 @@ describe('Auth: password reset', () => {
     expect(loginWithNewPassword.status).toBe(200);
   });
 });
+
+describe('Auth: mustChangePassword + change-password', () => {
+  let app: INestApplication;
+  let prisma: PrismaService;
+
+  beforeAll(async () => {
+    ({ app, prisma } = await createTestApp());
+  });
+
+  afterAll(async () => {
+    await app.close();
+  });
+
+  beforeEach(async () => {
+    await resetDatabase(prisma);
+  });
+
+  it('returns mustChangePassword: false on login for a normally-registered user', async () => {
+    const registerResponse = await request(app.getHttpServer()).post('/api/v1/auth/register').send({
+      fullName: 'Normal Patient',
+      mobile: '+966500002100',
+      password: 'password123',
+      role: 'PATIENT',
+    });
+    await request(app.getHttpServer())
+      .post('/api/v1/auth/verify')
+      .send({ mobile: '+966500002100', code: registerResponse.body.devOtpCode });
+
+    const loginResponse = await request(app.getHttpServer())
+      .post('/api/v1/auth/login')
+      .send({ mobile: '+966500002100', password: 'password123' });
+
+    expect(loginResponse.status).toBe(200);
+    expect(loginResponse.body.mustChangePassword).toBe(false);
+  });
+
+  it('returns mustChangePassword: true on login for a user with the flag set, and clears it via change-password', async () => {
+    const bcrypt = await import('bcryptjs');
+    const passwordHash = await bcrypt.hash('temp-pass-123', 10);
+    const user = await prisma.user.create({
+      data: {
+        fullName: 'Flagged User',
+        mobile: '+966500002101',
+        passwordHash,
+        role: 'CLINICIAN',
+        status: 'ACTIVE',
+        mustChangePassword: true,
+      },
+    });
+
+    const loginResponse = await request(app.getHttpServer())
+      .post('/api/v1/auth/login')
+      .send({ mobile: '+966500002101', password: 'temp-pass-123' });
+    expect(loginResponse.status).toBe(200);
+    expect(loginResponse.body.mustChangePassword).toBe(true);
+    const token = loginResponse.body.token;
+
+    const wrongCurrentResponse = await request(app.getHttpServer())
+      .post('/api/v1/auth/change-password')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ currentPassword: 'wrong-password', newPassword: 'new-password-456' });
+    expect(wrongCurrentResponse.status).toBe(401);
+
+    const changeResponse = await request(app.getHttpServer())
+      .post('/api/v1/auth/change-password')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ currentPassword: 'temp-pass-123', newPassword: 'new-password-456' });
+    expect(changeResponse.status).toBe(200);
+
+    const reloginOldPassword = await request(app.getHttpServer())
+      .post('/api/v1/auth/login')
+      .send({ mobile: '+966500002101', password: 'temp-pass-123' });
+    expect(reloginOldPassword.status).toBe(401);
+
+    const reloginNewPassword = await request(app.getHttpServer())
+      .post('/api/v1/auth/login')
+      .send({ mobile: '+966500002101', password: 'new-password-456' });
+    expect(reloginNewPassword.status).toBe(200);
+    expect(reloginNewPassword.body.mustChangePassword).toBe(false);
+
+    void user;
+  });
+});
