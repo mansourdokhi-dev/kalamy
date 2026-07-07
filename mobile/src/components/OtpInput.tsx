@@ -1,3 +1,4 @@
+import { useState, useEffect } from 'react';
 import { View, TextInput, StyleSheet } from 'react-native';
 import { useTheme } from '../theme/ThemeContext';
 
@@ -10,14 +11,21 @@ interface OtpInputProps {
 
 export function OtpInput({ length, value, onChange, onComplete }: OtpInputProps) {
   const { tokens } = useTheme();
-  const digits = Array.from({ length }, (_, i) => value[i] ?? '');
+  const [digits, setDigits] = useState<string[]>(() => Array.from({ length }, (_, i) => value[i] ?? ''));
+
+  useEffect(() => {
+    if (value === '') {
+      setDigits(Array.from({ length }, () => ''));
+    }
+  }, [value, length]);
 
   function handleChangeDigit(index: number, digit: string) {
     const nextDigits = [...digits];
     nextDigits[index] = digit.slice(-1);
+    setDigits(nextDigits);
     const nextValue = nextDigits.join('');
     onChange(nextValue);
-    if (nextValue.length === length && onComplete) {
+    if (nextDigits.every((d) => d !== '') && onComplete) {
       onComplete(nextValue);
     }
   }

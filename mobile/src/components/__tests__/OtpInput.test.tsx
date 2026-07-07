@@ -23,4 +23,14 @@ describe('OtpInput', () => {
     });
     expect(onChange).toHaveBeenCalledWith('123456');
   });
+
+  it('clearing a middle digit does not shift later digits', async () => {
+    const onChange = jest.fn();
+    await renderWithTheme(<OtpInput length={4} value="1234" onChange={onChange} />);
+    await act(async () => {
+      fireEvent.changeText(screen.getByTestId('otp-digit-1'), '');
+    });
+    expect(screen.getByTestId('otp-digit-2').props.value).toBe('3');
+    expect(screen.getByTestId('otp-digit-3').props.value).toBe('4');
+  });
 });
