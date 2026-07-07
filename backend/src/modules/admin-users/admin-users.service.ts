@@ -5,6 +5,10 @@ import { PasswordService } from '../../common/security/password.service';
 import { CreateStaffDto } from './dto/create-staff.dto';
 import { UpdateUserStatusDto } from './dto/update-user-status.dto';
 
+// Deliberately excludes passwordHash and other internal fields (see review
+// history: two prior response leaks were fixed by scoping every returning
+// User query to this select). Keep in sync with SUPERVISION_ACCOUNT_SELECT
+// in ../supervision/supervision.service.ts, which mirrors these same fields.
 const STAFF_ACCOUNT_SUMMARY_SELECT = {
   id: true,
   fullName: true,

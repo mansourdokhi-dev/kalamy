@@ -4,6 +4,10 @@ import { AssignSupervisorDto } from './dto/assign-supervisor.dto';
 import { StaffAccountSummary } from '../admin-users/admin-users.service';
 import { AuthenticatedUser } from '../../common/auth/session.guard';
 
+// Mirrors STAFF_ACCOUNT_SUMMARY_SELECT in ../admin-users/admin-users.service.ts
+// (plus supervisorUserId) — re-declared locally rather than imported to avoid
+// a runtime dependency between sibling feature modules. Keep the shared
+// fields in sync; only the StaffAccountSummary type is shared cross-module.
 const SUPERVISION_ACCOUNT_SELECT = {
   id: true,
   fullName: true,
