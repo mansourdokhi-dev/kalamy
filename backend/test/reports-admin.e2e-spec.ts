@@ -99,3 +99,76 @@ describe('Reports: operational status and registered users', () => {
     expect(response.status).toBe(403);
   });
 });
+
+describe('Reports: service modification log', () => {
+  let app: INestApplication;
+  let prisma: PrismaService;
+
+  beforeAll(async () => {
+    ({ app, prisma } = await createTestApp());
+  });
+
+  afterAll(async () => {
+    await app.close();
+  });
+
+  beforeEach(async () => {
+    await resetDatabase(prisma);
+  });
+
+  async function createUserToken(mobile: string, password: string, role: 'PATIENT' | 'CLINICIAN' | 'ADMIN'): Promise<string> {
+    const registerResponse = await request(app.getHttpServer()).post('/api/v1/auth/register').send({
+      fullName: 'Service Log Test User',
+      mobile,
+      password,
+      role: 'PATIENT',
+    });
+    await request(app.getHttpServer())
+      .post('/api/v1/auth/verify')
+      .send({ mobile, code: registerResponse.body.devOtpCode });
+    if (role !== 'PATIENT') {
+      await prisma.user.update({ where: { mobile }, data: { role } });
+    }
+    const loginResponse = await request(app.getHttpServer()).post('/api/v1/auth/login').send({ mobile, password });
+    return loginResponse.body.token;
+  }
+
+  it('lists a mutating request performed by a known actor', async () => {
+    const adminToken = await createUserToken('+966500001200', 'password123', 'ADMIN');
+    const clinicianToken = await createUserToken('+966500001201', 'password123', 'CLINICIAN');
+    await request(app.getHttpServer())
+      .post('/api/v1/exercises')
+      .set('Authorization', `Bearer ${clinicianToken}`)
+      .send({ title: 'Log Test Exercise', category: 'Breathing', phaseLevel: 1, instructions: 'Breathe.', durationMinutes: 5 });
+
+    const response = await request(app.getHttpServer())
+      .get('/api/v1/reports/service-modifications')
+      .set('Authorization', `Bearer ${adminToken}`);
+
+    expect(response.status).toBe(200);
+    const exerciseLog = response.body.find((entry: { entity: string }) => entry.entity === 'exercises');
+    expect(exerciseLog).toBeDefined();
+    expect(exerciseLog.actorRole).toBe('CLINICIAN');
+  });
+
+  it('filters by date range', async () => {
+    const adminToken = await createUserToken('+966500001202', 'password123', 'ADMIN');
+
+    const response = await request(app.getHttpServer())
+      .get('/api/v1/reports/service-modifications?from=2099-01-01&to=2099-12-31')
+      .set('Authorization', `Bearer ${adminToken}`);
+
+    expect(response.status).toBe(200);
+    expect(response.body).toEqual([]);
+  });
+
+  it('rejects a CLINICIAN viewing the service modification log', async () => {
+    const token = await createUserToken('+966500001203', 'password123', 'CLINICIAN');
+
+    const response = await request(app.getHttpServer())
+      .get('/api/v1/reports/service-modifications')
+      .set('Authorization', `Bearer ${token}`);
+
+    expect(response.status).toBe(403);
+  });
+});

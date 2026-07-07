@@ -63,6 +63,16 @@ export interface RegisteredUserSummary {
   caseProgressSummary: string | null;
 }
 
+export interface ServiceModificationLogEntry {
+  id: string;
+  action: string;
+  entity: string;
+  entityId: string | null;
+  actorFullName: string | null;
+  actorRole: string | null;
+  createdAt: Date;
+}
+
 @Injectable()
 export class ReportsService {
   constructor(
@@ -195,6 +205,29 @@ export class ReportsService {
       });
     }
     return summaries;
+  }
+
+  async getServiceModificationLogReport(filters: { from?: Date; to?: Date }): Promise<ServiceModificationLogEntry[]> {
+    const logs = await this.prisma.auditLog.findMany({
+      where: {
+        createdAt: {
+          gte: filters.from,
+          lte: filters.to,
+        },
+      },
+      orderBy: { createdAt: 'desc' },
+      include: { user: true },
+    });
+
+    return logs.map((log) => ({
+      id: log.id,
+      action: log.action,
+      entity: log.entity,
+      entityId: log.entityId,
+      actorFullName: log.user?.fullName ?? null,
+      actorRole: log.user?.role ?? null,
+      createdAt: log.createdAt,
+    }));
   }
 
   private zeroFillCounts<K extends string>(

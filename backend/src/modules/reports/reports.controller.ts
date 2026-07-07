@@ -1,4 +1,4 @@
-import { Controller, Get, Param, UseGuards } from '@nestjs/common';
+import { Controller, Get, Param, Query, UseGuards } from '@nestjs/common';
 import { ReportsService } from './reports.service';
 import { SessionGuard, AuthenticatedUser } from '../../common/auth/session.guard';
 import { CurrentUser } from '../../common/auth/current-user.decorator';
@@ -33,5 +33,14 @@ export class ReportsController {
   @RequirePermission(Permission.VIEW_ADMIN_REPORTS)
   getRegisteredUsersReport() {
     return this.reportsService.getRegisteredUsersReport();
+  }
+
+  @Get('service-modifications')
+  @RequirePermission(Permission.VIEW_ADMIN_REPORTS)
+  getServiceModificationLogReport(@Query('from') from?: string, @Query('to') to?: string) {
+    return this.reportsService.getServiceModificationLogReport({
+      from: from ? new Date(from) : undefined,
+      to: to ? new Date(to) : undefined,
+    });
   }
 }
