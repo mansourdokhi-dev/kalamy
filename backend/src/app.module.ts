@@ -16,6 +16,7 @@ import { ProgressModule } from './modules/progress/progress.module';
 import { ComplaintsModule } from './modules/complaints/complaints.module';
 import { ReportsModule } from './modules/reports/reports.module';
 import { AdminUsersModule } from './modules/admin-users/admin-users.module';
+import { SupervisionModule } from './modules/supervision/supervision.module';
 
 @Module({
   imports: [
@@ -31,6 +32,7 @@ import { AdminUsersModule } from './modules/admin-users/admin-users.module';
     ComplaintsModule,
     ReportsModule,
     AdminUsersModule,
+    SupervisionModule,
   ],
   controllers: [AppController],
   providers: [
