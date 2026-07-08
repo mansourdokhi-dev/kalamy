@@ -1,0 +1,55 @@
+export const ar = {
+  welcome: {
+    title: 'أهلاً بك في كلامي',
+    subtitle: 'رحلتك نحو طلاقة أفضل تبدأ هنا',
+    registerCta: 'إنشاء حساب جديد',
+    loginCta: 'لدي حساب بالفعل',
+  },
+  registerChoice: {
+    title: 'لمن هذا الحساب؟',
+    forSelf: 'أسجّل لنفسي',
+    forChild: 'أسجّل لابني/ابنتي',
+  },
+  registerForm: {
+    title: 'بيانات التسجيل',
+    fullName: 'الاسم الكامل',
+    mobile: 'رقم الجوال',
+    email: 'البريد الإلكتروني (اختياري)',
+    password: 'كلمة السر',
+    submit: 'إرسال',
+    mobileInvalid: 'رقم جوال غير صحيح',
+    passwordTooShort: 'كلمة السر يجب ألا تقل عن 8 أحرف',
+    nameRequired: 'الاسم مطلوب',
+  },
+  verify: {
+    title: 'تأكيد رقم الجوال',
+    subtitle: 'أدخل رمز التحقق',
+    devModeLabel: 'وضع التطوير — الرمز:',
+    submit: 'تأكيد',
+    reasons: {
+      NOT_FOUND: 'لا يوجد رمز نشط، يرجى طلب رمز جديد',
+      EXPIRED: 'انتهت صلاحية الرمز (5 دقائق)، يرجى طلب رمز جديد',
+      TOO_MANY_ATTEMPTS: 'تجاوزت عدد المحاولات المسموح، يرجى المحاولة لاحقًا',
+      INCORRECT_CODE: 'الرمز غير صحيح، حاول مرة أخرى',
+    },
+  },
+  login: {
+    title: 'تسجيل الدخول',
+    mobile: 'رقم الجوال',
+    password: 'كلمة السر',
+    submit: 'دخول',
+    forgotPassword: 'نسيت كلمة السر؟',
+    locked: 'الحساب مقفل مؤقتًا بسبب محاولات فاشلة متكررة، حاول بعد 15 دقيقة',
+  },
+  forgotPassword: {
+    title: 'استعادة كلمة السر',
+    mobile: 'رقم الجوال',
+    submit: 'إرسال رمز الاستعادة',
+  },
+  resetPassword: {
+    title: 'كلمة سر جديدة',
+    code: 'رمز التحقق',
+    newPassword: 'كلمة السر الجديدة',
+    submit: 'حفظ',
+  },
+};
