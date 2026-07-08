@@ -391,6 +391,7 @@ model TrainingCycle72h {
 
   trainingEvents TrainingEvent[]
   speechSample   SpeechSample?
+  sampleSession  SampleSession?
 
   @@index([patientProfileId, createdAt])
   @@index([treatmentPlanId, levelId])
@@ -411,6 +412,7 @@ model TrainingEvent {
 model SampleSession {
   id               String              @id @default(uuid())
   trainingCycleId  String              @unique
+  trainingCycle    TrainingCycle72h    @relation(fields: [trainingCycleId], references: [id])
   attemptsUsed     Int                 @default(0)
   status           SampleSessionStatus @default(OPEN)
   createdAt        DateTime            @default(now())
