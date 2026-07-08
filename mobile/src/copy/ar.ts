@@ -33,4 +33,23 @@ export const ar = {
       INCORRECT_CODE: 'الرمز غير صحيح، حاول مرة أخرى',
     },
   },
+  login: {
+    title: 'تسجيل الدخول',
+    mobile: 'رقم الجوال',
+    password: 'كلمة السر',
+    submit: 'دخول',
+    forgotPassword: 'نسيت كلمة السر؟',
+    locked: 'الحساب مقفل مؤقتًا بسبب محاولات فاشلة متكررة، حاول بعد 15 دقيقة',
+  },
+  forgotPassword: {
+    title: 'استعادة كلمة السر',
+    mobile: 'رقم الجوال',
+    submit: 'إرسال رمز الاستعادة',
+  },
+  resetPassword: {
+    title: 'كلمة سر جديدة',
+    code: 'رمز التحقق',
+    newPassword: 'كلمة السر الجديدة',
+    submit: 'حفظ',
+  },
 };
