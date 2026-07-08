@@ -40,8 +40,11 @@ export default function RegisterFormScreen() {
     setSubmitting(true);
     try {
       const register = role === 'CAREGIVER' ? registerCaregiver : registerPatient;
-      await register({ fullName, mobile, email: email || undefined, password });
-      router.push({ pathname: '/register/verify', params: { mobile } });
+      const result = await register({ fullName, mobile, email: email || undefined, password });
+      router.push({
+        pathname: '/register/verify',
+        params: result.devOtpCode ? { mobile, devOtpCode: result.devOtpCode } : { mobile },
+      });
     } catch (error) {
       setSubmitError(error instanceof ApiError ? error.message : 'حدث خطأ غير متوقع');
     } finally {

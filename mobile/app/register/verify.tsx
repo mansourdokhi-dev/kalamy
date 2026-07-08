@@ -10,7 +10,7 @@ import { verifyOtp, parseOtpFailureReason } from '../../src/api/auth';
 
 export default function VerifyScreen() {
   const router = useRouter();
-  const { mobile } = useLocalSearchParams<{ mobile: string }>();
+  const { mobile, devOtpCode } = useLocalSearchParams<{ mobile: string; devOtpCode?: string }>();
   const { tokens } = useTheme();
 
   const [code, setCode] = useState('');
@@ -35,6 +35,12 @@ export default function VerifyScreen() {
     <View style={[styles.container, { backgroundColor: tokens.colors.background }]}>
       <Text style={[styles.title, { color: tokens.colors.text }]}>{ar.verify.title}</Text>
       <Text style={[styles.subtitle, { color: tokens.colors.textSecondary }]}>{ar.verify.subtitle}</Text>
+      {devOtpCode ? (
+        <View style={styles.devModeRow}>
+          <Text style={[styles.devMode, { color: tokens.colors.textSecondary }]}>{ar.verify.devModeLabel}</Text>
+          <Text style={[styles.devMode, { color: tokens.colors.textSecondary }]}>{devOtpCode}</Text>
+        </View>
+      ) : null}
       {error ? <ErrorBanner message={error} /> : null}
       <OtpInput length={6} value={code} onChange={setCode} />
       <View style={{ height: 24 }} />
@@ -47,4 +53,6 @@ const styles = StyleSheet.create({
   container: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24 },
   title: { fontSize: 20, fontWeight: '600', textAlign: 'center', marginBottom: 8 },
   subtitle: { fontSize: 14, textAlign: 'center', marginBottom: 24 },
+  devModeRow: { flexDirection: 'row', gap: 6, marginBottom: 16 },
+  devMode: { fontSize: 14, fontWeight: '600' },
 });

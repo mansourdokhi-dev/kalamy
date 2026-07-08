@@ -4,9 +4,10 @@ import RegisterFormScreen from '../form';
 import { registerPatient } from '../../../src/api/auth';
 
 jest.mock('../../../src/api/auth');
+const mockPush = jest.fn();
 jest.mock('expo-router', () => ({
   useLocalSearchParams: () => ({ role: 'PATIENT' }),
-  useRouter: () => ({ push: jest.fn() }),
+  useRouter: () => ({ push: mockPush }),
 }));
 
 function renderScreen() {
@@ -46,6 +47,12 @@ describe('RegisterFormScreen', () => {
         mobile: '+966500000001',
         email: undefined,
         password: 'password123',
+      });
+    });
+    await waitFor(() => {
+      expect(mockPush).toHaveBeenCalledWith({
+        pathname: '/register/verify',
+        params: { mobile: '+966500000001', devOtpCode: '123456' },
       });
     });
   });

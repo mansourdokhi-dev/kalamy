@@ -8,8 +8,9 @@ jest.mock('../../../src/api/auth', () => ({
   ...jest.requireActual('../../../src/api/auth'),
   verifyOtp: jest.fn(),
 }));
+const mockUseLocalSearchParams = jest.fn(() => ({ mobile: '+966500000001' }));
 jest.mock('expo-router', () => ({
-  useLocalSearchParams: () => ({ mobile: '+966500000001' }),
+  useLocalSearchParams: () => mockUseLocalSearchParams(),
   useRouter: () => ({ push: jest.fn() }),
 }));
 
@@ -22,7 +23,10 @@ function renderScreen() {
 }
 
 describe('VerifyScreen', () => {
-  beforeEach(() => jest.clearAllMocks());
+  beforeEach(() => {
+    jest.clearAllMocks();
+    mockUseLocalSearchParams.mockReturnValue({ mobile: '+966500000001' });
+  });
 
   it('shows the incorrect-code message on INCORRECT_CODE failure', async () => {
     (verifyOtp as jest.Mock).mockRejectedValue(new ApiError(401, 'UNAUTHORIZED', 'OTP verification failed: INCORRECT_CODE'));
@@ -46,5 +50,12 @@ describe('VerifyScreen', () => {
     await waitFor(() => {
       expect(verifyOtp).toHaveBeenCalledWith({ mobile: '+966500000001', code: '012345' });
     });
+  });
+
+  it('shows the dev-mode label and code when devOtpCode is present', async () => {
+    mockUseLocalSearchParams.mockReturnValue({ mobile: '+966500000001', devOtpCode: '123456' });
+    await renderScreen();
+    expect(screen.getByText('وضع التطوير — الرمز:')).toBeTruthy();
+    expect(screen.getByText('123456')).toBeTruthy();
   });
 });

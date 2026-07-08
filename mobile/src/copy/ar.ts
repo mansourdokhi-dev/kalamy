@@ -23,7 +23,7 @@ export const ar = {
   },
   verify: {
     title: 'تأكيد رقم الجوال',
-    subtitle: 'أدخل الرمز المرسل إلى جوالك',
+    subtitle: 'أدخل رمز التحقق',
     devModeLabel: 'وضع التطوير — الرمز:',
     submit: 'تأكيد',
     reasons: {
