@@ -2213,7 +2213,7 @@ git commit -m "fix: rewrite Reports module's session-model queries against Level
 
 **Files:**
 - Delete: `backend/src/modules/sessions/` (entire directory)
-- Delete: `backend/test/sessions-progress-smoke.e2e-spec.ts` (superseded by the new smoke test this task adds)
+- Delete: `backend/test/sessions-progress-smoke.e2e-spec.ts`, `backend/test/patient-sessions.e2e-spec.ts`, `backend/test/session-templates.e2e-spec.ts`, `backend/test/progress.e2e-spec.ts` (all four test the old `SessionTemplate`/`PatientSession`/`SessionStatus` model directly and fail to compile after Task 1; their coverage is superseded by this plan's own e2e suites — `treatment-engine-levels`, `treatment-engine-cycle`, `treatment-engine-sample-prep`, `treatment-engine-sample-submit`, `treatment-engine-specialist-review`, `treatment-engine-inactivity`, `treatment-engine-progress`, and this task's own acceptance suite)
 - Modify: `backend/src/app.module.ts`
 - Modify: `backend/src/main.ts`
 - Create: `backend/test/treatment-engine-acceptance-criteria.e2e-spec.ts`
@@ -2221,12 +2221,12 @@ git commit -m "fix: rewrite Reports module's session-model queries against Level
 **Interfaces:**
 - None produced — this is the plan's terminal task.
 
-- [ ] **Step 1: Delete the old module and its now-superseded smoke test**
+- [ ] **Step 1: Delete the old module and its now-superseded tests**
 
 ```bash
 cd backend
 git rm -r src/modules/sessions
-git rm test/sessions-progress-smoke.e2e-spec.ts
+git rm test/sessions-progress-smoke.e2e-spec.ts test/patient-sessions.e2e-spec.ts test/session-templates.e2e-spec.ts test/progress.e2e-spec.ts
 ```
 
 - [ ] **Step 2: Remove the old module registration**
