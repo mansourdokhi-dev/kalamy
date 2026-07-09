@@ -31,6 +31,12 @@ export class LevelsController {
     return this.levelsService.publishVersion(levelId, versionId);
   }
 
+  @Get(':levelId/versions/active')
+  @RequirePermission(Permission.VIEW_LEVELS)
+  getActiveVersion(@Param('levelId') levelId: string) {
+    return this.levelsService.getActiveVersion(levelId);
+  }
+
   @Get()
   @RequirePermission(Permission.VIEW_LEVELS)
   list() {

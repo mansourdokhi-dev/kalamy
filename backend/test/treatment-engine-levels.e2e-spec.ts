@@ -102,4 +102,43 @@ describe('Treatment Engine — Levels (e2e)', () => {
       })
       .expect(400);
   });
+
+  it('lets a patient fetch the active version of a published level, and 409s for an unpublished one', async () => {
+    const clinicianToken = await registerAndLogin(app, prisma, '+966500000910', 'CLINICIAN');
+    const patientToken = await registerAndLogin(app, prisma, '+966500000911', null);
+
+    const levelRes = await request(app.getHttpServer())
+      .post('/api/v1/levels')
+      .set('Authorization', `Bearer ${clinicianToken}`)
+      .send({ name: 'مستوى النشط', order: 3 })
+      .expect(201);
+
+    await request(app.getHttpServer())
+      .get(`/api/v1/levels/${levelRes.body.id}/versions/active`)
+      .set('Authorization', `Bearer ${patientToken}`)
+      .expect(409);
+
+    const versionRes = await request(app.getHttpServer())
+      .post(`/api/v1/levels/${levelRes.body.id}/versions`)
+      .set('Authorization', `Bearer ${clinicianToken}`)
+      .send({
+        versionNumber: 1,
+        behavioralTechnique: 'تقنية الإطالة',
+        trainingListJson: JSON.stringify(['حا']),
+        samplePartTemplateJson: JSON.stringify([{ partType: 'مقطع', label: 'مقطع 1', order: 1, required: true }]),
+      })
+      .expect(201);
+    await request(app.getHttpServer())
+      .post(`/api/v1/levels/${levelRes.body.id}/versions/${versionRes.body.id}/publish`)
+      .set('Authorization', `Bearer ${clinicianToken}`)
+      .expect(200);
+
+    const activeRes = await request(app.getHttpServer())
+      .get(`/api/v1/levels/${levelRes.body.id}/versions/active`)
+      .set('Authorization', `Bearer ${patientToken}`)
+      .expect(200);
+
+    expect(activeRes.body.id).toBe(versionRes.body.id);
+    expect(activeRes.body.behavioralTechnique).toBe('تقنية الإطالة');
+  });
 });
