@@ -82,4 +82,24 @@ describe('Treatment Engine — Levels (e2e)', () => {
       .send({ name: 'x', order: 99 })
       .expect(403);
   });
+
+  it('rejects malformed JSON in trainingListJson', async () => {
+    const clinicianToken = await registerAndLogin(app, prisma, '+966500000903', 'CLINICIAN');
+    const levelRes = await request(app.getHttpServer())
+      .post('/api/v1/levels')
+      .set('Authorization', `Bearer ${clinicianToken}`)
+      .send({ name: 'مستوى اختبار', order: 2 })
+      .expect(201);
+
+    await request(app.getHttpServer())
+      .post(`/api/v1/levels/${levelRes.body.id}/versions`)
+      .set('Authorization', `Bearer ${clinicianToken}`)
+      .send({
+        versionNumber: 1,
+        behavioralTechnique: 'x',
+        trainingListJson: 'not valid json',
+        samplePartTemplateJson: JSON.stringify([{ partType: 'مقطع', label: 'مقطع 1', order: 1, required: true }]),
+      })
+      .expect(400);
+  });
 });
