@@ -1,13 +1,15 @@
 import { Module } from '@nestjs/common';
 import { LevelsController } from './levels.controller';
 import { LevelsService } from './levels.service';
+import { TrainingCyclesController } from './training-cycles.controller';
+import { TrainingCyclesService } from './training-cycles.service';
 import { AuthModule } from '../auth/auth.module';
 import { PatientAccessModule } from '../../common/patient-access/patient-access.module';
 
 @Module({
   imports: [AuthModule, PatientAccessModule],
-  controllers: [LevelsController],
-  providers: [LevelsService],
-  exports: [LevelsService],
+  controllers: [LevelsController, TrainingCyclesController],
+  providers: [LevelsService, TrainingCyclesService],
+  exports: [LevelsService, TrainingCyclesService],
 })
 export class TreatmentEngineModule {}
