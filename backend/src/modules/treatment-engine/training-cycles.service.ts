@@ -19,9 +19,9 @@ export class TrainingCyclesService {
     const profile = await this.findPatientProfileOrThrow(patientProfileId);
     await this.patientAccessService.assertCanAccess(actor, profile);
 
-    const existingCycle = await this.prisma.trainingCycle72h.findFirst({ where: { patientProfileId } });
-    if (existingCycle) {
-      throw new ConflictException('This patient already has a training cycle — later levels open only via a specialist decision');
+    const plan = await this.prisma.treatmentPlan.findUnique({ where: { id: treatmentPlanId } });
+    if (!plan || plan.patientProfileId !== patientProfileId) {
+      throw new NotFoundException('Treatment plan not found for this patient');
     }
 
     const levels = await this.levelsService.list();
@@ -31,14 +31,21 @@ export class TrainingCyclesService {
     }
     const activeVersion = await this.levelsService.getActiveVersion(firstLevel.id);
 
-    return this.prisma.trainingCycle72h.create({
-      data: {
-        patientProfileId,
-        treatmentPlanId,
-        levelId: firstLevel.id,
-        levelVersionId: activeVersion.id,
-        cycleNumber: 1,
-      },
+    return this.prisma.$transaction(async (tx) => {
+      const existingCycle = await tx.trainingCycle72h.findFirst({ where: { patientProfileId } });
+      if (existingCycle) {
+        throw new ConflictException('This patient already has a training cycle — later levels open only via a specialist decision');
+      }
+
+      return tx.trainingCycle72h.create({
+        data: {
+          patientProfileId,
+          treatmentPlanId,
+          levelId: firstLevel.id,
+          levelVersionId: activeVersion.id,
+          cycleNumber: 1,
+        },
+      });
     });
   }
 
