@@ -73,13 +73,6 @@ enum ExerciseStatus {
   ARCHIVED
 }
 
-enum SessionStatus {
-  IN_TRAINING
-  SUBMITTED
-  APPROVED
-  REPEAT_REQUIRED
-}
-
 enum ComplaintType {
   COMPLAINT
   SUGGESTION
@@ -89,6 +82,34 @@ enum ComplaintStatus {
   OPEN
   REVIEWED
   RESOLVED
+}
+
+enum LevelCycleStatus {
+  ACTIVE_LEVEL_TRAINING
+  SAMPLE_ELIGIBLE
+  SAMPLE_PREPARATION
+  SAMPLE_SUBMITTED
+  WAITING_FOR_SPECIALIST
+  UNDER_REVIEW
+  DIRECT_INTERVENTION_REQUIRED
+  WAITING_FINAL_DECISION_AFTER_INTERVENTION
+  TECHNICAL_PARTIAL_RERECORD
+  LEVEL_REPEAT_DECIDED
+  NEXT_LEVEL_APPROVED
+  CLOSED_DUE_TO_INACTIVITY
+  SUBSCRIPTION_EXPIRED_CLINICAL_FLOW_OPEN
+}
+
+enum SpecialistDecision {
+  TRANSITION
+  LEVEL_REPEAT
+  TECHNICAL_RERECORD
+}
+
+enum SampleSessionStatus {
+  OPEN
+  CLOSED_SUBMITTED
+  CLOSED_EXHAUSTED
 }
 
 model User {
@@ -116,7 +137,7 @@ model User {
   treatmentPlans          TreatmentPlan[]
   phaseTransitions        PhaseTransition[]
   exercisesCreated        Exercise[]
-  reviewedPatientSessions PatientSession[]
+  reviewedSpeechSamples   SpeechSample[]
   complaintsSubmitted     Complaint[] @relation("ComplaintSubmitter")
   complaintsAboutMe       Complaint[] @relation("ComplaintRelatedClinician")
   supervisorUser        User?            @relation("ClinicianSupervisor", fields: [supervisorUserId], references: [id])
@@ -177,7 +198,7 @@ model PatientProfile {
   clinicalInfo    PatientClinicalInfo?
   assessments     Assessment[]
   treatmentPlans  TreatmentPlan[]
-  patientSessions PatientSession[]
+  trainingCycles  TrainingCycle72h[]
 }
 
 model PatientClinicalInfo {
@@ -251,7 +272,7 @@ model TreatmentPlan {
 
   phaseTransitions PhaseTransition[]
   planExercises    PlanExercise[]
-  patientSessions  PatientSession[]
+  trainingCycles   TrainingCycle72h[]
 
   @@index([patientProfileId, status])
 }
@@ -298,48 +319,6 @@ model PlanExercise {
   @@unique([treatmentPlanId, exerciseId])
 }
 
-model SessionTemplate {
-  id                   String   @id @default(uuid())
-  sessionNumber        Int      @unique
-  category             Int
-  cognitiveVideoUrl    String?
-  behavioralVideoUrl   String?
-  trainingDurationDays Int
-  instructions         String
-  createdAt            DateTime @default(now())
-  updatedAt            DateTime @updatedAt
-
-  patientSessions PatientSession[]
-}
-
-model PatientSession {
-  id                          String          @id @default(uuid())
-  patientProfileId            String
-  patientProfile              PatientProfile  @relation(fields: [patientProfileId], references: [id])
-  treatmentPlanId             String
-  treatmentPlan               TreatmentPlan   @relation(fields: [treatmentPlanId], references: [id])
-  sessionTemplateId           String
-  sessionTemplate             SessionTemplate @relation(fields: [sessionTemplateId], references: [id])
-  attemptNumber               Int             @default(1)
-  status                      SessionStatus   @default(IN_TRAINING)
-  trainingStartedAt           DateTime        @default(now())
-  sampleVideoUrl              String?
-  sampleSubmittedAt           DateTime?
-  selfSeverityCurrent         Int?
-  selfSeverityExpectedNext    Int?
-  camperdownPerformanceRating Int?
-  clientOpinionScore          Int?
-  clinicianOpinionScore       Int?
-  clinicianUserId             String?
-  clinicianUser               User?           @relation(fields: [clinicianUserId], references: [id])
-  reviewNotes                 String?
-  reviewedAt                  DateTime?
-  createdAt                   DateTime        @default(now())
-  updatedAt                   DateTime        @updatedAt
-
-  @@index([patientProfileId, createdAt])
-}
-
 model Complaint {
   id                     String          @id @default(uuid())
   submittedByUserId      String
@@ -355,4 +334,146 @@ model Complaint {
 
   @@index([status])
   @@index([relatedClinicianUserId])
+}
+
+model Level {
+  id        String         @id @default(uuid())
+  name      String
+  order     Int            @unique
+  status    ExerciseStatus @default(ACTIVE)
+  createdAt DateTime       @default(now())
+  updatedAt DateTime       @updatedAt
+
+  versions       LevelVersion[]
+  trainingCycles TrainingCycle72h[]
+}
+
+model LevelVersion {
+  id                     String    @id @default(uuid())
+  levelId                String
+  level                  Level     @relation(fields: [levelId], references: [id])
+  versionNumber          Int
+  cognitiveVideo1Url     String?
+  cognitiveVideo1Question String?
+  cognitiveVideo2Url     String?
+  cognitiveVideo2Question String?
+  behavioralTechnique    String
+  humanModelVideoUrl     String?
+  humanModelDurationSeconds Int?
+  trainingListJson       String  // JSON array of training items, admin-editable
+  samplePartTemplateJson String  // JSON array of {partType, label, order, required}
+  publishedAt            DateTime?
+  createdAt              DateTime  @default(now())
+  updatedAt              DateTime  @updatedAt
+
+  trainingCycles TrainingCycle72h[]
+
+  @@unique([levelId, versionNumber])
+}
+
+// A partial unique index (not expressible in Prisma's schema DSL) enforces
+// at most one open (closedAt IS NULL) cycle per patientProfileId — see
+// migration `partial_unique_open_cycle_per_patient`. TRANSITION/LEVEL_REPEAT
+// always close the old cycle before creating a new one, so this constraint
+// never blocks a legitimate multi-cycle-per-patient history.
+model TrainingCycle72h {
+  id                   String           @id @default(uuid())
+  patientProfileId     String
+  patientProfile       PatientProfile   @relation(fields: [patientProfileId], references: [id])
+  treatmentPlanId      String
+  treatmentPlan        TreatmentPlan    @relation(fields: [treatmentPlanId], references: [id])
+  levelId              String
+  level                Level            @relation(fields: [levelId], references: [id])
+  levelVersionId       String
+  levelVersion         LevelVersion     @relation(fields: [levelVersionId], references: [id])
+  cycleNumber          Int              // 1 for the first attempt at this level, 2+ for repeats
+  status               LevelCycleStatus @default(ACTIVE_LEVEL_TRAINING)
+  humanModelWatchedAt  DateTime?
+  firstTrainingEventAt DateTime?
+  closedAt             DateTime?
+  createdAt            DateTime         @default(now())
+  updatedAt            DateTime         @updatedAt
+
+  trainingEvents TrainingEvent[]
+  speechSample   SpeechSample?
+  sampleSession  SampleSession?
+
+  @@index([patientProfileId, createdAt])
+  @@index([treatmentPlanId, levelId])
+}
+
+model TrainingEvent {
+  id               String           @id @default(uuid())
+  trainingCycleId  String
+  trainingCycle    TrainingCycle72h @relation(fields: [trainingCycleId], references: [id])
+  occurredAt       DateTime         @default(now())
+  durationSeconds  Int?
+  unitsCompleted   Int?
+  createdAt        DateTime         @default(now())
+
+  @@index([trainingCycleId, occurredAt])
+}
+
+model SampleSession {
+  id               String              @id @default(uuid())
+  trainingCycleId  String              @unique
+  trainingCycle    TrainingCycle72h    @relation(fields: [trainingCycleId], references: [id])
+  attemptsUsed     Int                 @default(0)
+  status           SampleSessionStatus @default(OPEN)
+  createdAt        DateTime            @default(now())
+  updatedAt        DateTime            @updatedAt
+
+  attempts SampleAttempt[]
+}
+
+model SampleAttempt {
+  id              String        @id @default(uuid())
+  sampleSessionId String
+  sampleSession   SampleSession @relation(fields: [sampleSessionId], references: [id])
+  attemptNumber   Int
+  recordingUrl    String
+  deletedAt       DateTime?
+  createdAt       DateTime      @default(now())
+
+  sampleParts SampleSamplePart[]
+
+  @@index([sampleSessionId, attemptNumber])
+}
+
+model SpeechSample {
+  id                          String             @id @default(uuid())
+  trainingCycleId             String             @unique
+  trainingCycle               TrainingCycle72h   @relation(fields: [trainingCycleId], references: [id])
+  selfSeverityCurrent         Int?
+  selfSeverityExpectedNext    Int?
+  camperdownPerformanceRating Int?
+  clientOpinionScore          Int?
+  submittedAt                 DateTime?
+  reviewedByUserId            String?
+  reviewedByUser              User?              @relation(fields: [reviewedByUserId], references: [id])
+  clinicianOpinionScore       Int?
+  reviewNotes                 String?
+  reviewedAt                  DateTime?
+  decision                    SpecialistDecision?
+  createdAt                   DateTime           @default(now())
+  updatedAt                   DateTime           @updatedAt
+
+  parts SampleSamplePart[]
+}
+
+model SampleSamplePart {
+  id               String         @id @default(uuid())
+  speechSampleId   String
+  speechSample     SpeechSample   @relation(fields: [speechSampleId], references: [id])
+  sourceAttemptId  String?
+  sourceAttempt    SampleAttempt? @relation(fields: [sourceAttemptId], references: [id])
+  partType         String
+  label            String
+  order            Int
+  recordingUrl     String?
+  technicallyDamaged Boolean      @default(false)
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+
+  @@index([speechSampleId, order])
 }

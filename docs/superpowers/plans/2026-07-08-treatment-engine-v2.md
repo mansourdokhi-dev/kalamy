@@ -679,6 +679,125 @@ git commit -m "feat: add Level/LevelVersion content management (Treatment Engine
 
 ---
 
+### Task 3.5: Unblock backend compilation (delete dead Sessions module, stub broken Progress/Reports methods)
+
+**Why this task exists (not in the original plan):** Task 1 removed the `SessionStatus`/`SessionTemplate`/`PatientSession` Prisma models and Task 2 removed their RBAC permissions. The original plan assumed "backend fails to compile from Task 1 through Task 10" was an acceptable transitional state. It is not: this project's `test:e2e` script runs `ts-jest` with full type-checking (no `isolatedModules`), and every e2e test boots the whole `AppModule` graph — so a type error anywhere in `src/` (even in an unrelated module) fails every e2e test in the project, not just tests that exercise the broken code. This silently blocks the TDD "run test to verify it passes" step for Tasks 3 through 10 (8 tasks), which is not acceptable. Discovered when Task 3's implementer reported `DONE_WITH_CONCERNS` because its own e2e test — which touches none of the broken code — still failed to compile.
+
+This task restores a real, compiling, fully-passing baseline by doing two things:
+1. Deleting the entire dead-code old Sessions module now (originally scheduled for Task 11) — nothing in Tasks 4-10 depends on it, and its permissions are already gone.
+2. Temporarily stubbing the handful of `Progress`/`Reports` methods that reference the removed `patientSession` Prisma delegate, with a clear `// TODO(Task 9)` / `// TODO(Task 10)` marker. These are placeholder return values for methods whose real logic is rebuilt against the new model in Tasks 9 and 10 later in this same plan — not new permanent functionality. This is a narrower, correct fix for the same problem the original plan already accepted (a temporarily-incomplete Progress/Reports module) — the only change is that the interim state compiles and returns a defined (if inert) value instead of not compiling at all.
+
+**Files:**
+- Delete: `backend/src/modules/sessions/` (entire directory: `patient-sessions.controller.ts`, `patient-sessions.service.ts`, `session-templates.controller.ts`, `session-templates.service.ts`, `sessions.module.ts`, `dto/`)
+- Delete: `backend/test/patient-sessions.e2e-spec.ts`, `backend/test/session-templates.e2e-spec.ts`, `backend/test/progress.e2e-spec.ts`, `backend/test/sessions-progress-smoke.e2e-spec.ts`
+- Modify: `backend/src/app.module.ts` (remove the `SessionsModule` import and its entry in the `imports` array)
+- Modify: `backend/src/modules/progress/progress.service.ts` (stub `getDashboard`)
+- Modify: `backend/src/modules/reports/reports.service.ts` (stub the 3 broken methods)
+
+**Interfaces:**
+- `ProgressService.getDashboard(patientProfileId, actor)` keeps its exact existing signature and `ProgressDashboard` return shape — only the method body changes to a compiling placeholder. Task 9 replaces the body and the `ProgressDashboard` interface for real.
+- `ReportsService.getOperationalStatusReport()`, `.getRegisteredUsersReport()`, `.getStaffPerformanceReport()` keep their exact existing signatures and return types — only the bodies change. Task 10 replaces them for real.
+
+- [ ] **Step 1: Delete the old Sessions module and its own e2e tests**
+
+```bash
+git rm -r backend/src/modules/sessions
+git rm backend/test/patient-sessions.e2e-spec.ts backend/test/session-templates.e2e-spec.ts backend/test/progress.e2e-spec.ts backend/test/sessions-progress-smoke.e2e-spec.ts
+```
+
+- [ ] **Step 2: Remove the module registration**
+
+In `backend/src/app.module.ts`, delete the line `import { SessionsModule } from './modules/sessions/sessions.module';` and delete `SessionsModule,` from the `imports` array.
+
+- [ ] **Step 3: Stub the broken Progress method**
+
+In `backend/src/modules/progress/progress.service.ts`, replace the body of `getDashboard` (the part from `const sessions = await this.prisma.patientSession...` down through the `return { ... }` at the end of the method) with:
+
+```typescript
+  async getDashboard(patientProfileId: string, actor: AuthenticatedUser): Promise<ProgressDashboard> {
+    const profile = await this.findPatientProfileOrThrow(patientProfileId);
+    await this.patientAccessService.assertCanAccess(actor, profile);
+
+    // TODO(Task 9): rebuild against Level/TrainingCycle72h/SpeechSample.
+    // Placeholder keeps the endpoint compiling and returning a defined,
+    // honest "no data yet" shape until Task 9 lands.
+    return { currentSessionNumber: null, sessionsApproved: 0, totalAttempts: 0, repeatedSessionNumbers: [], daysInProgram: 0 };
+  }
+```
+
+- [ ] **Step 4: Stub the broken Reports methods**
+
+In `backend/src/modules/reports/reports.service.ts`:
+
+Replace `getOperationalStatusReport`'s body with:
+
+```typescript
+  async getOperationalStatusReport(): Promise<OperationalStatusReport> {
+    const [usersByRoleRaw, profilesByStatusRaw, plansByStatusRaw] = await Promise.all([
+      this.prisma.user.groupBy({ by: ['role'], _count: { _all: true } }),
+      this.prisma.patientProfile.groupBy({ by: ['status'], _count: { _all: true } }),
+      this.prisma.treatmentPlan.groupBy({ by: ['status'], _count: { _all: true } }),
+    ]);
+
+    return {
+      usersByRole: this.zeroFillCounts(['PATIENT', 'CAREGIVER', 'CLINICIAN', 'SUPERVISOR', 'ADMIN'], usersByRoleRaw, 'role'),
+      patientProfilesByStatus: this.zeroFillCounts(['ACTIVE', 'DISABLED'], profilesByStatusRaw, 'status'),
+      treatmentPlansByStatus: this.zeroFillCounts(['ACTIVE', 'INACTIVE'], plansByStatusRaw, 'status'),
+      // TODO(Task 10): rebuild against TrainingCycle72h's LevelCycleStatus (13 states) instead of the old 4-state SessionStatus.
+      patientSessionsByStatus: [],
+    };
+  }
+```
+
+Replace the body of the `if (user.role === 'PATIENT')` block inside `getRegisteredUsersReport` (the part using `this.prisma.patientSession.findFirst`) with:
+
+```typescript
+      if (user.role === 'PATIENT') {
+        // TODO(Task 10): rebuild against TrainingCycle72h/SpeechSample.
+        caseProgressSummary = 'Not started';
+      }
+```
+
+Replace `getStaffPerformanceReport`'s `reviewsApproved`/`reviewsRepeatRequired` lines with:
+
+```typescript
+      // TODO(Task 10): rebuild against SpeechSample.decision (SpecialistDecision enum) instead of the old PatientSession.status.
+      const reviewsApproved = 0;
+      const reviewsRepeatRequired = 0;
+```
+
+(Leave `patientsHandled` and `complaintsAgainst` untouched — they don't reference the removed model.)
+
+- [ ] **Step 5: Verify the backend compiles and the full e2e suite runs**
+
+Run: `cd backend && npx tsc --noEmit -p tsconfig.json`
+Expected: no errors.
+
+Run: `cd backend && npm run test:e2e`
+Expected: every e2e suite in the project runs and passes (Auth, Patients, Assessment/Treatment-Plan, Reports/Complaints, Admin/Supervision, and this branch's own `treatment-engine-levels.e2e-spec.ts` from Task 3). Progress and Reports tests that asserted the OLD session-based values must be adjusted to assert the new placeholder values (zero/empty/"Not started") — read each failing assertion and update it to match the stub's honest placeholder output; do not delete test coverage for endpoints that still exist.
+
+- [ ] **Step 6: Commit**
+
+```bash
+git add backend/src/app.module.ts backend/src/modules/progress/progress.service.ts backend/src/modules/reports/reports.service.ts
+git commit -m "fix: delete dead Sessions module, stub Progress/Reports methods broken by schema removal
+
+Restores a compiling, fully-testable backend baseline. The original
+plan accepted a non-compiling backend through Task 10, but this
+project's e2e tests type-check the whole app graph, so any file with
+a type error blocks every e2e test — not just tests touching the
+broken code. This was discovered when Task 3's own e2e test, which
+touches neither Sessions nor Progress/Reports, failed to compile.
+
+Sessions module deletion is brought forward from Task 11 (nothing in
+Tasks 4-10 depends on it). Progress/Reports stubs are temporary and
+replaced with real logic in Tasks 9 and 10 later in this plan."
+```
+
+**Downstream impact on later tasks:** Task 11's file list should no longer include deleting `backend/src/modules/sessions/` or the 4 e2e test files listed above (already done here) — Task 11 now only needs to update Swagger and write the AC-01–12 acceptance suite. Tasks 9 and 10 replace this task's stubs with real logic exactly as originally planned; nothing else about their scope changes.
+
+---
+
 ### Task 4: Cycle lifecycle — start, watch human model, record training event, 72h gating
 
 **Files:**
@@ -1951,7 +2070,7 @@ git commit -m "feat: add inactivity closure (specialist-wait exempt) and cycle h
 **Interfaces:**
 - Produces: a new `ProgressDashboard` shape (`currentLevelName`, `currentLevelOrder`, `levelsCompleted`, `totalTrainingEvents`, `repeatedLevelOrders`, `daysInProgram`) — replaces the old `currentSessionNumber`/`sessionsApproved`/`totalAttempts`/`repeatedSessionNumbers` shape entirely. `progress.controller.ts` is untouched (it only forwards to `getDashboard` with no field-name coupling — confirmed by reading it directly).
 
-This file currently fails to compile (Task 1, Step 7 flagged this) since it references `prisma.patientSession`/`sessionTemplate.sessionNumber`, both removed. This task replaces its entire body.
+Task 3.5 stubbed this method's body (`getDashboard` now returns a hardcoded empty/zero `ProgressDashboard` so the backend compiles) since it originally referenced `prisma.patientSession`/`sessionTemplate.sessionNumber`, both removed in Task 1. This task replaces the stub with the real implementation against the new model.
 
 - [ ] **Step 1: Write the failing e2e test**
 
@@ -1977,7 +2096,7 @@ it('reports the current level, completed count, repeats, and days in program fro
 - [ ] **Step 2: Run test to verify it fails**
 
 Run: `cd backend && npm run test:e2e -- treatment-engine-progress.e2e-spec.ts`
-Expected: FAIL — either a compile error (if Tasks 1-8 already broke the build and this is the first attempt to run anything) or a 500 from the old, now-broken query. Either way, this confirms the rewrite is needed.
+Expected: FAIL — the endpoint returns 200 with Task 3.5's placeholder zero/empty values (`currentSessionNumber: null`, etc.), which don't match this test's assertions about real level/cycle data. This confirms the stub still needs replacing.
 
 - [ ] **Step 3: Rewrite the service**
 
@@ -2209,43 +2328,328 @@ git commit -m "fix: rewrite Reports module's session-model queries against Level
 
 ---
 
-### Task 11: Remove the old Sessions module, update Swagger, full AC-01–AC-12 smoke test
+### Task 10.5: Resubmit after technical re-record (patient resume path)
+
+**Why this task exists (not in the original plan):** Task 7 lets a specialist flag specific `SampleSamplePart` rows as `technicallyDamaged` and move the cycle to `TECHNICAL_PARTIAL_RERECORD` — but no endpoint anywhere in the codebase lets the patient act on that: `SamplesController.openSession` (Task 5) hard-requires `SAMPLE_ELIGIBLE`, so a cycle in `TECHNICAL_PARTIAL_RERECORD` has no way out except eventually auto-closing for inactivity (Task 8). This silently breaks the Non-Negotiable Rule "never require a full-sample re-record when only one component is technically damaged — only the affected component is re-recorded": the affected-component-only re-record is implemented on the specialist side, but the patient can never actually complete it. Found during Task 8's review (flagged as an out-of-scope gap) and confirmed by grep before starting Task 11 — no task in the plan closes this loop.
 
 **Files:**
-- Delete: `backend/src/modules/sessions/` (entire directory)
-- Delete: `backend/test/sessions-progress-smoke.e2e-spec.ts`, `backend/test/patient-sessions.e2e-spec.ts`, `backend/test/session-templates.e2e-spec.ts`, `backend/test/progress.e2e-spec.ts` (all four test the old `SessionTemplate`/`PatientSession`/`SessionStatus` model directly and fail to compile after Task 1; their coverage is superseded by this plan's own e2e suites — `treatment-engine-levels`, `treatment-engine-cycle`, `treatment-engine-sample-prep`, `treatment-engine-sample-submit`, `treatment-engine-specialist-review`, `treatment-engine-inactivity`, `treatment-engine-progress`, and this task's own acceptance suite)
-- Modify: `backend/src/app.module.ts`
+- Create: `backend/src/modules/treatment-engine/dto/rerecord-parts.dto.ts`
+- Modify: `backend/src/modules/treatment-engine/samples.service.ts`
+- Modify: `backend/src/modules/treatment-engine/samples.controller.ts`
+- Test: `backend/test/treatment-engine-rerecord.e2e-spec.ts`
+
+**Interfaces:**
+- Consumes: `TrainingCyclesService.findCycleForActor`/`.getCurrent` (Task 4).
+- Produces: `SamplesService.rerecordDamagedParts(cycleId, dto, actor): Promise<SpeechSample & { parts: SampleSamplePart[] }>` — no other task in this plan consumes it; this closes the technical-rerecord loop back to `WAITING_FOR_SPECIALIST` so Task 7's `review()` can act on the corrected sample again.
+
+- [ ] **Step 1: Write the failing e2e test**
+
+```typescript
+// backend/test/treatment-engine-rerecord.e2e-spec.ts
+import { INestApplication } from '@nestjs/common';
+import request from 'supertest';
+import { createTestApp, resetDatabase } from './utils/test-app';
+import { PrismaService } from '../src/prisma/prisma.service';
+
+async function registerAndLogin(
+  app: INestApplication,
+  prisma: PrismaService,
+  mobile: string,
+  role: 'CLINICIAN' | 'ADMIN' | 'SUPERVISOR' | null,
+): Promise<string> {
+  const register = await request(app.getHttpServer())
+    .post('/api/v1/auth/register')
+    .send({ fullName: 'Test User', mobile, password: 'test-pass-1', role: 'PATIENT' });
+  await request(app.getHttpServer()).post('/api/v1/auth/verify').send({ mobile, code: register.body.devOtpCode });
+  if (role) {
+    await prisma.user.update({ where: { mobile }, data: { role } });
+  }
+  const login = await request(app.getHttpServer()).post('/api/v1/auth/login').send({ mobile, password: 'test-pass-1' });
+  return login.body.token;
+}
+
+describe('Treatment Engine — Resubmit after technical re-record (e2e)', () => {
+  let app: INestApplication;
+  let prisma: PrismaService;
+
+  beforeAll(async () => {
+    ({ app, prisma } = await createTestApp());
+  });
+
+  afterAll(async () => {
+    await app.close();
+  });
+
+  beforeEach(async () => {
+    await resetDatabase(prisma);
+  });
+
+  it('lets a patient re-record only the damaged parts and resubmits the same sample for specialist review', async () => {
+    const clinicianToken = await registerAndLogin(app, prisma, '+966500003000', 'CLINICIAN');
+    const patientToken = await registerAndLogin(app, prisma, '+966500003001', null);
+    const patientUser = await prisma.user.findUniqueOrThrow({ where: { mobile: '+966500003001' } });
+    const clinicianUser = await prisma.user.findUniqueOrThrow({ where: { mobile: '+966500003000' } });
+
+    const profile = await prisma.patientProfile.create({
+      data: { userId: patientUser.id, fullName: 'p', gender: 'MALE', nationalId: 'RR-1', dateOfBirth: new Date('2000-01-01') },
+    });
+    const assessment = await prisma.assessment.create({
+      data: { patientProfileId: profile.id, clinicianUserId: clinicianUser.id, type: 'INITIAL', status: 'APPROVED' },
+    });
+    const plan = await prisma.treatmentPlan.create({
+      data: { patientProfileId: profile.id, clinicianUserId: clinicianUser.id, assessmentId: assessment.id, goals: 'g', reviewDate: new Date() },
+    });
+    const level = await prisma.level.create({ data: { name: 'Level 1', order: 1 } });
+    const version = await prisma.levelVersion.create({
+      data: { levelId: level.id, versionNumber: 1, behavioralTechnique: 'x', trainingListJson: '["a"]', samplePartTemplateJson: '[]', publishedAt: new Date() },
+    });
+    const cycle = await prisma.trainingCycle72h.create({
+      data: { patientProfileId: profile.id, treatmentPlanId: plan.id, levelId: level.id, levelVersionId: version.id, cycleNumber: 1, status: 'TECHNICAL_PARTIAL_RERECORD' },
+    });
+    const sample = await prisma.speechSample.create({ data: { trainingCycleId: cycle.id, submittedAt: new Date() } });
+    const damagedPart = await prisma.sampleSamplePart.create({
+      data: { speechSampleId: sample.id, partType: 'مقطع', label: 'مقطع 1', order: 1, technicallyDamaged: true, recordingUrl: null },
+    });
+    const untouchedPart = await prisma.sampleSamplePart.create({
+      data: { speechSampleId: sample.id, partType: 'كلمة', label: 'كلمة 1', order: 2, technicallyDamaged: false, recordingUrl: 'https://example.com/untouched.mp4' },
+    });
+
+    await request(app.getHttpServer())
+      .post(`/api/v1/patients/${profile.id}/cycles/current/sample-session/rerecord`)
+      .set('Authorization', `Bearer ${patientToken}`)
+      .send({ parts: [{ id: damagedPart.id, recordingUrl: 'https://example.com/fixed.mp4' }] })
+      .expect(201);
+
+    const cycleRes = await request(app.getHttpServer())
+      .get(`/api/v1/patients/${profile.id}/cycles/current`)
+      .set('Authorization', `Bearer ${patientToken}`)
+      .expect(200);
+    expect(cycleRes.body.status).toBe('WAITING_FOR_SPECIALIST');
+
+    const fixedPart = await prisma.sampleSamplePart.findUniqueOrThrow({ where: { id: damagedPart.id } });
+    expect(fixedPart.technicallyDamaged).toBe(false);
+    expect(fixedPart.recordingUrl).toBe('https://example.com/fixed.mp4');
+    const stillUntouchedPart = await prisma.sampleSamplePart.findUniqueOrThrow({ where: { id: untouchedPart.id } });
+    expect(stillUntouchedPart.recordingUrl).toBe('https://example.com/untouched.mp4');
+
+    // now the specialist can review the corrected sample like any other WAITING_FOR_SPECIALIST cycle
+    await request(app.getHttpServer())
+      .post(`/api/v1/patients/${profile.id}/cycles/current/review`)
+      .set('Authorization', `Bearer ${clinicianToken}`)
+      .send({ decision: 'TRANSITION', clinicianOpinionScore: 7, reviewNotes: 'ok now' })
+      .expect(201);
+  });
+
+  it('rejects resubmitting when not every currently-damaged part is included', async () => {
+    const patientToken = await registerAndLogin(app, prisma, '+966500003002', null);
+    const patientUser = await prisma.user.findUniqueOrThrow({ where: { mobile: '+966500003002' } });
+    const profile = await prisma.patientProfile.create({
+      data: { userId: patientUser.id, fullName: 'p', gender: 'MALE', nationalId: 'RR-2', dateOfBirth: new Date('2000-01-01') },
+    });
+    const plan = await prisma.treatmentPlan.create({
+      data: {
+        patientProfileId: profile.id,
+        clinicianUserId: (await prisma.user.create({ data: { fullName: 'c', mobile: '+966500003003', passwordHash: 'x', role: 'CLINICIAN', status: 'ACTIVE' } })).id,
+        assessmentId: (
+          await prisma.assessment.create({
+            data: {
+              patientProfileId: profile.id,
+              clinicianUserId: (await prisma.user.findUniqueOrThrow({ where: { mobile: '+966500003003' } })).id,
+              type: 'INITIAL',
+              status: 'APPROVED',
+            },
+          })
+        ).id,
+        goals: 'g',
+        reviewDate: new Date(),
+      },
+    });
+    const level = await prisma.level.create({ data: { name: 'Level 1', order: 1 } });
+    const version = await prisma.levelVersion.create({
+      data: { levelId: level.id, versionNumber: 1, behavioralTechnique: 'x', trainingListJson: '["a"]', samplePartTemplateJson: '[]', publishedAt: new Date() },
+    });
+    const cycle = await prisma.trainingCycle72h.create({
+      data: { patientProfileId: profile.id, treatmentPlanId: plan.id, levelId: level.id, levelVersionId: version.id, cycleNumber: 1, status: 'TECHNICAL_PARTIAL_RERECORD' },
+    });
+    const sample = await prisma.speechSample.create({ data: { trainingCycleId: cycle.id, submittedAt: new Date() } });
+    const part1 = await prisma.sampleSamplePart.create({
+      data: { speechSampleId: sample.id, partType: 'مقطع', label: 'مقطع 1', order: 1, technicallyDamaged: true, recordingUrl: null },
+    });
+    await prisma.sampleSamplePart.create({
+      data: { speechSampleId: sample.id, partType: 'كلمة', label: 'كلمة 1', order: 2, technicallyDamaged: true, recordingUrl: null },
+    });
+
+    // only re-records part1, leaves the second damaged part unaddressed
+    await request(app.getHttpServer())
+      .post(`/api/v1/patients/${profile.id}/cycles/current/sample-session/rerecord`)
+      .set('Authorization', `Bearer ${patientToken}`)
+      .send({ parts: [{ id: part1.id, recordingUrl: 'https://example.com/fixed.mp4' }] })
+      .expect(409);
+  });
+});
+```
+
+- [ ] **Step 2: Run test to verify it fails**
+
+Run: `cd backend && npm run test:e2e -- treatment-engine-rerecord.e2e-spec.ts`
+Expected: FAIL — route doesn't exist.
+
+- [ ] **Step 3: Write the DTO**
+
+```typescript
+// backend/src/modules/treatment-engine/dto/rerecord-parts.dto.ts
+import { createZodDto } from 'nestjs-zod';
+import { z } from 'zod';
+
+export const RerecordPartsSchema = z.object({
+  parts: z
+    .array(
+      z.object({
+        id: z.string().uuid(),
+        recordingUrl: z.url(),
+      }),
+    )
+    .min(1),
+});
+
+export class RerecordPartsDto extends createZodDto(RerecordPartsSchema) {}
+```
+
+- [ ] **Step 4: Add `rerecordDamagedParts` to `SamplesService`**
+
+Read `backend/src/modules/treatment-engine/samples.service.ts` first — you are appending to the existing class, alongside `openSession`/`recordAttempt`/`deleteAttempt`/`listAttempts`/`submitSample`. Add the new import `RerecordPartsDto` from `./dto/rerecord-parts.dto`, and add `SpeechSample, SampleSamplePart` to the existing `@prisma/client` import if not already present (they are — `submitSample` already imports `SpeechSample`; add `SampleSamplePart` alongside it).
+
+Follow the exact row-lock + fresh-status-recheck + sentinel-return pattern already established in this file's `recordAttempt`/`submitSample` (Tasks 5/6) — this is a check-then-multi-write sequence on the same `TrainingCycle72h`, so it needs the same guard:
+
+```typescript
+  async rerecordDamagedParts(
+    cycleId: string,
+    dto: RerecordPartsDto,
+    actor: AuthenticatedUser,
+  ): Promise<SpeechSample & { parts: SampleSamplePart[] }> {
+    const cycle = await this.trainingCyclesService.findCycleForActor(cycleId, actor);
+    if (cycle.status !== 'TECHNICAL_PARTIAL_RERECORD') {
+      throw new ConflictException(`Cannot re-record parts from status ${cycle.status}`);
+    }
+    const sample = await this.prisma.speechSample.findUnique({ where: { trainingCycleId: cycleId }, include: { parts: true } });
+    if (!sample) {
+      throw new NotFoundException('No submitted sample found for this cycle');
+    }
+
+    const damagedParts = sample.parts.filter((p) => p.technicallyDamaged);
+    const submittedIds = new Set(dto.parts.map((p) => p.id));
+    for (const damaged of damagedParts) {
+      if (!submittedIds.has(damaged.id)) {
+        throw new ConflictException('Every currently damaged part must be re-recorded before resubmitting');
+      }
+    }
+    const damagedIds = new Set(damagedParts.map((p) => p.id));
+    for (const part of dto.parts) {
+      if (!damagedIds.has(part.id)) {
+        throw new NotFoundException(`Part ${part.id} is not a currently-damaged part on this sample`);
+      }
+    }
+
+    const result = await this.prisma.$transaction(async (tx) => {
+      // Row-lock the cycle so concurrent resubmit calls for the same cycle
+      // serialize — the same TOCTOU class already fixed elsewhere in this
+      // module (recordAttempt, submitSample, specialist review).
+      await tx.$queryRaw`SELECT id FROM "TrainingCycle72h" WHERE id = ${cycleId} FOR UPDATE`;
+
+      const freshCycle = await tx.trainingCycle72h.findUniqueOrThrow({ where: { id: cycleId } });
+      if (freshCycle.status !== 'TECHNICAL_PARTIAL_RERECORD') {
+        return { alreadyResubmitted: true as const, status: freshCycle.status };
+      }
+
+      await Promise.all(
+        dto.parts.map((part) =>
+          tx.sampleSamplePart.update({
+            where: { id: part.id },
+            data: { recordingUrl: part.recordingUrl, technicallyDamaged: false },
+          }),
+        ),
+      );
+      const updatedSample = await tx.speechSample.update({
+        where: { id: sample.id },
+        data: {}, // decision/reviewedAt/reviewNotes stay whatever the earlier TECHNICAL_RERECORD review left them
+        include: { parts: true },
+      });
+      await tx.trainingCycle72h.update({ where: { id: cycleId }, data: { status: 'WAITING_FOR_SPECIALIST' } });
+      return { alreadyResubmitted: false as const, sample: updatedSample };
+    });
+
+    if (result.alreadyResubmitted) {
+      throw new ConflictException(`Cannot re-record parts from status ${result.status}`);
+    }
+    return result.sample;
+  }
+```
+
+- [ ] **Step 5: Add the controller route**
+
+Add to `backend/src/modules/treatment-engine/samples.controller.ts` (alongside the Task 5/6 routes), importing `RerecordPartsDto` from `./dto/rerecord-parts.dto`:
+
+```typescript
+  @Post('rerecord')
+  @RequirePermission(Permission.PREPARE_SAMPLE)
+  async rerecordDamagedParts(@Param('patientId') patientId: string, @Body() dto: RerecordPartsDto, @CurrentUser() user: AuthenticatedUser) {
+    const current = await this.trainingCyclesService.getCurrent(patientId, user);
+    return this.samplesService.rerecordDamagedParts(current.id, dto, user);
+  }
+```
+
+(Reuses `Permission.PREPARE_SAMPLE` — already granted to `PATIENT`/`CAREGIVER` since Task 2 — since re-recording a damaged part is the same class of action as recording an attempt in the first place; no new permission needed.)
+
+- [ ] **Step 6: Run test to verify it passes**
+
+Run: `cd backend && npm run test:e2e -- treatment-engine-rerecord.e2e-spec.ts`
+Expected: PASS, both cases.
+
+- [ ] **Step 7: Run the full e2e suite to confirm no regressions**
+
+Run: `cd backend && npm run test:e2e`
+Expected: every suite passes (baseline 140/140 as of Task 10, plus 2 new here).
+
+- [ ] **Step 8: Commit**
+
+```bash
+git add backend/src/modules/treatment-engine backend/test/treatment-engine-rerecord.e2e-spec.ts
+git commit -m "feat: add resubmit-after-technical-rerecord endpoint
+
+Task 7 let a specialist flag specific sample parts as technically
+damaged, but nothing let the patient act on it — the cycle had no exit
+from TECHNICAL_PARTIAL_RERECORD other than eventual inactivity
+closure. This closes the loop: the patient re-records only the named
+damaged parts and the cycle returns to WAITING_FOR_SPECIALIST for a
+real review, without ever requiring a full-sample retake."
+```
+
+---
+
+### Task 11: Update Swagger, full AC-01–AC-12 smoke test
+
+**Note:** deleting the old Sessions module and its own e2e test files was brought forward to Task 3.5 (it was blocking every e2e test in the project, not just tests touching that code — see Task 3.5 for why). This task now only needs to update Swagger and write the acceptance suite.
+
+**Files:**
 - Modify: `backend/src/main.ts`
 - Create: `backend/test/treatment-engine-acceptance-criteria.e2e-spec.ts`
 
 **Interfaces:**
 - None produced — this is the plan's terminal task.
 
-- [ ] **Step 1: Delete the old module and its now-superseded tests**
-
-```bash
-cd backend
-git rm -r src/modules/sessions
-git rm test/sessions-progress-smoke.e2e-spec.ts test/patient-sessions.e2e-spec.ts test/session-templates.e2e-spec.ts test/progress.e2e-spec.ts
-```
-
-- [ ] **Step 2: Remove the old module registration**
-
-In `backend/src/app.module.ts`, remove the `SessionsModule` import and its entry in the `imports` array (leave `TreatmentEngineModule`, added in Task 3, in place).
-
-- [ ] **Step 3: Update the Swagger description**
+- [ ] **Step 1: Update the Swagger description**
 
 In `backend/src/main.ts`, find the Swagger `DocumentBuilder` description string (the one already listing every merged module, e.g. "...Sessions, Progress, Reports..."). Replace `"Sessions"` with `"Treatment Engine (Levels, 72-Hour Cycles, Samples, Specialist Review)"` in that string.
 
-- [ ] **Step 4: Verify the backend compiles cleanly for the first time since Task 1**
+- [ ] **Step 2: Verify the backend still compiles cleanly**
 
 ```bash
 cd backend
 npx tsc --noEmit
 ```
-Expected: zero errors — this is the first point in the plan where the whole backend compiles again (Tasks 1-10 deliberately left it broken).
+Expected: zero errors — the backend has compiled cleanly since Task 3.5; this just reconfirms it after Tasks 9/10 replaced the Progress/Reports stubs with real logic.
 
-- [ ] **Step 5: Write the full acceptance-criteria smoke test**
+- [ ] **Step 3: Write the full acceptance-criteria smoke test**
 
 ```typescript
 // backend/test/treatment-engine-acceptance-criteria.e2e-spec.ts
@@ -2566,12 +2970,12 @@ Expected: every suite passes, including every pre-existing module's tests (Auth,
 
 ```bash
 git add -A
-git commit -m "feat: remove old Sessions module, update Swagger, add full AC-01–AC-12 acceptance suite
+git commit -m "feat: update Swagger, add full AC-01–AC-12 acceptance suite
 
-This is the final task of the Treatment Engine v2 plan. The backend
-compiles cleanly again for the first time since Task 1 introduced the
-breaking schema change. Progress and Reports were updated in Tasks 9-10
-to match; every other pre-existing module is untouched."
+This is the final task of the Treatment Engine v2 plan. Progress and
+Reports were updated in Tasks 9-10 to replace the temporary stubs from
+Task 3.5 with real logic against the new model; every other
+pre-existing module is untouched."
 ```
 
 ---

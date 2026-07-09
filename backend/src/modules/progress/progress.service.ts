@@ -5,10 +5,11 @@ import { PatientAccessService } from '../../common/patient-access/patient-access
 import { AuthenticatedUser } from '../../common/auth/session.guard';
 
 export interface ProgressDashboard {
-  currentSessionNumber: number | null;
-  sessionsApproved: number;
-  totalAttempts: number;
-  repeatedSessionNumbers: number[];
+  currentLevelName: string | null;
+  currentLevelOrder: number | null;
+  levelsCompleted: number;
+  totalTrainingEvents: number;
+  repeatedLevelOrders: number[];
   daysInProgram: number;
 }
 
@@ -23,39 +24,43 @@ export class ProgressService {
     const profile = await this.findPatientProfileOrThrow(patientProfileId);
     await this.patientAccessService.assertCanAccess(actor, profile);
 
-    const sessions = await this.prisma.patientSession.findMany({
+    const cycles = await this.prisma.trainingCycle72h.findMany({
       where: { patientProfileId },
-      include: { sessionTemplate: true },
+      include: { level: true },
       orderBy: { createdAt: 'asc' },
     });
 
-    if (sessions.length === 0) {
-      return { currentSessionNumber: null, sessionsApproved: 0, totalAttempts: 0, repeatedSessionNumbers: [], daysInProgram: 0 };
+    if (cycles.length === 0) {
+      return { currentLevelName: null, currentLevelOrder: null, levelsCompleted: 0, totalTrainingEvents: 0, repeatedLevelOrders: [], daysInProgram: 0 };
     }
 
-    const approvedSessionNumbers = new Set(
-      sessions.filter((s) => s.status === 'APPROVED').map((s) => s.sessionTemplate.sessionNumber),
+    const completedLevelOrders = new Set(
+      cycles.filter((c) => c.status === 'NEXT_LEVEL_APPROVED').map((c) => c.level.order),
     );
 
-    const attemptCountBySessionNumber = new Map<number, number>();
-    for (const s of sessions) {
-      const n = s.sessionTemplate.sessionNumber;
-      attemptCountBySessionNumber.set(n, (attemptCountBySessionNumber.get(n) ?? 0) + 1);
+    const cycleCountByLevelOrder = new Map<number, number>();
+    for (const c of cycles) {
+      cycleCountByLevelOrder.set(c.level.order, (cycleCountByLevelOrder.get(c.level.order) ?? 0) + 1);
     }
-    const repeatedSessionNumbers = [...attemptCountBySessionNumber.entries()]
+    const repeatedLevelOrders = [...cycleCountByLevelOrder.entries()]
       .filter(([, count]) => count > 1)
-      .map(([sessionNumber]) => sessionNumber)
+      .map(([order]) => order)
       .sort((a, b) => a - b);
 
-    const latest = sessions[sessions.length - 1];
-    const first = sessions[0];
-    const daysInProgram = Math.floor((Date.now() - first.trainingStartedAt.getTime()) / (24 * 60 * 60 * 1000));
+    const totalTrainingEvents = await this.prisma.trainingEvent.count({
+      where: { trainingCycle: { patientProfileId } },
+    });
+
+    const latest = cycles[cycles.length - 1];
+    const first = cycles[0];
+    const daysInProgram = Math.floor((Date.now() - first.createdAt.getTime()) / (24 * 60 * 60 * 1000));
 
     return {
-      currentSessionNumber: latest.sessionTemplate.sessionNumber,
-      sessionsApproved: approvedSessionNumbers.size,
-      totalAttempts: sessions.length,
-      repeatedSessionNumbers,
+      currentLevelName: latest.level.name,
+      currentLevelOrder: latest.level.order,
+      levelsCompleted: completedLevelOrders.size,
+      totalTrainingEvents,
+      repeatedLevelOrders,
       daysInProgram,
     };
   }

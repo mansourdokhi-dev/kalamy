@@ -56,35 +56,7 @@ describe('hasPermission — clinical core', () => {
   });
 });
 
-describe('hasPermission — sessions and progress', () => {
-  it('allows a CLINICIAN to manage session templates', () => {
-    expect(hasPermission('CLINICIAN', Permission.MANAGE_SESSION_TEMPLATES)).toBe(true);
-  });
-
-  it('does not allow a PATIENT to manage session templates', () => {
-    expect(hasPermission('PATIENT', Permission.MANAGE_SESSION_TEMPLATES)).toBe(false);
-  });
-
-  it('allows a PATIENT to start their program', () => {
-    expect(hasPermission('PATIENT', Permission.START_SESSION)).toBe(true);
-  });
-
-  it('does not allow a CLINICIAN to start a session on a patient\'s behalf', () => {
-    expect(hasPermission('CLINICIAN', Permission.START_SESSION)).toBe(false);
-  });
-
-  it('allows a CAREGIVER to submit a session sample', () => {
-    expect(hasPermission('CAREGIVER', Permission.SUBMIT_SESSION)).toBe(true);
-  });
-
-  it('allows a CLINICIAN to review a session', () => {
-    expect(hasPermission('CLINICIAN', Permission.REVIEW_SESSION)).toBe(true);
-  });
-
-  it('does not allow a PATIENT to review a session', () => {
-    expect(hasPermission('PATIENT', Permission.REVIEW_SESSION)).toBe(false);
-  });
-
+describe('hasPermission — progress', () => {
   it('allows a SUPERVISOR to view progress', () => {
     expect(hasPermission('SUPERVISOR', Permission.VIEW_PROGRESS)).toBe(true);
   });
@@ -151,5 +123,30 @@ describe('hasPermission — administration', () => {
 
   it('does not allow a PATIENT to view supervision assignments', () => {
     expect(hasPermission('PATIENT', Permission.VIEW_SUPERVISION)).toBe(false);
+  });
+});
+
+describe('hasPermission — treatment engine v2', () => {
+  it('grants VIEW_LEVELS and VIEW_CYCLE to PATIENT and CAREGIVER', () => {
+    expect(hasPermission('PATIENT', Permission.VIEW_LEVELS)).toBe(true);
+    expect(hasPermission('PATIENT', Permission.VIEW_CYCLE)).toBe(true);
+    expect(hasPermission('CAREGIVER', Permission.VIEW_LEVELS)).toBe(true);
+  });
+
+  it('grants RECORD_TRAINING_EVENT, PREPARE_SAMPLE, SUBMIT_SAMPLE to PATIENT and CAREGIVER only', () => {
+    expect(hasPermission('PATIENT', Permission.RECORD_TRAINING_EVENT)).toBe(true);
+    expect(hasPermission('CAREGIVER', Permission.SUBMIT_SAMPLE)).toBe(true);
+    expect(hasPermission('CLINICIAN', Permission.RECORD_TRAINING_EVENT)).toBe(false);
+  });
+
+  it('grants MANAGE_LEVELS to CLINICIAN and ADMIN only', () => {
+    expect(hasPermission('CLINICIAN', Permission.MANAGE_LEVELS)).toBe(true);
+    expect(hasPermission('ADMIN', Permission.MANAGE_LEVELS)).toBe(true);
+    expect(hasPermission('SUPERVISOR', Permission.MANAGE_LEVELS)).toBe(false);
+  });
+
+  it('grants REVIEW_SAMPLE to CLINICIAN and ADMIN only', () => {
+    expect(hasPermission('CLINICIAN', Permission.REVIEW_SAMPLE)).toBe(true);
+    expect(hasPermission('PATIENT', Permission.REVIEW_SAMPLE)).toBe(false);
   });
 });

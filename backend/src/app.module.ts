@@ -11,12 +11,12 @@ import { PatientsModule } from './modules/patients/patients.module';
 import { ExercisesModule } from './modules/exercises/exercises.module';
 import { AssessmentsModule } from './modules/assessments/assessments.module';
 import { TreatmentPlansModule } from './modules/treatment-plans/treatment-plans.module';
-import { SessionsModule } from './modules/sessions/sessions.module';
 import { ProgressModule } from './modules/progress/progress.module';
 import { ComplaintsModule } from './modules/complaints/complaints.module';
 import { ReportsModule } from './modules/reports/reports.module';
 import { AdminUsersModule } from './modules/admin-users/admin-users.module';
 import { SupervisionModule } from './modules/supervision/supervision.module';
+import { TreatmentEngineModule } from './modules/treatment-engine/treatment-engine.module';
 
 @Module({
   imports: [
@@ -27,12 +27,12 @@ import { SupervisionModule } from './modules/supervision/supervision.module';
     ExercisesModule,
     AssessmentsModule,
     TreatmentPlansModule,
-    SessionsModule,
     ProgressModule,
     ComplaintsModule,
     ReportsModule,
     AdminUsersModule,
     SupervisionModule,
+    TreatmentEngineModule,
   ],
   controllers: [AppController],
   providers: [

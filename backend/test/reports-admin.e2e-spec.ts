@@ -55,7 +55,8 @@ describe('Reports: operational status and registered users', () => {
     expect(response.body.usersByRole.PATIENT).toBe(1);
     expect(response.body.usersByRole.CAREGIVER).toBe(0);
     expect(response.body.patientProfilesByStatus.ACTIVE).toBe(0);
-    expect(response.body.patientSessionsByStatus.IN_TRAINING).toBe(0);
+    expect(response.body.trainingCyclesByStatus.ACTIVE_LEVEL_TRAINING).toBe(0);
+    expect(response.body.trainingCyclesByStatus.WAITING_FOR_SPECIALIST).toBe(0);
   });
 
   it('rejects a CLINICIAN viewing the operational status report', async () => {

@@ -50,7 +50,7 @@ export interface OperationalStatusReport {
   usersByRole: Record<string, number>;
   patientProfilesByStatus: Record<string, number>;
   treatmentPlansByStatus: Record<string, number>;
-  patientSessionsByStatus: Record<string, number>;
+  trainingCyclesByStatus: Record<string, number>;
 }
 
 export interface RegisteredUserSummary {
@@ -168,20 +168,34 @@ export class ReportsService {
   }
 
   async getOperationalStatusReport(): Promise<OperationalStatusReport> {
-    const [usersByRoleRaw, profilesByStatusRaw, plansByStatusRaw, sessionsByStatusRaw] = await Promise.all([
+    const [usersByRoleRaw, profilesByStatusRaw, plansByStatusRaw, cyclesByStatusRaw] = await Promise.all([
       this.prisma.user.groupBy({ by: ['role'], _count: { _all: true } }),
       this.prisma.patientProfile.groupBy({ by: ['status'], _count: { _all: true } }),
       this.prisma.treatmentPlan.groupBy({ by: ['status'], _count: { _all: true } }),
-      this.prisma.patientSession.groupBy({ by: ['status'], _count: { _all: true } }),
+      this.prisma.trainingCycle72h.groupBy({ by: ['status'], _count: { _all: true } }),
     ]);
 
     return {
       usersByRole: this.zeroFillCounts(['PATIENT', 'CAREGIVER', 'CLINICIAN', 'SUPERVISOR', 'ADMIN'], usersByRoleRaw, 'role'),
       patientProfilesByStatus: this.zeroFillCounts(['ACTIVE', 'DISABLED'], profilesByStatusRaw, 'status'),
       treatmentPlansByStatus: this.zeroFillCounts(['ACTIVE', 'INACTIVE'], plansByStatusRaw, 'status'),
-      patientSessionsByStatus: this.zeroFillCounts(
-        ['IN_TRAINING', 'SUBMITTED', 'APPROVED', 'REPEAT_REQUIRED'],
-        sessionsByStatusRaw,
+      trainingCyclesByStatus: this.zeroFillCounts(
+        [
+          'ACTIVE_LEVEL_TRAINING',
+          'SAMPLE_ELIGIBLE',
+          'SAMPLE_PREPARATION',
+          'SAMPLE_SUBMITTED',
+          'WAITING_FOR_SPECIALIST',
+          'UNDER_REVIEW',
+          'DIRECT_INTERVENTION_REQUIRED',
+          'WAITING_FINAL_DECISION_AFTER_INTERVENTION',
+          'TECHNICAL_PARTIAL_RERECORD',
+          'LEVEL_REPEAT_DECIDED',
+          'NEXT_LEVEL_APPROVED',
+          'CLOSED_DUE_TO_INACTIVITY',
+          'SUBSCRIPTION_EXPIRED_CLINICAL_FLOW_OPEN',
+        ],
+        cyclesByStatusRaw,
         'status',
       ),
     };
@@ -199,13 +213,13 @@ export class ReportsService {
       if (user.role === 'PATIENT') {
         caseProgressSummary = 'Not started';
         if (user.patientProfile) {
-          const latestSession = await this.prisma.patientSession.findFirst({
+          const latestCycle = await this.prisma.trainingCycle72h.findFirst({
             where: { patientProfileId: user.patientProfile.id },
             orderBy: { createdAt: 'desc' },
-            include: { sessionTemplate: true },
+            include: { level: true },
           });
-          if (latestSession) {
-            caseProgressSummary = `Session ${latestSession.sessionTemplate.sessionNumber} (${latestSession.status})`;
+          if (latestCycle) {
+            caseProgressSummary = `${latestCycle.level.name} (${latestCycle.status})`;
           }
         }
       }
@@ -258,11 +272,11 @@ export class ReportsService {
         distinct: ['patientProfileId'],
         select: { patientProfileId: true },
       });
-      const reviewsApproved = await this.prisma.patientSession.count({
-        where: { clinicianUserId: member.id, status: 'APPROVED' },
+      const reviewsApproved = await this.prisma.speechSample.count({
+        where: { reviewedByUserId: member.id, decision: 'TRANSITION' },
       });
-      const reviewsRepeatRequired = await this.prisma.patientSession.count({
-        where: { clinicianUserId: member.id, status: 'REPEAT_REQUIRED' },
+      const reviewsRepeatRequired = await this.prisma.speechSample.count({
+        where: { reviewedByUserId: member.id, decision: 'LEVEL_REPEAT' },
       });
       const complaintsAgainst = await this.prisma.complaint.count({
         where: { relatedClinicianUserId: member.id },

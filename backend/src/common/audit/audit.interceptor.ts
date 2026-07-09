@@ -1,6 +1,6 @@
 import { CallHandler, ExecutionContext, Injectable, NestInterceptor } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
-import { Observable, tap } from 'rxjs';
+import { Observable, concatMap } from 'rxjs';
 import { PrismaService } from '../../prisma/prisma.service';
 import { AuthenticatedUser } from '../auth/session.guard';
 
@@ -54,8 +54,8 @@ export class AuditInterceptor implements NestInterceptor {
     const entity = this.deriveEntity(context);
 
     return next.handle().pipe(
-      tap((responseBody) => {
-        this.prisma.auditLog
+      concatMap(async (responseBody) => {
+        await this.prisma.auditLog
           .create({
             data: {
               userId: request.user?.id,
@@ -67,6 +67,7 @@ export class AuditInterceptor implements NestInterceptor {
             },
           })
           .catch(() => undefined);
+        return responseBody;
       }),
     );
   }
