@@ -82,4 +82,14 @@ export const ar = {
       LEVEL_REPEAT: 'إعادة هذا المستوى',
     },
   },
+  sampleResult: {
+    title: 'نتيجة عينتك',
+    decisions: {
+      TRANSITION: 'الانتقال للمستوى التالي',
+      LEVEL_REPEAT: 'إعادة هذا المستوى',
+    },
+    clinicianNotesTitle: 'ملاحظات أخصائيك',
+    selfReportTitle: 'تقييمك الذاتي',
+    notFound: 'تعذر العثور على هذه النتيجة',
+  },
 };
