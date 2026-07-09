@@ -43,7 +43,7 @@ export class SamplesService {
       throw new ConflictException(`Cannot record an attempt in session status ${session.status}`);
     }
 
-    return this.prisma.$transaction(async (tx) => {
+    const result = await this.prisma.$transaction(async (tx) => {
       // Row-lock the SampleSession so concurrent recordAttempt calls for the
       // same session serialize instead of racing on the count-then-create below.
       await tx.$queryRaw`SELECT id FROM "SampleSession" WHERE id = ${session.id} FOR UPDATE`;
@@ -52,15 +52,20 @@ export class SamplesService {
       if (totalAttemptsIncludingDeleted >= MAX_ATTEMPTS) {
         await tx.sampleSession.update({ where: { id: session.id }, data: { status: 'CLOSED_EXHAUSTED' } });
         await tx.trainingCycle72h.update({ where: { id: cycleId }, data: { status: 'ACTIVE_LEVEL_TRAINING' } });
-        throw new ConflictException('Maximum of 10 recording attempts reached without selecting a sample');
+        return { exhausted: true as const };
       }
 
       const attempt = await tx.sampleAttempt.create({
         data: { sampleSessionId: session.id, attemptNumber: totalAttemptsIncludingDeleted + 1, recordingUrl: dto.recordingUrl },
       });
       await tx.sampleSession.update({ where: { id: session.id }, data: { attemptsUsed: totalAttemptsIncludingDeleted + 1 } });
-      return attempt;
+      return { exhausted: false as const, attempt };
     });
+
+    if (result.exhausted) {
+      throw new ConflictException('Maximum of 10 recording attempts reached without selecting a sample');
+    }
+    return result.attempt;
   }
 
   async deleteAttempt(cycleId: string, attemptId: string, actor: AuthenticatedUser): Promise<SampleAttempt> {
