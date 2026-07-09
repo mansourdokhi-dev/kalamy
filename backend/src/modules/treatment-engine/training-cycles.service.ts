@@ -19,6 +19,10 @@ const STATES_EXEMPT_FROM_INACTIVITY: readonly string[] = [
   'SUBSCRIPTION_EXPIRED_CLINICAL_FLOW_OPEN',
 ];
 
+export type TrainingCycleWithSample = Prisma.TrainingCycle72hGetPayload<{
+  include: { speechSample: { include: { parts: true } } };
+}>;
+
 @Injectable()
 export class TrainingCyclesService {
   constructor(
@@ -131,10 +135,14 @@ export class TrainingCyclesService {
     return cycle;
   }
 
-  async listHistory(patientProfileId: string, actor: AuthenticatedUser): Promise<TrainingCycle72h[]> {
+  async listHistory(patientProfileId: string, actor: AuthenticatedUser): Promise<TrainingCycleWithSample[]> {
     const profile = await this.findPatientProfileOrThrow(patientProfileId);
     await this.patientAccessService.assertCanAccess(actor, profile);
-    return this.prisma.trainingCycle72h.findMany({ where: { patientProfileId }, orderBy: { createdAt: 'asc' } });
+    return this.prisma.trainingCycle72h.findMany({
+      where: { patientProfileId },
+      orderBy: { createdAt: 'asc' },
+      include: { speechSample: { include: { parts: true } } },
+    });
   }
 
   async findCycleForActor(cycleId: string, actor: AuthenticatedUser): Promise<TrainingCycle72h> {

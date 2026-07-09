@@ -215,4 +215,54 @@ describe('Treatment Engine — Cycle lifecycle (e2e)', () => {
     const cycles = await prisma.trainingCycle72h.findMany({ where: { patientProfileId: patientProfile.id } });
     expect(cycles).toHaveLength(1);
   });
+
+  it('includes each cycle\'s speech sample and decision in the history listing', async () => {
+    const clinicianToken = await registerAndLogin(app, prisma, '+966500001500', 'CLINICIAN');
+    const patientToken = await registerAndLogin(app, prisma, '+966500001501', null);
+    const clinicianUser = await prisma.user.findUniqueOrThrow({ where: { mobile: '+966500001500' } });
+    const patientUser = await prisma.user.findUniqueOrThrow({ where: { mobile: '+966500001501' } });
+    const profile = await prisma.patientProfile.create({
+      data: { userId: patientUser.id, fullName: 'p', gender: 'MALE', nationalId: 'HIST-1', dateOfBirth: new Date('2000-01-01') },
+    });
+    const assessment = await prisma.assessment.create({
+      data: { patientProfileId: profile.id, clinicianUserId: clinicianUser.id, type: 'INITIAL', status: 'APPROVED' },
+    });
+    const plan = await prisma.treatmentPlan.create({
+      data: { patientProfileId: profile.id, clinicianUserId: clinicianUser.id, assessmentId: assessment.id, goals: 'g', reviewDate: new Date() },
+    });
+    const level = await prisma.level.create({ data: { name: 'Level 1', order: 1 } });
+    const version = await prisma.levelVersion.create({
+      data: { levelId: level.id, versionNumber: 1, behavioralTechnique: 'x', trainingListJson: '[]', samplePartTemplateJson: '[]', publishedAt: new Date() },
+    });
+    const closedCycle = await prisma.trainingCycle72h.create({
+      data: {
+        patientProfileId: profile.id,
+        treatmentPlanId: plan.id,
+        levelId: level.id,
+        levelVersionId: version.id,
+        cycleNumber: 1,
+        status: 'NEXT_LEVEL_APPROVED',
+        closedAt: new Date(),
+      },
+    });
+    await prisma.speechSample.create({
+      data: {
+        trainingCycleId: closedCycle.id,
+        submittedAt: new Date(),
+        reviewedByUserId: clinicianUser.id,
+        reviewedAt: new Date(),
+        decision: 'TRANSITION',
+        reviewNotes: 'Great progress',
+      },
+    });
+
+    const response = await request(app.getHttpServer())
+      .get(`/api/v1/patients/${profile.id}/cycles`)
+      .set('Authorization', `Bearer ${patientToken}`)
+      .expect(200);
+
+    const returnedClosedCycle = response.body.find((c: { id: string }) => c.id === closedCycle.id);
+    expect(returnedClosedCycle.speechSample.decision).toBe('TRANSITION');
+    expect(returnedClosedCycle.speechSample.reviewNotes).toBe('Great progress');
+  });
 });
