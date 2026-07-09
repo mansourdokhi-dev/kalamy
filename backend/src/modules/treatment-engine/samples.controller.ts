@@ -7,6 +7,7 @@ import { PermissionsGuard } from '../../common/rbac/permissions.guard';
 import { RequirePermission } from '../../common/rbac/require-permission.decorator';
 import { Permission } from '../../common/rbac/permissions';
 import { RecordAttemptDto } from './dto/record-attempt.dto';
+import { SubmitSampleDto } from './dto/submit-sample.dto';
 
 @Controller('api/v1/patients/:patientId/cycles/current/sample-session')
 @UseGuards(SessionGuard, PermissionsGuard)
@@ -46,5 +47,12 @@ export class SamplesController {
   async listAttempts(@Param('patientId') patientId: string, @CurrentUser() user: AuthenticatedUser) {
     const current = await this.trainingCyclesService.getCurrent(patientId, user);
     return this.samplesService.listAttempts(current.id, user);
+  }
+
+  @Post('submit')
+  @RequirePermission(Permission.SUBMIT_SAMPLE)
+  async submitSample(@Param('patientId') patientId: string, @Body() dto: SubmitSampleDto, @CurrentUser() user: AuthenticatedUser) {
+    const current = await this.trainingCyclesService.getCurrent(patientId, user);
+    return this.samplesService.submitSample(current.id, dto, user);
   }
 }

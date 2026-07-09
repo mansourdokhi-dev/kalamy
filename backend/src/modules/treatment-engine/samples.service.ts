@@ -1,9 +1,10 @@
 import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
-import { Prisma, SampleAttempt, SampleSession } from '@prisma/client';
+import { Prisma, SampleAttempt, SampleSession, SpeechSample, SampleSamplePart } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { AuthenticatedUser } from '../../common/auth/session.guard';
 import { TrainingCyclesService } from './training-cycles.service';
 import { RecordAttemptDto } from './dto/record-attempt.dto';
+import { SubmitSampleDto } from './dto/submit-sample.dto';
 
 const MAX_ATTEMPTS = 10;
 
@@ -85,6 +86,52 @@ export class SamplesService {
       where: { sampleSessionId: session.id, deletedAt: null },
       orderBy: { attemptNumber: 'asc' },
     });
+  }
+
+  async submitSample(cycleId: string, dto: SubmitSampleDto, actor: AuthenticatedUser): Promise<SpeechSample & { parts: SampleSamplePart[] }> {
+    const cycle = await this.trainingCyclesService.findCycleForActor(cycleId, actor);
+    if (cycle.status !== 'SAMPLE_PREPARATION') {
+      throw new ConflictException(`Cannot submit a sample from status ${cycle.status}`);
+    }
+    const session = await this.findSessionOrThrow(cycleId);
+
+    const liveAttempts = await this.prisma.sampleAttempt.findMany({
+      where: { sampleSessionId: session.id, deletedAt: null },
+    });
+    const liveAttemptIds = new Set(liveAttempts.map((a) => a.id));
+    for (const part of dto.parts) {
+      if (!liveAttemptIds.has(part.sourceAttemptId)) {
+        throw new NotFoundException(`Attempt ${part.sourceAttemptId} is not a live attempt in this session`);
+      }
+    }
+
+    const attemptsById = new Map(liveAttempts.map((a) => [a.id, a]));
+
+    const sample = await this.prisma.speechSample.create({
+      data: {
+        trainingCycleId: cycleId,
+        selfSeverityCurrent: dto.selfSeverityCurrent,
+        selfSeverityExpectedNext: dto.selfSeverityExpectedNext,
+        camperdownPerformanceRating: dto.camperdownPerformanceRating,
+        clientOpinionScore: dto.clientOpinionScore,
+        submittedAt: new Date(),
+        parts: {
+          create: dto.parts.map((part) => ({
+            partType: part.partType,
+            label: part.label,
+            order: part.order,
+            sourceAttemptId: part.sourceAttemptId,
+            recordingUrl: attemptsById.get(part.sourceAttemptId)!.recordingUrl,
+          })),
+        },
+      },
+      include: { parts: true },
+    });
+
+    await this.prisma.sampleSession.update({ where: { id: session.id }, data: { status: 'CLOSED_SUBMITTED' } });
+    await this.prisma.trainingCycle72h.update({ where: { id: cycleId }, data: { status: 'WAITING_FOR_SPECIALIST' } });
+
+    return sample;
   }
 
   private async findSessionOrThrow(cycleId: string): Promise<SampleSession> {
