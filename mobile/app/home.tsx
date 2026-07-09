@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useState } from 'react';
 import { View, Text, StyleSheet, ScrollView } from 'react-native';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { ar } from '../src/copy/ar';
@@ -46,11 +46,6 @@ export default function HomeScreen() {
   const [noActivePlan, setNoActivePlan] = useState(false);
   const [recentDecisionCycle, setRecentDecisionCycle] = useState<TrainingCycleWithSample | null>(null);
   const [submitting, setSubmitting] = useState(false);
-  // Guards against re-triggering the initial load on every re-render. expo-router's
-  // real useFocusEffect only invokes its callback on actual focus events, but this
-  // ref makes that explicit and safe even under naive test doubles that just call
-  // the callback synchronously on every render.
-  const loadedProfileIdRef = useRef<string | null>(null);
 
   const load = useCallback(
     async (id: string) => {
@@ -96,8 +91,7 @@ export default function HomeScreen() {
 
   useFocusEffect(
     useCallback(() => {
-      if (patientProfileId && loadedProfileIdRef.current !== patientProfileId) {
-        loadedProfileIdRef.current = patientProfileId;
+      if (patientProfileId) {
         load(patientProfileId);
       }
       // eslint-disable-next-line react-hooks/exhaustive-deps

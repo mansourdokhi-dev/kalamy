@@ -9,7 +9,13 @@ import { ApiError } from '../../src/api/client';
 jest.mock('../../src/auth/AuthProvider');
 jest.mock('../../src/patient/PatientProfileProvider');
 jest.mock('../../src/api/treatmentEngine');
-jest.mock('expo-router', () => ({ useRouter: () => ({ push: jest.fn(), replace: jest.fn() }), useFocusEffect: (cb: () => void) => cb() }));
+jest.mock('expo-router', () => {
+  const actualReact = jest.requireActual('react');
+  return {
+    useRouter: () => ({ push: jest.fn(), replace: jest.fn() }),
+    useFocusEffect: (cb: () => void) => actualReact.useEffect(cb, []),
+  };
+});
 
 const baseProgress = {
   currentLevelName: 'Level 1',
