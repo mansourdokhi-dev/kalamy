@@ -679,6 +679,125 @@ git commit -m "feat: add Level/LevelVersion content management (Treatment Engine
 
 ---
 
+### Task 3.5: Unblock backend compilation (delete dead Sessions module, stub broken Progress/Reports methods)
+
+**Why this task exists (not in the original plan):** Task 1 removed the `SessionStatus`/`SessionTemplate`/`PatientSession` Prisma models and Task 2 removed their RBAC permissions. The original plan assumed "backend fails to compile from Task 1 through Task 10" was an acceptable transitional state. It is not: this project's `test:e2e` script runs `ts-jest` with full type-checking (no `isolatedModules`), and every e2e test boots the whole `AppModule` graph — so a type error anywhere in `src/` (even in an unrelated module) fails every e2e test in the project, not just tests that exercise the broken code. This silently blocks the TDD "run test to verify it passes" step for Tasks 3 through 10 (8 tasks), which is not acceptable. Discovered when Task 3's implementer reported `DONE_WITH_CONCERNS` because its own e2e test — which touches none of the broken code — still failed to compile.
+
+This task restores a real, compiling, fully-passing baseline by doing two things:
+1. Deleting the entire dead-code old Sessions module now (originally scheduled for Task 11) — nothing in Tasks 4-10 depends on it, and its permissions are already gone.
+2. Temporarily stubbing the handful of `Progress`/`Reports` methods that reference the removed `patientSession` Prisma delegate, with a clear `// TODO(Task 9)` / `// TODO(Task 10)` marker. These are placeholder return values for methods whose real logic is rebuilt against the new model in Tasks 9 and 10 later in this same plan — not new permanent functionality. This is a narrower, correct fix for the same problem the original plan already accepted (a temporarily-incomplete Progress/Reports module) — the only change is that the interim state compiles and returns a defined (if inert) value instead of not compiling at all.
+
+**Files:**
+- Delete: `backend/src/modules/sessions/` (entire directory: `patient-sessions.controller.ts`, `patient-sessions.service.ts`, `session-templates.controller.ts`, `session-templates.service.ts`, `sessions.module.ts`, `dto/`)
+- Delete: `backend/test/patient-sessions.e2e-spec.ts`, `backend/test/session-templates.e2e-spec.ts`, `backend/test/progress.e2e-spec.ts`, `backend/test/sessions-progress-smoke.e2e-spec.ts`
+- Modify: `backend/src/app.module.ts` (remove the `SessionsModule` import and its entry in the `imports` array)
+- Modify: `backend/src/modules/progress/progress.service.ts` (stub `getDashboard`)
+- Modify: `backend/src/modules/reports/reports.service.ts` (stub the 3 broken methods)
+
+**Interfaces:**
+- `ProgressService.getDashboard(patientProfileId, actor)` keeps its exact existing signature and `ProgressDashboard` return shape — only the method body changes to a compiling placeholder. Task 9 replaces the body and the `ProgressDashboard` interface for real.
+- `ReportsService.getOperationalStatusReport()`, `.getRegisteredUsersReport()`, `.getStaffPerformanceReport()` keep their exact existing signatures and return types — only the bodies change. Task 10 replaces them for real.
+
+- [ ] **Step 1: Delete the old Sessions module and its own e2e tests**
+
+```bash
+git rm -r backend/src/modules/sessions
+git rm backend/test/patient-sessions.e2e-spec.ts backend/test/session-templates.e2e-spec.ts backend/test/progress.e2e-spec.ts backend/test/sessions-progress-smoke.e2e-spec.ts
+```
+
+- [ ] **Step 2: Remove the module registration**
+
+In `backend/src/app.module.ts`, delete the line `import { SessionsModule } from './modules/sessions/sessions.module';` and delete `SessionsModule,` from the `imports` array.
+
+- [ ] **Step 3: Stub the broken Progress method**
+
+In `backend/src/modules/progress/progress.service.ts`, replace the body of `getDashboard` (the part from `const sessions = await this.prisma.patientSession...` down through the `return { ... }` at the end of the method) with:
+
+```typescript
+  async getDashboard(patientProfileId: string, actor: AuthenticatedUser): Promise<ProgressDashboard> {
+    const profile = await this.findPatientProfileOrThrow(patientProfileId);
+    await this.patientAccessService.assertCanAccess(actor, profile);
+
+    // TODO(Task 9): rebuild against Level/TrainingCycle72h/SpeechSample.
+    // Placeholder keeps the endpoint compiling and returning a defined,
+    // honest "no data yet" shape until Task 9 lands.
+    return { currentSessionNumber: null, sessionsApproved: 0, totalAttempts: 0, repeatedSessionNumbers: [], daysInProgram: 0 };
+  }
+```
+
+- [ ] **Step 4: Stub the broken Reports methods**
+
+In `backend/src/modules/reports/reports.service.ts`:
+
+Replace `getOperationalStatusReport`'s body with:
+
+```typescript
+  async getOperationalStatusReport(): Promise<OperationalStatusReport> {
+    const [usersByRoleRaw, profilesByStatusRaw, plansByStatusRaw] = await Promise.all([
+      this.prisma.user.groupBy({ by: ['role'], _count: { _all: true } }),
+      this.prisma.patientProfile.groupBy({ by: ['status'], _count: { _all: true } }),
+      this.prisma.treatmentPlan.groupBy({ by: ['status'], _count: { _all: true } }),
+    ]);
+
+    return {
+      usersByRole: this.zeroFillCounts(['PATIENT', 'CAREGIVER', 'CLINICIAN', 'SUPERVISOR', 'ADMIN'], usersByRoleRaw, 'role'),
+      patientProfilesByStatus: this.zeroFillCounts(['ACTIVE', 'DISABLED'], profilesByStatusRaw, 'status'),
+      treatmentPlansByStatus: this.zeroFillCounts(['ACTIVE', 'INACTIVE'], plansByStatusRaw, 'status'),
+      // TODO(Task 10): rebuild against TrainingCycle72h's LevelCycleStatus (13 states) instead of the old 4-state SessionStatus.
+      patientSessionsByStatus: [],
+    };
+  }
+```
+
+Replace the body of the `if (user.role === 'PATIENT')` block inside `getRegisteredUsersReport` (the part using `this.prisma.patientSession.findFirst`) with:
+
+```typescript
+      if (user.role === 'PATIENT') {
+        // TODO(Task 10): rebuild against TrainingCycle72h/SpeechSample.
+        caseProgressSummary = 'Not started';
+      }
+```
+
+Replace `getStaffPerformanceReport`'s `reviewsApproved`/`reviewsRepeatRequired` lines with:
+
+```typescript
+      // TODO(Task 10): rebuild against SpeechSample.decision (SpecialistDecision enum) instead of the old PatientSession.status.
+      const reviewsApproved = 0;
+      const reviewsRepeatRequired = 0;
+```
+
+(Leave `patientsHandled` and `complaintsAgainst` untouched — they don't reference the removed model.)
+
+- [ ] **Step 5: Verify the backend compiles and the full e2e suite runs**
+
+Run: `cd backend && npx tsc --noEmit -p tsconfig.json`
+Expected: no errors.
+
+Run: `cd backend && npm run test:e2e`
+Expected: every e2e suite in the project runs and passes (Auth, Patients, Assessment/Treatment-Plan, Reports/Complaints, Admin/Supervision, and this branch's own `treatment-engine-levels.e2e-spec.ts` from Task 3). Progress and Reports tests that asserted the OLD session-based values must be adjusted to assert the new placeholder values (zero/empty/"Not started") — read each failing assertion and update it to match the stub's honest placeholder output; do not delete test coverage for endpoints that still exist.
+
+- [ ] **Step 6: Commit**
+
+```bash
+git add backend/src/app.module.ts backend/src/modules/progress/progress.service.ts backend/src/modules/reports/reports.service.ts
+git commit -m "fix: delete dead Sessions module, stub Progress/Reports methods broken by schema removal
+
+Restores a compiling, fully-testable backend baseline. The original
+plan accepted a non-compiling backend through Task 10, but this
+project's e2e tests type-check the whole app graph, so any file with
+a type error blocks every e2e test — not just tests touching the
+broken code. This was discovered when Task 3's own e2e test, which
+touches neither Sessions nor Progress/Reports, failed to compile.
+
+Sessions module deletion is brought forward from Task 11 (nothing in
+Tasks 4-10 depends on it). Progress/Reports stubs are temporary and
+replaced with real logic in Tasks 9 and 10 later in this plan."
+```
+
+**Downstream impact on later tasks:** Task 11's file list should no longer include deleting `backend/src/modules/sessions/` or the 4 e2e test files listed above (already done here) — Task 11 now only needs to update Swagger and write the AC-01–12 acceptance suite. Tasks 9 and 10 replace this task's stubs with real logic exactly as originally planned; nothing else about their scope changes.
+
+---
+
 ### Task 4: Cycle lifecycle — start, watch human model, record training event, 72h gating
 
 **Files:**
@@ -1951,7 +2070,7 @@ git commit -m "feat: add inactivity closure (specialist-wait exempt) and cycle h
 **Interfaces:**
 - Produces: a new `ProgressDashboard` shape (`currentLevelName`, `currentLevelOrder`, `levelsCompleted`, `totalTrainingEvents`, `repeatedLevelOrders`, `daysInProgram`) — replaces the old `currentSessionNumber`/`sessionsApproved`/`totalAttempts`/`repeatedSessionNumbers` shape entirely. `progress.controller.ts` is untouched (it only forwards to `getDashboard` with no field-name coupling — confirmed by reading it directly).
 
-This file currently fails to compile (Task 1, Step 7 flagged this) since it references `prisma.patientSession`/`sessionTemplate.sessionNumber`, both removed. This task replaces its entire body.
+Task 3.5 stubbed this method's body (`getDashboard` now returns a hardcoded empty/zero `ProgressDashboard` so the backend compiles) since it originally referenced `prisma.patientSession`/`sessionTemplate.sessionNumber`, both removed in Task 1. This task replaces the stub with the real implementation against the new model.
 
 - [ ] **Step 1: Write the failing e2e test**
 
@@ -1977,7 +2096,7 @@ it('reports the current level, completed count, repeats, and days in program fro
 - [ ] **Step 2: Run test to verify it fails**
 
 Run: `cd backend && npm run test:e2e -- treatment-engine-progress.e2e-spec.ts`
-Expected: FAIL — either a compile error (if Tasks 1-8 already broke the build and this is the first attempt to run anything) or a 500 from the old, now-broken query. Either way, this confirms the rewrite is needed.
+Expected: FAIL — the endpoint returns 200 with Task 3.5's placeholder zero/empty values (`currentSessionNumber: null`, etc.), which don't match this test's assertions about real level/cycle data. This confirms the stub still needs replacing.
 
 - [ ] **Step 3: Rewrite the service**
 
@@ -2209,43 +2328,30 @@ git commit -m "fix: rewrite Reports module's session-model queries against Level
 
 ---
 
-### Task 11: Remove the old Sessions module, update Swagger, full AC-01–AC-12 smoke test
+### Task 11: Update Swagger, full AC-01–AC-12 smoke test
+
+**Note:** deleting the old Sessions module and its own e2e test files was brought forward to Task 3.5 (it was blocking every e2e test in the project, not just tests touching that code — see Task 3.5 for why). This task now only needs to update Swagger and write the acceptance suite.
 
 **Files:**
-- Delete: `backend/src/modules/sessions/` (entire directory)
-- Delete: `backend/test/sessions-progress-smoke.e2e-spec.ts`, `backend/test/patient-sessions.e2e-spec.ts`, `backend/test/session-templates.e2e-spec.ts`, `backend/test/progress.e2e-spec.ts` (all four test the old `SessionTemplate`/`PatientSession`/`SessionStatus` model directly and fail to compile after Task 1; their coverage is superseded by this plan's own e2e suites — `treatment-engine-levels`, `treatment-engine-cycle`, `treatment-engine-sample-prep`, `treatment-engine-sample-submit`, `treatment-engine-specialist-review`, `treatment-engine-inactivity`, `treatment-engine-progress`, and this task's own acceptance suite)
-- Modify: `backend/src/app.module.ts`
 - Modify: `backend/src/main.ts`
 - Create: `backend/test/treatment-engine-acceptance-criteria.e2e-spec.ts`
 
 **Interfaces:**
 - None produced — this is the plan's terminal task.
 
-- [ ] **Step 1: Delete the old module and its now-superseded tests**
-
-```bash
-cd backend
-git rm -r src/modules/sessions
-git rm test/sessions-progress-smoke.e2e-spec.ts test/patient-sessions.e2e-spec.ts test/session-templates.e2e-spec.ts test/progress.e2e-spec.ts
-```
-
-- [ ] **Step 2: Remove the old module registration**
-
-In `backend/src/app.module.ts`, remove the `SessionsModule` import and its entry in the `imports` array (leave `TreatmentEngineModule`, added in Task 3, in place).
-
-- [ ] **Step 3: Update the Swagger description**
+- [ ] **Step 1: Update the Swagger description**
 
 In `backend/src/main.ts`, find the Swagger `DocumentBuilder` description string (the one already listing every merged module, e.g. "...Sessions, Progress, Reports..."). Replace `"Sessions"` with `"Treatment Engine (Levels, 72-Hour Cycles, Samples, Specialist Review)"` in that string.
 
-- [ ] **Step 4: Verify the backend compiles cleanly for the first time since Task 1**
+- [ ] **Step 2: Verify the backend still compiles cleanly**
 
 ```bash
 cd backend
 npx tsc --noEmit
 ```
-Expected: zero errors — this is the first point in the plan where the whole backend compiles again (Tasks 1-10 deliberately left it broken).
+Expected: zero errors — the backend has compiled cleanly since Task 3.5; this just reconfirms it after Tasks 9/10 replaced the Progress/Reports stubs with real logic.
 
-- [ ] **Step 5: Write the full acceptance-criteria smoke test**
+- [ ] **Step 3: Write the full acceptance-criteria smoke test**
 
 ```typescript
 // backend/test/treatment-engine-acceptance-criteria.e2e-spec.ts
@@ -2566,12 +2672,12 @@ Expected: every suite passes, including every pre-existing module's tests (Auth,
 
 ```bash
 git add -A
-git commit -m "feat: remove old Sessions module, update Swagger, add full AC-01–AC-12 acceptance suite
+git commit -m "feat: update Swagger, add full AC-01–AC-12 acceptance suite
 
-This is the final task of the Treatment Engine v2 plan. The backend
-compiles cleanly again for the first time since Task 1 introduced the
-breaking schema change. Progress and Reports were updated in Tasks 9-10
-to match; every other pre-existing module is untouched."
+This is the final task of the Treatment Engine v2 plan. Progress and
+Reports were updated in Tasks 9-10 to replace the temporary stubs from
+Task 3.5 with real logic against the new model; every other
+pre-existing module is untouched."
 ```
 
 ---
