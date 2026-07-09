@@ -2328,6 +2328,304 @@ git commit -m "fix: rewrite Reports module's session-model queries against Level
 
 ---
 
+### Task 10.5: Resubmit after technical re-record (patient resume path)
+
+**Why this task exists (not in the original plan):** Task 7 lets a specialist flag specific `SampleSamplePart` rows as `technicallyDamaged` and move the cycle to `TECHNICAL_PARTIAL_RERECORD` — but no endpoint anywhere in the codebase lets the patient act on that: `SamplesController.openSession` (Task 5) hard-requires `SAMPLE_ELIGIBLE`, so a cycle in `TECHNICAL_PARTIAL_RERECORD` has no way out except eventually auto-closing for inactivity (Task 8). This silently breaks the Non-Negotiable Rule "never require a full-sample re-record when only one component is technically damaged — only the affected component is re-recorded": the affected-component-only re-record is implemented on the specialist side, but the patient can never actually complete it. Found during Task 8's review (flagged as an out-of-scope gap) and confirmed by grep before starting Task 11 — no task in the plan closes this loop.
+
+**Files:**
+- Create: `backend/src/modules/treatment-engine/dto/rerecord-parts.dto.ts`
+- Modify: `backend/src/modules/treatment-engine/samples.service.ts`
+- Modify: `backend/src/modules/treatment-engine/samples.controller.ts`
+- Test: `backend/test/treatment-engine-rerecord.e2e-spec.ts`
+
+**Interfaces:**
+- Consumes: `TrainingCyclesService.findCycleForActor`/`.getCurrent` (Task 4).
+- Produces: `SamplesService.rerecordDamagedParts(cycleId, dto, actor): Promise<SpeechSample & { parts: SampleSamplePart[] }>` — no other task in this plan consumes it; this closes the technical-rerecord loop back to `WAITING_FOR_SPECIALIST` so Task 7's `review()` can act on the corrected sample again.
+
+- [ ] **Step 1: Write the failing e2e test**
+
+```typescript
+// backend/test/treatment-engine-rerecord.e2e-spec.ts
+import { INestApplication } from '@nestjs/common';
+import request from 'supertest';
+import { createTestApp, resetDatabase } from './utils/test-app';
+import { PrismaService } from '../src/prisma/prisma.service';
+
+async function registerAndLogin(
+  app: INestApplication,
+  prisma: PrismaService,
+  mobile: string,
+  role: 'CLINICIAN' | 'ADMIN' | 'SUPERVISOR' | null,
+): Promise<string> {
+  const register = await request(app.getHttpServer())
+    .post('/api/v1/auth/register')
+    .send({ fullName: 'Test User', mobile, password: 'test-pass-1', role: 'PATIENT' });
+  await request(app.getHttpServer()).post('/api/v1/auth/verify').send({ mobile, code: register.body.devOtpCode });
+  if (role) {
+    await prisma.user.update({ where: { mobile }, data: { role } });
+  }
+  const login = await request(app.getHttpServer()).post('/api/v1/auth/login').send({ mobile, password: 'test-pass-1' });
+  return login.body.token;
+}
+
+describe('Treatment Engine — Resubmit after technical re-record (e2e)', () => {
+  let app: INestApplication;
+  let prisma: PrismaService;
+
+  beforeAll(async () => {
+    ({ app, prisma } = await createTestApp());
+  });
+
+  afterAll(async () => {
+    await app.close();
+  });
+
+  beforeEach(async () => {
+    await resetDatabase(prisma);
+  });
+
+  it('lets a patient re-record only the damaged parts and resubmits the same sample for specialist review', async () => {
+    const clinicianToken = await registerAndLogin(app, prisma, '+966500003000', 'CLINICIAN');
+    const patientToken = await registerAndLogin(app, prisma, '+966500003001', null);
+    const patientUser = await prisma.user.findUniqueOrThrow({ where: { mobile: '+966500003001' } });
+    const clinicianUser = await prisma.user.findUniqueOrThrow({ where: { mobile: '+966500003000' } });
+
+    const profile = await prisma.patientProfile.create({
+      data: { userId: patientUser.id, fullName: 'p', gender: 'MALE', nationalId: 'RR-1', dateOfBirth: new Date('2000-01-01') },
+    });
+    const assessment = await prisma.assessment.create({
+      data: { patientProfileId: profile.id, clinicianUserId: clinicianUser.id, type: 'INITIAL', status: 'APPROVED' },
+    });
+    const plan = await prisma.treatmentPlan.create({
+      data: { patientProfileId: profile.id, clinicianUserId: clinicianUser.id, assessmentId: assessment.id, goals: 'g', reviewDate: new Date() },
+    });
+    const level = await prisma.level.create({ data: { name: 'Level 1', order: 1 } });
+    const version = await prisma.levelVersion.create({
+      data: { levelId: level.id, versionNumber: 1, behavioralTechnique: 'x', trainingListJson: '["a"]', samplePartTemplateJson: '[]', publishedAt: new Date() },
+    });
+    const cycle = await prisma.trainingCycle72h.create({
+      data: { patientProfileId: profile.id, treatmentPlanId: plan.id, levelId: level.id, levelVersionId: version.id, cycleNumber: 1, status: 'TECHNICAL_PARTIAL_RERECORD' },
+    });
+    const sample = await prisma.speechSample.create({ data: { trainingCycleId: cycle.id, submittedAt: new Date() } });
+    const damagedPart = await prisma.sampleSamplePart.create({
+      data: { speechSampleId: sample.id, partType: 'مقطع', label: 'مقطع 1', order: 1, technicallyDamaged: true, recordingUrl: null },
+    });
+    const untouchedPart = await prisma.sampleSamplePart.create({
+      data: { speechSampleId: sample.id, partType: 'كلمة', label: 'كلمة 1', order: 2, technicallyDamaged: false, recordingUrl: 'https://example.com/untouched.mp4' },
+    });
+
+    await request(app.getHttpServer())
+      .post(`/api/v1/patients/${profile.id}/cycles/current/sample-session/rerecord`)
+      .set('Authorization', `Bearer ${patientToken}`)
+      .send({ parts: [{ id: damagedPart.id, recordingUrl: 'https://example.com/fixed.mp4' }] })
+      .expect(201);
+
+    const cycleRes = await request(app.getHttpServer())
+      .get(`/api/v1/patients/${profile.id}/cycles/current`)
+      .set('Authorization', `Bearer ${patientToken}`)
+      .expect(200);
+    expect(cycleRes.body.status).toBe('WAITING_FOR_SPECIALIST');
+
+    const fixedPart = await prisma.sampleSamplePart.findUniqueOrThrow({ where: { id: damagedPart.id } });
+    expect(fixedPart.technicallyDamaged).toBe(false);
+    expect(fixedPart.recordingUrl).toBe('https://example.com/fixed.mp4');
+    const stillUntouchedPart = await prisma.sampleSamplePart.findUniqueOrThrow({ where: { id: untouchedPart.id } });
+    expect(stillUntouchedPart.recordingUrl).toBe('https://example.com/untouched.mp4');
+
+    // now the specialist can review the corrected sample like any other WAITING_FOR_SPECIALIST cycle
+    await request(app.getHttpServer())
+      .post(`/api/v1/patients/${profile.id}/cycles/current/review`)
+      .set('Authorization', `Bearer ${clinicianToken}`)
+      .send({ decision: 'TRANSITION', clinicianOpinionScore: 7, reviewNotes: 'ok now' })
+      .expect(201);
+  });
+
+  it('rejects resubmitting when not every currently-damaged part is included', async () => {
+    const patientToken = await registerAndLogin(app, prisma, '+966500003002', null);
+    const patientUser = await prisma.user.findUniqueOrThrow({ where: { mobile: '+966500003002' } });
+    const profile = await prisma.patientProfile.create({
+      data: { userId: patientUser.id, fullName: 'p', gender: 'MALE', nationalId: 'RR-2', dateOfBirth: new Date('2000-01-01') },
+    });
+    const plan = await prisma.treatmentPlan.create({
+      data: {
+        patientProfileId: profile.id,
+        clinicianUserId: (await prisma.user.create({ data: { fullName: 'c', mobile: '+966500003003', passwordHash: 'x', role: 'CLINICIAN', status: 'ACTIVE' } })).id,
+        assessmentId: (
+          await prisma.assessment.create({
+            data: {
+              patientProfileId: profile.id,
+              clinicianUserId: (await prisma.user.findUniqueOrThrow({ where: { mobile: '+966500003003' } })).id,
+              type: 'INITIAL',
+              status: 'APPROVED',
+            },
+          })
+        ).id,
+        goals: 'g',
+        reviewDate: new Date(),
+      },
+    });
+    const level = await prisma.level.create({ data: { name: 'Level 1', order: 1 } });
+    const version = await prisma.levelVersion.create({
+      data: { levelId: level.id, versionNumber: 1, behavioralTechnique: 'x', trainingListJson: '["a"]', samplePartTemplateJson: '[]', publishedAt: new Date() },
+    });
+    const cycle = await prisma.trainingCycle72h.create({
+      data: { patientProfileId: profile.id, treatmentPlanId: plan.id, levelId: level.id, levelVersionId: version.id, cycleNumber: 1, status: 'TECHNICAL_PARTIAL_RERECORD' },
+    });
+    const sample = await prisma.speechSample.create({ data: { trainingCycleId: cycle.id, submittedAt: new Date() } });
+    const part1 = await prisma.sampleSamplePart.create({
+      data: { speechSampleId: sample.id, partType: 'مقطع', label: 'مقطع 1', order: 1, technicallyDamaged: true, recordingUrl: null },
+    });
+    await prisma.sampleSamplePart.create({
+      data: { speechSampleId: sample.id, partType: 'كلمة', label: 'كلمة 1', order: 2, technicallyDamaged: true, recordingUrl: null },
+    });
+
+    // only re-records part1, leaves the second damaged part unaddressed
+    await request(app.getHttpServer())
+      .post(`/api/v1/patients/${profile.id}/cycles/current/sample-session/rerecord`)
+      .set('Authorization', `Bearer ${patientToken}`)
+      .send({ parts: [{ id: part1.id, recordingUrl: 'https://example.com/fixed.mp4' }] })
+      .expect(409);
+  });
+});
+```
+
+- [ ] **Step 2: Run test to verify it fails**
+
+Run: `cd backend && npm run test:e2e -- treatment-engine-rerecord.e2e-spec.ts`
+Expected: FAIL — route doesn't exist.
+
+- [ ] **Step 3: Write the DTO**
+
+```typescript
+// backend/src/modules/treatment-engine/dto/rerecord-parts.dto.ts
+import { createZodDto } from 'nestjs-zod';
+import { z } from 'zod';
+
+export const RerecordPartsSchema = z.object({
+  parts: z
+    .array(
+      z.object({
+        id: z.string().uuid(),
+        recordingUrl: z.url(),
+      }),
+    )
+    .min(1),
+});
+
+export class RerecordPartsDto extends createZodDto(RerecordPartsSchema) {}
+```
+
+- [ ] **Step 4: Add `rerecordDamagedParts` to `SamplesService`**
+
+Read `backend/src/modules/treatment-engine/samples.service.ts` first — you are appending to the existing class, alongside `openSession`/`recordAttempt`/`deleteAttempt`/`listAttempts`/`submitSample`. Add the new import `RerecordPartsDto` from `./dto/rerecord-parts.dto`, and add `SpeechSample, SampleSamplePart` to the existing `@prisma/client` import if not already present (they are — `submitSample` already imports `SpeechSample`; add `SampleSamplePart` alongside it).
+
+Follow the exact row-lock + fresh-status-recheck + sentinel-return pattern already established in this file's `recordAttempt`/`submitSample` (Tasks 5/6) — this is a check-then-multi-write sequence on the same `TrainingCycle72h`, so it needs the same guard:
+
+```typescript
+  async rerecordDamagedParts(
+    cycleId: string,
+    dto: RerecordPartsDto,
+    actor: AuthenticatedUser,
+  ): Promise<SpeechSample & { parts: SampleSamplePart[] }> {
+    const cycle = await this.trainingCyclesService.findCycleForActor(cycleId, actor);
+    if (cycle.status !== 'TECHNICAL_PARTIAL_RERECORD') {
+      throw new ConflictException(`Cannot re-record parts from status ${cycle.status}`);
+    }
+    const sample = await this.prisma.speechSample.findUnique({ where: { trainingCycleId: cycleId }, include: { parts: true } });
+    if (!sample) {
+      throw new NotFoundException('No submitted sample found for this cycle');
+    }
+
+    const damagedParts = sample.parts.filter((p) => p.technicallyDamaged);
+    const submittedIds = new Set(dto.parts.map((p) => p.id));
+    for (const damaged of damagedParts) {
+      if (!submittedIds.has(damaged.id)) {
+        throw new ConflictException('Every currently damaged part must be re-recorded before resubmitting');
+      }
+    }
+    const damagedIds = new Set(damagedParts.map((p) => p.id));
+    for (const part of dto.parts) {
+      if (!damagedIds.has(part.id)) {
+        throw new NotFoundException(`Part ${part.id} is not a currently-damaged part on this sample`);
+      }
+    }
+
+    const result = await this.prisma.$transaction(async (tx) => {
+      // Row-lock the cycle so concurrent resubmit calls for the same cycle
+      // serialize — the same TOCTOU class already fixed elsewhere in this
+      // module (recordAttempt, submitSample, specialist review).
+      await tx.$queryRaw`SELECT id FROM "TrainingCycle72h" WHERE id = ${cycleId} FOR UPDATE`;
+
+      const freshCycle = await tx.trainingCycle72h.findUniqueOrThrow({ where: { id: cycleId } });
+      if (freshCycle.status !== 'TECHNICAL_PARTIAL_RERECORD') {
+        return { alreadyResubmitted: true as const, status: freshCycle.status };
+      }
+
+      await Promise.all(
+        dto.parts.map((part) =>
+          tx.sampleSamplePart.update({
+            where: { id: part.id },
+            data: { recordingUrl: part.recordingUrl, technicallyDamaged: false },
+          }),
+        ),
+      );
+      const updatedSample = await tx.speechSample.update({
+        where: { id: sample.id },
+        data: {}, // decision/reviewedAt/reviewNotes stay whatever the earlier TECHNICAL_RERECORD review left them
+        include: { parts: true },
+      });
+      await tx.trainingCycle72h.update({ where: { id: cycleId }, data: { status: 'WAITING_FOR_SPECIALIST' } });
+      return { alreadyResubmitted: false as const, sample: updatedSample };
+    });
+
+    if (result.alreadyResubmitted) {
+      throw new ConflictException(`Cannot re-record parts from status ${result.status}`);
+    }
+    return result.sample;
+  }
+```
+
+- [ ] **Step 5: Add the controller route**
+
+Add to `backend/src/modules/treatment-engine/samples.controller.ts` (alongside the Task 5/6 routes), importing `RerecordPartsDto` from `./dto/rerecord-parts.dto`:
+
+```typescript
+  @Post('rerecord')
+  @RequirePermission(Permission.PREPARE_SAMPLE)
+  async rerecordDamagedParts(@Param('patientId') patientId: string, @Body() dto: RerecordPartsDto, @CurrentUser() user: AuthenticatedUser) {
+    const current = await this.trainingCyclesService.getCurrent(patientId, user);
+    return this.samplesService.rerecordDamagedParts(current.id, dto, user);
+  }
+```
+
+(Reuses `Permission.PREPARE_SAMPLE` — already granted to `PATIENT`/`CAREGIVER` since Task 2 — since re-recording a damaged part is the same class of action as recording an attempt in the first place; no new permission needed.)
+
+- [ ] **Step 6: Run test to verify it passes**
+
+Run: `cd backend && npm run test:e2e -- treatment-engine-rerecord.e2e-spec.ts`
+Expected: PASS, both cases.
+
+- [ ] **Step 7: Run the full e2e suite to confirm no regressions**
+
+Run: `cd backend && npm run test:e2e`
+Expected: every suite passes (baseline 140/140 as of Task 10, plus 2 new here).
+
+- [ ] **Step 8: Commit**
+
+```bash
+git add backend/src/modules/treatment-engine backend/test/treatment-engine-rerecord.e2e-spec.ts
+git commit -m "feat: add resubmit-after-technical-rerecord endpoint
+
+Task 7 let a specialist flag specific sample parts as technically
+damaged, but nothing let the patient act on it — the cycle had no exit
+from TECHNICAL_PARTIAL_RERECORD other than eventual inactivity
+closure. This closes the loop: the patient re-records only the named
+damaged parts and the cycle returns to WAITING_FOR_SPECIALIST for a
+real review, without ever requiring a full-sample retake."
+```
+
+---
+
 ### Task 11: Update Swagger, full AC-01–AC-12 smoke test
 
 **Note:** deleting the old Sessions module and its own e2e test files was brought forward to Task 3.5 (it was blocking every e2e test in the project, not just tests touching that code — see Task 3.5 for why). This task now only needs to update Swagger and write the acceptance suite.
