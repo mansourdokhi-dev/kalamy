@@ -84,6 +84,31 @@ export class PatientsService {
     return profile;
   }
 
+  async findMine(actor: AuthenticatedUser): Promise<PatientProfile> {
+    let profile: (PatientProfile & { clinicalInfo: unknown }) | null;
+
+    if (actor.role === Role.CAREGIVER) {
+      const link = await this.prisma.guardianLink.findFirst({ where: { guardianUserId: actor.id } });
+      if (!link) {
+        throw new NotFoundException('No patient profile exists for this user yet');
+      }
+      profile = await this.prisma.patientProfile.findUnique({
+        where: { userId: link.patientUserId },
+        include: { clinicalInfo: true },
+      });
+    } else {
+      profile = await this.prisma.patientProfile.findUnique({
+        where: { userId: actor.id },
+        include: { clinicalInfo: true },
+      });
+    }
+
+    if (!profile) {
+      throw new NotFoundException('No patient profile exists for this user yet');
+    }
+    return profile;
+  }
+
   async update(id: string, dto: UpdatePatientDto, actor: AuthenticatedUser): Promise<PatientProfile> {
     const profile = await this.prisma.patientProfile.findUnique({ where: { id } });
     if (!profile) {

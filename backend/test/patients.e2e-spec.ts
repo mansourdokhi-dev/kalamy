@@ -170,6 +170,68 @@ describe('Patients: create profile', () => {
 
     expect(response.status).toBe(409);
   });
+
+  it('lets a patient fetch their own profile via /me', async () => {
+    const patientToken = await registerActivateAndLogin('+966500000070', 'password123', 'PATIENT');
+    const patientUser = await prisma.user.findUniqueOrThrow({ where: { mobile: '+966500000070' } });
+    const clinicianToken = await registerActivateAndLogin('+966500000071', 'password123', 'CLINICIAN');
+
+    await request(app.getHttpServer())
+      .post('/api/v1/patients')
+      .set('Authorization', `Bearer ${clinicianToken}`)
+      .send({
+        userId: patientUser.id,
+        fullName: 'Self Patient',
+        gender: 'MALE',
+        dateOfBirth: '1990-05-01',
+        nationalId: '1111111111',
+      })
+      .expect(201);
+
+    const response = await request(app.getHttpServer())
+      .get('/api/v1/patients/me')
+      .set('Authorization', `Bearer ${patientToken}`)
+      .expect(200);
+
+    expect(response.body.userId).toBe(patientUser.id);
+    expect(response.body.fullName).toBe('Self Patient');
+  });
+
+  it('returns 404 from /me when no patient profile exists yet', async () => {
+    const patientToken = await registerActivateAndLogin('+966500000072', 'password123', 'PATIENT');
+    await request(app.getHttpServer())
+      .get('/api/v1/patients/me')
+      .set('Authorization', `Bearer ${patientToken}`)
+      .expect(404);
+  });
+
+  it('lets a linked caregiver fetch their child\'s profile via /me', async () => {
+    const clinicianToken = await registerActivateAndLogin('+966500000073', 'password123', 'CLINICIAN');
+    const childUser = await createActiveUser('+966500000074', 'PATIENT');
+    const caregiverToken = await registerActivateAndLogin('+966500000075', 'password123', 'CAREGIVER');
+    const caregiverUser = await prisma.user.findUniqueOrThrow({ where: { mobile: '+966500000075' } });
+
+    const profileRes = await request(app.getHttpServer())
+      .post('/api/v1/patients')
+      .set('Authorization', `Bearer ${clinicianToken}`)
+      .send({
+        userId: childUser.id,
+        fullName: 'Child Patient',
+        gender: 'FEMALE',
+        dateOfBirth: '2015-01-01',
+        nationalId: '2222222222',
+        guardianUserId: caregiverUser.id,
+      })
+      .expect(201);
+
+    const response = await request(app.getHttpServer())
+      .get('/api/v1/patients/me')
+      .set('Authorization', `Bearer ${caregiverToken}`)
+      .expect(200);
+
+    expect(response.body.id).toBe(profileRes.body.id);
+    expect(response.body.userId).toBe(childUser.id);
+  });
 });
 
 describe('Patients: get and update profile', () => {

@@ -21,6 +21,12 @@ export class PatientsController {
     return this.patientsService.create(dto);
   }
 
+  @Get('me')
+  @RequirePermission(Permission.VIEW_PATIENT_PROFILE)
+  findMine(@CurrentUser() user: AuthenticatedUser) {
+    return this.patientsService.findMine(user);
+  }
+
   @Get(':id')
   @RequirePermission(Permission.VIEW_PATIENT_PROFILE)
   findOne(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
