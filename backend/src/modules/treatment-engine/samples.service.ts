@@ -104,34 +104,49 @@ export class SamplesService {
         throw new NotFoundException(`Attempt ${part.sourceAttemptId} is not a live attempt in this session`);
       }
     }
-
     const attemptsById = new Map(liveAttempts.map((a) => [a.id, a]));
 
-    const sample = await this.prisma.speechSample.create({
-      data: {
-        trainingCycleId: cycleId,
-        selfSeverityCurrent: dto.selfSeverityCurrent,
-        selfSeverityExpectedNext: dto.selfSeverityExpectedNext,
-        camperdownPerformanceRating: dto.camperdownPerformanceRating,
-        clientOpinionScore: dto.clientOpinionScore,
-        submittedAt: new Date(),
-        parts: {
-          create: dto.parts.map((part) => ({
-            partType: part.partType,
-            label: part.label,
-            order: part.order,
-            sourceAttemptId: part.sourceAttemptId,
-            recordingUrl: attemptsById.get(part.sourceAttemptId)!.recordingUrl,
-          })),
+    const result = await this.prisma.$transaction(async (tx) => {
+      // Row-lock the cycle so concurrent submitSample calls for the same
+      // cycle serialize instead of racing into the DB unique constraint.
+      await tx.$queryRaw`SELECT id FROM "TrainingCycle72h" WHERE id = ${cycleId} FOR UPDATE`;
+
+      const freshCycle = await tx.trainingCycle72h.findUniqueOrThrow({ where: { id: cycleId } });
+      if (freshCycle.status !== 'SAMPLE_PREPARATION') {
+        return { alreadyTransitioned: true as const, status: freshCycle.status };
+      }
+
+      const sample = await tx.speechSample.create({
+        data: {
+          trainingCycleId: cycleId,
+          selfSeverityCurrent: dto.selfSeverityCurrent,
+          selfSeverityExpectedNext: dto.selfSeverityExpectedNext,
+          camperdownPerformanceRating: dto.camperdownPerformanceRating,
+          clientOpinionScore: dto.clientOpinionScore,
+          submittedAt: new Date(),
+          parts: {
+            create: dto.parts.map((part) => ({
+              partType: part.partType,
+              label: part.label,
+              order: part.order,
+              sourceAttemptId: part.sourceAttemptId,
+              recordingUrl: attemptsById.get(part.sourceAttemptId)!.recordingUrl,
+            })),
+          },
         },
-      },
-      include: { parts: true },
+        include: { parts: true },
+      });
+
+      await tx.sampleSession.update({ where: { id: session.id }, data: { status: 'CLOSED_SUBMITTED' } });
+      await tx.trainingCycle72h.update({ where: { id: cycleId }, data: { status: 'WAITING_FOR_SPECIALIST' } });
+
+      return { alreadyTransitioned: false as const, sample };
     });
 
-    await this.prisma.sampleSession.update({ where: { id: session.id }, data: { status: 'CLOSED_SUBMITTED' } });
-    await this.prisma.trainingCycle72h.update({ where: { id: cycleId }, data: { status: 'WAITING_FOR_SPECIALIST' } });
-
-    return sample;
+    if (result.alreadyTransitioned) {
+      throw new ConflictException(`Cannot submit a sample from status ${result.status}`);
+    }
+    return result.sample;
   }
 
   private async findSessionOrThrow(cycleId: string): Promise<SampleSession> {
