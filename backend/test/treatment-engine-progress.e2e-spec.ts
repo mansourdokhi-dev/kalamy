@@ -82,6 +82,7 @@ describe('Treatment Engine — Progress dashboard (e2e)', () => {
         cycleNumber: 1,
         status: 'LEVEL_REPEAT_DECIDED',
         createdAt: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000),
+        closedAt: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000),
       },
     });
     await prisma.trainingEvent.create({

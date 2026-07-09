@@ -169,4 +169,50 @@ describe('Treatment Engine — Cycle lifecycle (e2e)', () => {
       .send({ treatmentPlanId: planB.id })
       .expect(404);
   });
+
+  it('allows only one cycle to be created when two start requests race for the same patient', async () => {
+    await registerAndLogin(app, prisma, '+966500001005', 'CLINICIAN');
+    const patientToken = await registerAndLogin(app, prisma, '+966500001006', null);
+
+    const patientProfile = await prisma.patientProfile.create({
+      data: {
+        userId: (await prisma.user.findUniqueOrThrow({ where: { mobile: '+966500001006' } })).id,
+        fullName: 'Race Test Patient',
+        gender: 'MALE',
+        dateOfBirth: new Date('2000-01-01'),
+        nationalId: 'CYCLE-TEST-RACE',
+      },
+    });
+    const clinicianUserId = (await prisma.user.findUniqueOrThrow({ where: { mobile: '+966500001005' } })).id;
+    const assessment = await prisma.assessment.create({
+      data: { patientProfileId: patientProfile.id, clinicianUserId, type: 'INITIAL', status: 'APPROVED' },
+    });
+    const plan = await prisma.treatmentPlan.create({
+      data: { patientProfileId: patientProfile.id, clinicianUserId, assessmentId: assessment.id, goals: 'g', reviewDate: new Date() },
+    });
+    const level = await prisma.level.create({ data: { name: 'Level 1', order: 1 } });
+    await prisma.levelVersion.create({
+      data: {
+        levelId: level.id,
+        versionNumber: 1,
+        behavioralTechnique: 'x',
+        trainingListJson: '[]',
+        samplePartTemplateJson: '[]',
+        publishedAt: new Date(),
+      },
+    });
+
+    const sendStart = () =>
+      request(app.getHttpServer())
+        .post(`/api/v1/patients/${patientProfile.id}/cycles/start`)
+        .set('Authorization', `Bearer ${patientToken}`)
+        .send({ treatmentPlanId: plan.id });
+
+    const [resA, resB] = await Promise.all([sendStart(), sendStart()]);
+    const statuses = [resA.status, resB.status].sort();
+    expect(statuses).toEqual([201, 409]);
+
+    const cycles = await prisma.trainingCycle72h.findMany({ where: { patientProfileId: patientProfile.id } });
+    expect(cycles).toHaveLength(1);
+  });
 });

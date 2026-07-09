@@ -1,5 +1,5 @@
 import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
-import { PatientProfile, TrainingCycle72h } from '@prisma/client';
+import { PatientProfile, Prisma, TrainingCycle72h } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { PatientAccessService } from '../../common/patient-access/patient-access.service';
 import { AuthenticatedUser } from '../../common/auth/session.guard';
@@ -43,22 +43,29 @@ export class TrainingCyclesService {
     }
     const activeVersion = await this.levelsService.getActiveVersion(firstLevel.id);
 
-    return this.prisma.$transaction(async (tx) => {
-      const existingCycle = await tx.trainingCycle72h.findFirst({ where: { patientProfileId } });
-      if (existingCycle) {
+    try {
+      return await this.prisma.$transaction(async (tx) => {
+        const existingCycle = await tx.trainingCycle72h.findFirst({ where: { patientProfileId } });
+        if (existingCycle) {
+          throw new ConflictException('This patient already has a training cycle — later levels open only via a specialist decision');
+        }
+
+        return tx.trainingCycle72h.create({
+          data: {
+            patientProfileId,
+            treatmentPlanId,
+            levelId: firstLevel.id,
+            levelVersionId: activeVersion.id,
+            cycleNumber: 1,
+          },
+        });
+      });
+    } catch (error) {
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
         throw new ConflictException('This patient already has a training cycle — later levels open only via a specialist decision');
       }
-
-      return tx.trainingCycle72h.create({
-        data: {
-          patientProfileId,
-          treatmentPlanId,
-          levelId: firstLevel.id,
-          levelVersionId: activeVersion.id,
-          cycleNumber: 1,
-        },
-      });
-    });
+      throw error;
+    }
   }
 
   async watchHumanModel(cycleId: string, actor: AuthenticatedUser): Promise<TrainingCycle72h> {

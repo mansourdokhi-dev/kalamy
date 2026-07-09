@@ -371,6 +371,11 @@ model LevelVersion {
   @@unique([levelId, versionNumber])
 }
 
+// A partial unique index (not expressible in Prisma's schema DSL) enforces
+// at most one open (closedAt IS NULL) cycle per patientProfileId — see
+// migration `partial_unique_open_cycle_per_patient`. TRANSITION/LEVEL_REPEAT
+// always close the old cycle before creating a new one, so this constraint
+// never blocks a legitimate multi-cycle-per-patient history.
 model TrainingCycle72h {
   id                   String           @id @default(uuid())
   patientProfileId     String

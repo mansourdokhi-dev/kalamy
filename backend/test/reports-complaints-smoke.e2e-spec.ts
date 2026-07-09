@@ -175,6 +175,7 @@ describe('Reports + Complaints: full smoke test', () => {
         levelVersionId: levelVersion.id,
         cycleNumber: 1,
         status: 'ACTIVE_LEVEL_TRAINING',
+        closedAt: new Date(),
       },
     });
     await prisma.trainingCycle72h.create({
@@ -271,6 +272,7 @@ describe('Reports + Complaints: full smoke test', () => {
         levelVersionId: levelVersion.id,
         cycleNumber: 1,
         status: 'NEXT_LEVEL_APPROVED',
+        closedAt: new Date(),
       },
     });
     await prisma.speechSample.create({
