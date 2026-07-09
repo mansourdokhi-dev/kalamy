@@ -45,16 +45,28 @@ describe('HomeScreen (My Program)', () => {
 
     render(<ThemeProvider><HomeScreen /></ThemeProvider>);
 
-    await waitFor(() => {
-      expect(screen.getByText('ابدأ برنامجي')).toBeTruthy();
-    });
+    // This test's load() chain is longer than the others (progress+history in
+    // parallel, then a rejected getCurrentCycle, then getActiveTreatmentPlan) —
+    // under CPU-contended parallel test-worker runs the default ~1s waitFor
+    // timeout has occasionally been too tight even though every call is a
+    // mocked promise with no real I/O. A longer timeout is cheap insurance
+    // against that scheduler-contention flake, not a sign of a real slow path.
+    await waitFor(
+      () => {
+        expect(screen.getByText('ابدأ برنامجي')).toBeTruthy();
+      },
+      { timeout: 3000 },
+    );
 
     (startCycle as jest.Mock).mockResolvedValue({ ...baseProgress, id: 'cycle-1', status: 'ACTIVE_LEVEL_TRAINING', humanModelWatchedAt: null });
     fireEvent.press(screen.getByText('ابدأ برنامجي'));
 
-    await waitFor(() => {
-      expect(startCycle).toHaveBeenCalledWith('profile-1', 'plan-1');
-    });
+    await waitFor(
+      () => {
+        expect(startCycle).toHaveBeenCalledWith('profile-1', 'plan-1');
+      },
+      { timeout: 3000 },
+    );
   });
 
   it('shows the "watch level content" action when the model is unwatched', async () => {
