@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Post, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, HttpCode, Param, Post, UseGuards } from '@nestjs/common';
 import { LevelsService } from './levels.service';
 import { SessionGuard } from '../../common/auth/session.guard';
 import { PermissionsGuard } from '../../common/rbac/permissions.guard';
@@ -25,6 +25,7 @@ export class LevelsController {
   }
 
   @Post(':levelId/versions/:versionId/publish')
+  @HttpCode(200)
   @RequirePermission(Permission.MANAGE_LEVELS)
   publishVersion(@Param('levelId') levelId: string, @Param('versionId') versionId: string) {
     return this.levelsService.publishVersion(levelId, versionId);
