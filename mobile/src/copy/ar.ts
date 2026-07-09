@@ -67,4 +67,10 @@ export const ar = {
     viewLevelContent: 'محتوى المستوى',
     logout: 'تسجيل الخروج',
   },
+  levelContent: {
+    title: 'محتوى المستوى',
+    reflectionPrompt: 'فكّر في',
+    trainingListTitle: 'قائمة التدريب',
+    markWatched: 'وضع علامة كمشاهد',
+  },
 };

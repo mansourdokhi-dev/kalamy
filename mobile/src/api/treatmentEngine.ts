@@ -113,3 +113,30 @@ export function logTrainingEvent(patientProfileId: string): Promise<TrainingCycl
     body: {},
   });
 }
+
+export interface LevelVersion {
+  id: string;
+  levelId: string;
+  versionNumber: number;
+  cognitiveVideo1Url: string | null;
+  cognitiveVideo1Question: string | null;
+  cognitiveVideo2Url: string | null;
+  cognitiveVideo2Question: string | null;
+  behavioralTechnique: string;
+  humanModelVideoUrl: string | null;
+  humanModelDurationSeconds: number | null;
+  trainingListJson: string;
+  samplePartTemplateJson: string;
+  publishedAt: string | null;
+}
+
+export function getActiveLevelVersion(levelId: string): Promise<LevelVersion> {
+  return apiRequest<LevelVersion>(`/api/v1/levels/${levelId}/versions/active`, { auth: true });
+}
+
+export function watchHumanModel(patientProfileId: string): Promise<TrainingCycle> {
+  return apiRequest<TrainingCycle>(`/api/v1/patients/${patientProfileId}/cycles/current/watch-human-model`, {
+    method: 'POST',
+    auth: true,
+  });
+}
