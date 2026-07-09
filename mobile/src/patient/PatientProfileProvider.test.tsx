@@ -22,6 +22,12 @@ describe('computeAgeGroup', () => {
     expect(computeAgeGroup('2010-01-01', now)).toBe('teen');
     expect(computeAgeGroup('1990-01-01', now)).toBe('adult');
   });
+
+  it('is not affected by timezone-sensitive date parsing near a January 1st birthday', () => {
+    const now = new Date('2026-12-15');
+    // Born 2015-01-01: turned 11 on 2026-01-01, hasn't had a 2027 birthday yet, so age is 11 -> child.
+    expect(computeAgeGroup('2015-01-01', now)).toBe('child');
+  });
 });
 
 describe('PatientProfileProvider', () => {

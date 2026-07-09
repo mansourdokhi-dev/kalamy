@@ -14,10 +14,10 @@ interface PatientProfileContextValue {
 const PatientProfileContext = createContext<PatientProfileContextValue | undefined>(undefined);
 
 export function computeAgeGroup(dateOfBirth: string, now: Date = new Date()): AgeGroup {
-  const birth = new Date(dateOfBirth);
-  let age = now.getFullYear() - birth.getFullYear();
-  const hasHadBirthdayThisYear =
-    now.getMonth() > birth.getMonth() || (now.getMonth() === birth.getMonth() && now.getDate() >= birth.getDate());
+  const [birthYear, birthMonth, birthDay] = dateOfBirth.split('-').map(Number);
+  let age = now.getFullYear() - birthYear;
+  const nowMonth = now.getMonth() + 1; // getMonth() is 0-indexed; birthMonth from the ISO string is 1-indexed
+  const hasHadBirthdayThisYear = nowMonth > birthMonth || (nowMonth === birthMonth && now.getDate() >= birthDay);
   if (!hasHadBirthdayThisYear) {
     age -= 1;
   }
