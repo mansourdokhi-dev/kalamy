@@ -50,7 +50,7 @@ export class TrainingCyclesService {
   }
 
   async watchHumanModel(cycleId: string, actor: AuthenticatedUser): Promise<TrainingCycle72h> {
-    const cycle = await this.findCycleOrThrow(cycleId, actor);
+    const cycle = await this.findCycleForActor(cycleId, actor);
     if (cycle.status !== 'ACTIVE_LEVEL_TRAINING') {
       throw new ConflictException(`Cannot mark human model watched from status ${cycle.status}`);
     }
@@ -61,7 +61,7 @@ export class TrainingCyclesService {
   }
 
   async recordTrainingEvent(cycleId: string, dto: RecordTrainingEventDto, actor: AuthenticatedUser): Promise<TrainingCycle72h> {
-    const cycle = await this.findCycleOrThrow(cycleId, actor);
+    const cycle = await this.findCycleForActor(cycleId, actor);
     if (cycle.status !== 'ACTIVE_LEVEL_TRAINING') {
       throw new ConflictException(`Cannot record training from status ${cycle.status}`);
     }
@@ -104,7 +104,7 @@ export class TrainingCyclesService {
     return cycle;
   }
 
-  private async findCycleOrThrow(cycleId: string, actor: AuthenticatedUser): Promise<TrainingCycle72h> {
+  async findCycleForActor(cycleId: string, actor: AuthenticatedUser): Promise<TrainingCycle72h> {
     const cycle = await this.prisma.trainingCycle72h.findUnique({ where: { id: cycleId } });
     if (!cycle) {
       throw new NotFoundException('Training cycle not found');

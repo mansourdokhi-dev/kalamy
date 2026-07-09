@@ -1,0 +1,81 @@
+import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import { SampleAttempt, SampleSession } from '@prisma/client';
+import { PrismaService } from '../../prisma/prisma.service';
+import { AuthenticatedUser } from '../../common/auth/session.guard';
+import { TrainingCyclesService } from './training-cycles.service';
+import { RecordAttemptDto } from './dto/record-attempt.dto';
+
+const MAX_ATTEMPTS = 10;
+
+@Injectable()
+export class SamplesService {
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly trainingCyclesService: TrainingCyclesService,
+  ) {}
+
+  async openSession(cycleId: string, actor: AuthenticatedUser): Promise<SampleSession> {
+    const cycle = await this.trainingCyclesService.findCycleForActor(cycleId, actor);
+    if (cycle.status !== 'SAMPLE_ELIGIBLE') {
+      throw new ConflictException(`Cannot open a sample session from status ${cycle.status}`);
+    }
+
+    const existing = await this.prisma.sampleSession.findUnique({ where: { trainingCycleId: cycleId } });
+    if (existing) {
+      return existing;
+    }
+
+    await this.prisma.trainingCycle72h.update({ where: { id: cycleId }, data: { status: 'SAMPLE_PREPARATION' } });
+    return this.prisma.sampleSession.create({ data: { trainingCycleId: cycleId } });
+  }
+
+  async recordAttempt(cycleId: string, dto: RecordAttemptDto, actor: AuthenticatedUser): Promise<SampleAttempt> {
+    await this.trainingCyclesService.findCycleForActor(cycleId, actor);
+    const session = await this.findSessionOrThrow(cycleId);
+    if (session.status !== 'OPEN') {
+      throw new ConflictException(`Cannot record an attempt in session status ${session.status}`);
+    }
+
+    const totalAttemptsIncludingDeleted = await this.prisma.sampleAttempt.count({ where: { sampleSessionId: session.id } });
+    if (totalAttemptsIncludingDeleted >= MAX_ATTEMPTS) {
+      await this.prisma.$transaction([
+        this.prisma.sampleSession.update({ where: { id: session.id }, data: { status: 'CLOSED_EXHAUSTED' } }),
+        this.prisma.trainingCycle72h.update({ where: { id: cycleId }, data: { status: 'ACTIVE_LEVEL_TRAINING' } }),
+      ]);
+      throw new ConflictException('Maximum of 10 recording attempts reached without selecting a sample');
+    }
+
+    const attempt = await this.prisma.sampleAttempt.create({
+      data: { sampleSessionId: session.id, attemptNumber: totalAttemptsIncludingDeleted + 1, recordingUrl: dto.recordingUrl },
+    });
+    await this.prisma.sampleSession.update({ where: { id: session.id }, data: { attemptsUsed: { increment: 1 } } });
+    return attempt;
+  }
+
+  async deleteAttempt(cycleId: string, attemptId: string, actor: AuthenticatedUser): Promise<SampleAttempt> {
+    await this.trainingCyclesService.findCycleForActor(cycleId, actor);
+    const session = await this.findSessionOrThrow(cycleId);
+    const attempt = await this.prisma.sampleAttempt.findUnique({ where: { id: attemptId } });
+    if (!attempt || attempt.sampleSessionId !== session.id) {
+      throw new NotFoundException('Attempt not found');
+    }
+    return this.prisma.sampleAttempt.update({ where: { id: attemptId }, data: { deletedAt: new Date() } });
+  }
+
+  async listAttempts(cycleId: string, actor: AuthenticatedUser): Promise<SampleAttempt[]> {
+    await this.trainingCyclesService.findCycleForActor(cycleId, actor);
+    const session = await this.findSessionOrThrow(cycleId);
+    return this.prisma.sampleAttempt.findMany({
+      where: { sampleSessionId: session.id, deletedAt: null },
+      orderBy: { attemptNumber: 'asc' },
+    });
+  }
+
+  private async findSessionOrThrow(cycleId: string): Promise<SampleSession> {
+    const session = await this.prisma.sampleSession.findUnique({ where: { trainingCycleId: cycleId } });
+    if (!session) {
+      throw new NotFoundException('No sample session open for this cycle');
+    }
+    return session;
+  }
+}
