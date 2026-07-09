@@ -30,10 +30,16 @@ describe('HistoryScreen', () => {
 
     render(<ThemeProvider><HistoryScreen /></ThemeProvider>);
 
-    await waitFor(() => {
-      expect(screen.getByText('Level 1')).toBeTruthy();
-      expect(screen.getByText(/قرر الأخصائي/)).toBeTruthy();
-    });
+    // See home.test.tsx (commit 42da9d6) for why: under CPU-contended parallel
+    // test-worker runs, RTL's default ~1s waitFor timeout has been too tight
+    // even for mocked promises with no real I/O.
+    await waitFor(
+      () => {
+        expect(screen.getByText('Level 1')).toBeTruthy();
+        expect(screen.getByText(/قرر الأخصائي/)).toBeTruthy();
+      },
+      { timeout: 3000 },
+    );
 
     fireEvent.press(screen.getByText(/قرر الأخصائي/));
     expect(mockPush).toHaveBeenCalledWith({ pathname: '/program/sample-result', params: { cycleId: 'cycle-1' } });
@@ -46,9 +52,12 @@ describe('HistoryScreen', () => {
 
     render(<ThemeProvider><HistoryScreen /></ThemeProvider>);
 
-    await waitFor(() => {
-      expect(screen.getByText('Level 1')).toBeTruthy();
-    });
+    await waitFor(
+      () => {
+        expect(screen.getByText('Level 1')).toBeTruthy();
+      },
+      { timeout: 3000 },
+    );
     expect(screen.queryByText(/قرر الأخصائي/)).toBeNull();
   });
 });
