@@ -5,6 +5,7 @@ import { AuthenticatedUser } from '../../common/auth/session.guard';
 import { TrainingCyclesService } from './training-cycles.service';
 import { RecordAttemptDto } from './dto/record-attempt.dto';
 import { SubmitSampleDto } from './dto/submit-sample.dto';
+import { RerecordPartsDto } from './dto/rerecord-parts.dto';
 
 const MAX_ATTEMPTS = 10;
 
@@ -145,6 +146,68 @@ export class SamplesService {
 
     if (result.alreadyTransitioned) {
       throw new ConflictException(`Cannot submit a sample from status ${result.status}`);
+    }
+    return result.sample;
+  }
+
+  async rerecordDamagedParts(
+    cycleId: string,
+    dto: RerecordPartsDto,
+    actor: AuthenticatedUser,
+  ): Promise<SpeechSample & { parts: SampleSamplePart[] }> {
+    const cycle = await this.trainingCyclesService.findCycleForActor(cycleId, actor);
+    if (cycle.status !== 'TECHNICAL_PARTIAL_RERECORD') {
+      throw new ConflictException(`Cannot re-record parts from status ${cycle.status}`);
+    }
+    const sample = await this.prisma.speechSample.findUnique({ where: { trainingCycleId: cycleId }, include: { parts: true } });
+    if (!sample) {
+      throw new NotFoundException('No submitted sample found for this cycle');
+    }
+
+    const damagedParts = sample.parts.filter((p) => p.technicallyDamaged);
+    const submittedIds = new Set(dto.parts.map((p) => p.id));
+    for (const damaged of damagedParts) {
+      if (!submittedIds.has(damaged.id)) {
+        throw new ConflictException('Every currently damaged part must be re-recorded before resubmitting');
+      }
+    }
+    const damagedIds = new Set(damagedParts.map((p) => p.id));
+    for (const part of dto.parts) {
+      if (!damagedIds.has(part.id)) {
+        throw new NotFoundException(`Part ${part.id} is not a currently-damaged part on this sample`);
+      }
+    }
+
+    const result = await this.prisma.$transaction(async (tx) => {
+      // Row-lock the cycle so concurrent resubmit calls for the same cycle
+      // serialize — the same TOCTOU class already fixed elsewhere in this
+      // module (recordAttempt, submitSample, specialist review).
+      await tx.$queryRaw`SELECT id FROM "TrainingCycle72h" WHERE id = ${cycleId} FOR UPDATE`;
+
+      const freshCycle = await tx.trainingCycle72h.findUniqueOrThrow({ where: { id: cycleId } });
+      if (freshCycle.status !== 'TECHNICAL_PARTIAL_RERECORD') {
+        return { alreadyResubmitted: true as const, status: freshCycle.status };
+      }
+
+      await Promise.all(
+        dto.parts.map((part) =>
+          tx.sampleSamplePart.update({
+            where: { id: part.id },
+            data: { recordingUrl: part.recordingUrl, technicallyDamaged: false },
+          }),
+        ),
+      );
+      const updatedSample = await tx.speechSample.update({
+        where: { id: sample.id },
+        data: {}, // decision/reviewedAt/reviewNotes stay whatever the earlier TECHNICAL_RERECORD review left them
+        include: { parts: true },
+      });
+      await tx.trainingCycle72h.update({ where: { id: cycleId }, data: { status: 'WAITING_FOR_SPECIALIST' } });
+      return { alreadyResubmitted: false as const, sample: updatedSample };
+    });
+
+    if (result.alreadyResubmitted) {
+      throw new ConflictException(`Cannot re-record parts from status ${result.status}`);
     }
     return result.sample;
   }

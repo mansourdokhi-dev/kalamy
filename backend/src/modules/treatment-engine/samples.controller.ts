@@ -8,6 +8,7 @@ import { RequirePermission } from '../../common/rbac/require-permission.decorato
 import { Permission } from '../../common/rbac/permissions';
 import { RecordAttemptDto } from './dto/record-attempt.dto';
 import { SubmitSampleDto } from './dto/submit-sample.dto';
+import { RerecordPartsDto } from './dto/rerecord-parts.dto';
 
 @Controller('api/v1/patients/:patientId/cycles/current/sample-session')
 @UseGuards(SessionGuard, PermissionsGuard)
@@ -54,5 +55,12 @@ export class SamplesController {
   async submitSample(@Param('patientId') patientId: string, @Body() dto: SubmitSampleDto, @CurrentUser() user: AuthenticatedUser) {
     const current = await this.trainingCyclesService.getCurrent(patientId, user);
     return this.samplesService.submitSample(current.id, dto, user);
+  }
+
+  @Post('rerecord')
+  @RequirePermission(Permission.PREPARE_SAMPLE)
+  async rerecordDamagedParts(@Param('patientId') patientId: string, @Body() dto: RerecordPartsDto, @CurrentUser() user: AuthenticatedUser) {
+    const current = await this.trainingCyclesService.getCurrent(patientId, user);
+    return this.samplesService.rerecordDamagedParts(current.id, dto, user);
   }
 }
