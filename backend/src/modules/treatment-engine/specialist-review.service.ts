@@ -92,7 +92,12 @@ export class SpecialistReviewService {
       );
       const updatedSample = await tx.speechSample.update({
         where: { id: sample.id },
-        data: { decision: 'TECHNICAL_RERECORD', reviewedByUserId: actor.id, reviewNotes: dto.reviewNotes, reviewedAt: new Date() },
+        // decision intentionally stays null here: TECHNICAL_RERECORD is a
+        // deferral pending re-recording, not a clinical progression verdict.
+        // The per-part technicallyDamaged/recordingUrl fields already record
+        // what happened; decision is reserved for an eventual real
+        // TRANSITION/LEVEL_REPEAT once the sample is complete again.
+        data: { reviewedByUserId: actor.id, reviewNotes: dto.reviewNotes, reviewedAt: new Date() },
         include: { parts: true },
       });
       await tx.trainingCycle72h.update({ where: { id: cycleId }, data: { status: 'TECHNICAL_PARTIAL_RERECORD' } });

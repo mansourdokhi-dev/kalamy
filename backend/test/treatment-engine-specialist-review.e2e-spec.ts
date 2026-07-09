@@ -259,7 +259,10 @@ describe('Treatment Engine — Specialist review (e2e)', () => {
     expect(cyclesForThisLevel).toHaveLength(1);
 
     const refreshedSample = await prisma.speechSample.findUniqueOrThrow({ where: { id: sample.id } });
-    expect(refreshedSample.decision).toBe('TECHNICAL_RERECORD');
+    // decision stays null (AC-07): TECHNICAL_RERECORD is a deferral pending
+    // re-recording, not a clinical progression verdict — that's reserved for
+    // an eventual real TRANSITION/LEVEL_REPEAT once the sample is complete again.
+    expect(refreshedSample.decision).toBeNull();
   });
 
   it('rejects reviewing a cycle that is not waiting for review', async () => {
