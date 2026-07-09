@@ -19,6 +19,12 @@ export class TrainingCyclesController {
     return this.trainingCyclesService.startFirstCycle(patientId, dto.treatmentPlanId, user);
   }
 
+  @Get()
+  @RequirePermission(Permission.VIEW_CYCLE)
+  listHistory(@Param('patientId') patientId: string, @CurrentUser() user: AuthenticatedUser) {
+    return this.trainingCyclesService.listHistory(patientId, user);
+  }
+
   @Post('current/watch-human-model')
   @RequirePermission(Permission.RECORD_TRAINING_EVENT)
   async watchHumanModel(@Param('patientId') patientId: string, @CurrentUser() user: AuthenticatedUser) {

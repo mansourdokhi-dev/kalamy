@@ -7,6 +7,18 @@ import { LevelsService } from './levels.service';
 import { RecordTrainingEventDto } from './dto/record-training-event.dto';
 import { isCycleEligibleForSample } from './cycle-eligibility.util';
 
+const INACTIVITY_WINDOW_MS = 30 * 24 * 60 * 60 * 1000; // 1 month default, admin-configurable in a later pass
+const STATES_EXEMPT_FROM_INACTIVITY: readonly string[] = [
+  'WAITING_FOR_SPECIALIST',
+  'UNDER_REVIEW',
+  'DIRECT_INTERVENTION_REQUIRED',
+  'WAITING_FINAL_DECISION_AFTER_INTERVENTION',
+  'NEXT_LEVEL_APPROVED',
+  'LEVEL_REPEAT_DECIDED',
+  'CLOSED_DUE_TO_INACTIVITY',
+  'SUBSCRIPTION_EXPIRED_CLINICAL_FLOW_OPEN',
+];
+
 @Injectable()
 export class TrainingCyclesService {
   constructor(
@@ -94,14 +106,28 @@ export class TrainingCyclesService {
     const profile = await this.findPatientProfileOrThrow(patientProfileId);
     await this.patientAccessService.assertCanAccess(actor, profile);
 
-    const cycle = await this.prisma.trainingCycle72h.findFirst({
+    let cycle = await this.prisma.trainingCycle72h.findFirst({
       where: { patientProfileId, closedAt: null },
       orderBy: { createdAt: 'desc' },
     });
     if (!cycle) {
       throw new NotFoundException('No active training cycle');
     }
+
+    if (!STATES_EXEMPT_FROM_INACTIVITY.includes(cycle.status) && Date.now() - cycle.updatedAt.getTime() > INACTIVITY_WINDOW_MS) {
+      cycle = await this.prisma.trainingCycle72h.update({
+        where: { id: cycle.id },
+        data: { status: 'CLOSED_DUE_TO_INACTIVITY', closedAt: new Date() },
+      });
+    }
+
     return cycle;
+  }
+
+  async listHistory(patientProfileId: string, actor: AuthenticatedUser): Promise<TrainingCycle72h[]> {
+    const profile = await this.findPatientProfileOrThrow(patientProfileId);
+    await this.patientAccessService.assertCanAccess(actor, profile);
+    return this.prisma.trainingCycle72h.findMany({ where: { patientProfileId }, orderBy: { createdAt: 'asc' } });
   }
 
   async findCycleForActor(cycleId: string, actor: AuthenticatedUser): Promise<TrainingCycle72h> {
