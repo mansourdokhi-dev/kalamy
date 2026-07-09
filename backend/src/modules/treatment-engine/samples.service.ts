@@ -1,5 +1,5 @@
 import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
-import { SampleAttempt, SampleSession } from '@prisma/client';
+import { Prisma, SampleAttempt, SampleSession } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { AuthenticatedUser } from '../../common/auth/session.guard';
 import { TrainingCyclesService } from './training-cycles.service';
@@ -26,7 +26,14 @@ export class SamplesService {
     }
 
     await this.prisma.trainingCycle72h.update({ where: { id: cycleId }, data: { status: 'SAMPLE_PREPARATION' } });
-    return this.prisma.sampleSession.create({ data: { trainingCycleId: cycleId } });
+    try {
+      return await this.prisma.sampleSession.create({ data: { trainingCycleId: cycleId } });
+    } catch (error) {
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
+        return this.prisma.sampleSession.findUniqueOrThrow({ where: { trainingCycleId: cycleId } });
+      }
+      throw error;
+    }
   }
 
   async recordAttempt(cycleId: string, dto: RecordAttemptDto, actor: AuthenticatedUser): Promise<SampleAttempt> {
@@ -36,20 +43,24 @@ export class SamplesService {
       throw new ConflictException(`Cannot record an attempt in session status ${session.status}`);
     }
 
-    const totalAttemptsIncludingDeleted = await this.prisma.sampleAttempt.count({ where: { sampleSessionId: session.id } });
-    if (totalAttemptsIncludingDeleted >= MAX_ATTEMPTS) {
-      await this.prisma.$transaction([
-        this.prisma.sampleSession.update({ where: { id: session.id }, data: { status: 'CLOSED_EXHAUSTED' } }),
-        this.prisma.trainingCycle72h.update({ where: { id: cycleId }, data: { status: 'ACTIVE_LEVEL_TRAINING' } }),
-      ]);
-      throw new ConflictException('Maximum of 10 recording attempts reached without selecting a sample');
-    }
+    return this.prisma.$transaction(async (tx) => {
+      // Row-lock the SampleSession so concurrent recordAttempt calls for the
+      // same session serialize instead of racing on the count-then-create below.
+      await tx.$queryRaw`SELECT id FROM "SampleSession" WHERE id = ${session.id} FOR UPDATE`;
 
-    const attempt = await this.prisma.sampleAttempt.create({
-      data: { sampleSessionId: session.id, attemptNumber: totalAttemptsIncludingDeleted + 1, recordingUrl: dto.recordingUrl },
+      const totalAttemptsIncludingDeleted = await tx.sampleAttempt.count({ where: { sampleSessionId: session.id } });
+      if (totalAttemptsIncludingDeleted >= MAX_ATTEMPTS) {
+        await tx.sampleSession.update({ where: { id: session.id }, data: { status: 'CLOSED_EXHAUSTED' } });
+        await tx.trainingCycle72h.update({ where: { id: cycleId }, data: { status: 'ACTIVE_LEVEL_TRAINING' } });
+        throw new ConflictException('Maximum of 10 recording attempts reached without selecting a sample');
+      }
+
+      const attempt = await tx.sampleAttempt.create({
+        data: { sampleSessionId: session.id, attemptNumber: totalAttemptsIncludingDeleted + 1, recordingUrl: dto.recordingUrl },
+      });
+      await tx.sampleSession.update({ where: { id: session.id }, data: { attemptsUsed: totalAttemptsIncludingDeleted + 1 } });
+      return attempt;
     });
-    await this.prisma.sampleSession.update({ where: { id: session.id }, data: { attemptsUsed: { increment: 1 } } });
-    return attempt;
   }
 
   async deleteAttempt(cycleId: string, attemptId: string, actor: AuthenticatedUser): Promise<SampleAttempt> {

@@ -119,4 +119,91 @@ describe('Treatment Engine — Sample preparation (e2e)', () => {
       .send({ recordingUrl: 'https://example.com/attempt-11.mp4' })
       .expect(409);
   });
+
+  it('serializes concurrent recordAttempt calls so the 10-attempt cap is never exceeded', async () => {
+    const clinicianToken = await registerAndLogin(app, prisma, '+966500002100', 'CLINICIAN');
+    const patientToken = await registerAndLogin(app, prisma, '+966500002101', null);
+
+    const patientProfile = await prisma.patientProfile.create({
+      data: {
+        userId: (await prisma.user.findUniqueOrThrow({ where: { mobile: '+966500002101' } })).id,
+        fullName: 'Sample Prep Race Test Patient',
+        gender: 'MALE',
+        dateOfBirth: new Date('2000-01-01'),
+        nationalId: 'SAMPLE-PREP-TEST-RACE-1',
+      },
+    });
+    const assessment = await prisma.assessment.create({
+      data: {
+        patientProfileId: patientProfile.id,
+        clinicianUserId: (await prisma.user.findUniqueOrThrow({ where: { mobile: '+966500002100' } })).id,
+        type: 'INITIAL',
+        status: 'APPROVED',
+      },
+    });
+    const plan = await prisma.treatmentPlan.create({
+      data: { patientProfileId: patientProfile.id, clinicianUserId: assessment.clinicianUserId, assessmentId: assessment.id, goals: 'g', reviewDate: new Date() },
+    });
+    const level = await prisma.level.create({ data: { name: 'Level 1', order: 1 } });
+    await prisma.levelVersion.create({
+      data: {
+        levelId: level.id,
+        versionNumber: 1,
+        behavioralTechnique: 'x',
+        trainingListJson: '[]',
+        samplePartTemplateJson: '[]',
+        publishedAt: new Date(),
+      },
+    });
+
+    const startRes = await request(app.getHttpServer())
+      .post(`/api/v1/patients/${patientProfile.id}/cycles/start`)
+      .set('Authorization', `Bearer ${patientToken}`)
+      .send({ treatmentPlanId: plan.id })
+      .expect(201);
+
+    await prisma.trainingCycle72h.update({
+      where: { id: startRes.body.id },
+      data: { status: 'SAMPLE_ELIGIBLE' },
+    });
+
+    await request(app.getHttpServer())
+      .post(`/api/v1/patients/${patientProfile.id}/cycles/current/sample-session`)
+      .set('Authorization', `Bearer ${patientToken}`)
+      .expect(201);
+
+    // Seed 8 attempts sequentially so the session sits at 8/10 before firing
+    // the concurrent burst below.
+    for (let i = 0; i < 8; i++) {
+      await request(app.getHttpServer())
+        .post(`/api/v1/patients/${patientProfile.id}/cycles/current/sample-session/attempts`)
+        .set('Authorization', `Bearer ${patientToken}`)
+        .send({ recordingUrl: `https://example.com/seed-attempt-${i}.mp4` })
+        .expect(201);
+    }
+
+    // Fire 3 concurrent attempts against a session with 8 live attempts and a
+    // cap of 10: at most 2 can succeed. This is the regression test for the
+    // TOCTOU race — without the row lock in recordAttempt, concurrent count
+    // reads can all observe 8 and all pass the < 10 check, letting the
+    // session exceed the cap.
+    const results = await Promise.all(
+      [0, 1, 2].map((i) =>
+        request(app.getHttpServer())
+          .post(`/api/v1/patients/${patientProfile.id}/cycles/current/sample-session/attempts`)
+          .set('Authorization', `Bearer ${patientToken}`)
+          .send({ recordingUrl: `https://example.com/concurrent-attempt-${i}.mp4` }),
+      ),
+    );
+
+    const successCount = results.filter((r) => r.status === 201).length;
+    const conflictCount = results.filter((r) => r.status === 409).length;
+    expect(successCount).toBe(2);
+    expect(conflictCount).toBe(1);
+
+    const session = await prisma.sampleSession.findUniqueOrThrow({ where: { trainingCycleId: startRes.body.id } });
+    const finalCount = await prisma.sampleAttempt.count({ where: { sampleSessionId: session.id } });
+    expect(finalCount).toBe(10);
+    expect(finalCount).toBeLessThanOrEqual(10);
+  });
 });
