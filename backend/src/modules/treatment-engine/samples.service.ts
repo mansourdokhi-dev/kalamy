@@ -197,9 +197,8 @@ export class SamplesService {
           }),
         ),
       );
-      const updatedSample = await tx.speechSample.update({
+      const updatedSample = await tx.speechSample.findUniqueOrThrow({
         where: { id: sample.id },
-        data: {}, // decision/reviewedAt/reviewNotes stay whatever the earlier TECHNICAL_RERECORD review left them
         include: { parts: true },
       });
       await tx.trainingCycle72h.update({ where: { id: cycleId }, data: { status: 'WAITING_FOR_SPECIALIST' } });

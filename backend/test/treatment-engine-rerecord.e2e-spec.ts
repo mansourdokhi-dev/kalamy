@@ -138,4 +138,56 @@ describe('Treatment Engine — Resubmit after technical re-record (e2e)', () => 
       .send({ parts: [{ id: part1.id, recordingUrl: 'https://example.com/fixed.mp4' }] })
       .expect(409);
   });
+
+  it('rejects submitting a part that is not currently damaged', async () => {
+    const patientToken = await registerAndLogin(app, prisma, '+966500003004', null);
+    const patientUser = await prisma.user.findUniqueOrThrow({ where: { mobile: '+966500003004' } });
+    const profile = await prisma.patientProfile.create({
+      data: { userId: patientUser.id, fullName: 'p', gender: 'MALE', nationalId: 'RR-3', dateOfBirth: new Date('2000-01-01') },
+    });
+    const plan = await prisma.treatmentPlan.create({
+      data: {
+        patientProfileId: profile.id,
+        clinicianUserId: (await prisma.user.create({ data: { fullName: 'c2', mobile: '+966500003005', passwordHash: 'x', role: 'CLINICIAN', status: 'ACTIVE' } })).id,
+        assessmentId: (
+          await prisma.assessment.create({
+            data: {
+              patientProfileId: profile.id,
+              clinicianUserId: (await prisma.user.findUniqueOrThrow({ where: { mobile: '+966500003005' } })).id,
+              type: 'INITIAL',
+              status: 'APPROVED',
+            },
+          })
+        ).id,
+        goals: 'g',
+        reviewDate: new Date(),
+      },
+    });
+    const level = await prisma.level.create({ data: { name: 'Level 1', order: 1 } });
+    const version = await prisma.levelVersion.create({
+      data: { levelId: level.id, versionNumber: 1, behavioralTechnique: 'x', trainingListJson: '["a"]', samplePartTemplateJson: '[]', publishedAt: new Date() },
+    });
+    const cycle = await prisma.trainingCycle72h.create({
+      data: { patientProfileId: profile.id, treatmentPlanId: plan.id, levelId: level.id, levelVersionId: version.id, cycleNumber: 1, status: 'TECHNICAL_PARTIAL_RERECORD' },
+    });
+    const sample = await prisma.speechSample.create({ data: { trainingCycleId: cycle.id, submittedAt: new Date() } });
+    const damagedPart = await prisma.sampleSamplePart.create({
+      data: { speechSampleId: sample.id, partType: 'مقطع', label: 'مقطع 1', order: 1, technicallyDamaged: true, recordingUrl: null },
+    });
+    const alreadyFinePart = await prisma.sampleSamplePart.create({
+      data: { speechSampleId: sample.id, partType: 'كلمة', label: 'كلمة 1', order: 2, technicallyDamaged: false, recordingUrl: 'https://example.com/fine.mp4' },
+    });
+
+    // tries to re-record both the damaged part and the already-fine part
+    await request(app.getHttpServer())
+      .post(`/api/v1/patients/${profile.id}/cycles/current/sample-session/rerecord`)
+      .set('Authorization', `Bearer ${patientToken}`)
+      .send({
+        parts: [
+          { id: damagedPart.id, recordingUrl: 'https://example.com/fixed.mp4' },
+          { id: alreadyFinePart.id, recordingUrl: 'https://example.com/fine-override.mp4' },
+        ],
+      })
+      .expect(404);
+  });
 });
