@@ -3,6 +3,7 @@ import { I18nManager } from 'react-native';
 import { Stack } from 'expo-router';
 import { ThemeProvider } from '../src/theme/ThemeContext';
 import { AuthProvider } from '../src/auth/AuthProvider';
+import { PatientProfileProvider } from '../src/patient/PatientProfileProvider';
 
 export default function RootLayout() {
   useEffect(() => {
@@ -15,7 +16,9 @@ export default function RootLayout() {
   return (
     <ThemeProvider>
       <AuthProvider>
-        <Stack screenOptions={{ headerShown: false }} />
+        <PatientProfileProvider>
+          <Stack screenOptions={{ headerShown: false }} />
+        </PatientProfileProvider>
       </AuthProvider>
     </ThemeProvider>
   );
