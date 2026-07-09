@@ -17,6 +17,7 @@ import { ComplaintsModule } from './modules/complaints/complaints.module';
 import { ReportsModule } from './modules/reports/reports.module';
 import { AdminUsersModule } from './modules/admin-users/admin-users.module';
 import { SupervisionModule } from './modules/supervision/supervision.module';
+import { TreatmentEngineModule } from './modules/treatment-engine/treatment-engine.module';
 
 @Module({
   imports: [
@@ -33,6 +34,7 @@ import { SupervisionModule } from './modules/supervision/supervision.module';
     ReportsModule,
     AdminUsersModule,
     SupervisionModule,
+    TreatmentEngineModule,
   ],
   controllers: [AppController],
   providers: [
