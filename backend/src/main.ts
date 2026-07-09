@@ -11,7 +11,7 @@ async function bootstrap() {
 
   const config = new DocumentBuilder()
     .setTitle('Kalamy API')
-    .setDescription('Kalamy foundation: Auth + Patient Profile, Assessment, Treatment Plan, Exercise Library, Sessions, Progress, Reports, Complaints, and Administration modules')
+    .setDescription('Kalamy foundation: Auth + Patient Profile, Assessment, Treatment Plan, Exercise Library, Treatment Engine (Levels, 72-Hour Cycles, Samples, Specialist Review), Progress, Reports, Complaints, and Administration modules')
     .setVersion('0.1.0')
     .addBearerAuth()
     .build();
