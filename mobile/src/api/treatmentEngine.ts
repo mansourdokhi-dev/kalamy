@@ -140,3 +140,14 @@ export function watchHumanModel(patientProfileId: string): Promise<TrainingCycle
     auth: true,
   });
 }
+
+export interface Level {
+  id: string;
+  name: string;
+  order: number;
+  status: 'ACTIVE' | 'ARCHIVED';
+}
+
+export function getLevels(): Promise<Level[]> {
+  return apiRequest<Level[]>('/api/v1/levels', { auth: true });
+}

@@ -73,4 +73,13 @@ export const ar = {
     trainingListTitle: 'قائمة التدريب',
     markWatched: 'وضع علامة كمشاهد',
   },
+  history: {
+    title: 'السجل',
+    empty: 'لا يوجد سجل بعد',
+    decisionLinePrefix: 'قرر الأخصائي:',
+    decisions: {
+      TRANSITION: 'الانتقال للمستوى التالي',
+      LEVEL_REPEAT: 'إعادة هذا المستوى',
+    },
+  },
 };
