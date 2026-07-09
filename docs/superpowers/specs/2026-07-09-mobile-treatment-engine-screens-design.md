@@ -8,14 +8,15 @@ Two things discovered during scoping meant this could not be split cleanly into 
 
 1. **No way for a logged-in user to discover their own `patientProfileId`.** Every treatment-engine endpoint requires it in the URL path, but nothing in the current API surface exposes it from a session token alone.
 2. **No way to read a submitted sample's decision after the fact.** The backend has `POST` endpoints for submit/rerecord/review that each return the `SpeechSample` in their response, but nothing else exposes it. Since "viewing specialist decisions" was part of the original ask, this gap had to be closed — see the design-review note in Section 1 for why the fix is "enrich cycle history," not "add a current-sample endpoint."
+3. **No way to read a level's published content.** `LevelsService.getActiveVersion(levelId)` already exists and is used internally by the cycle/review services, but no controller route exposes it — `GET /api/v1/levels` returns only bare `Level[]` with no version content. Found while writing the implementation plan, once exact current file contents were checked rather than assumed from the earlier scoping report.
 
-The first gap is closed by one small, additive backend endpoint; the second is closed by enriching an existing one (Section 1).
+Two gaps are closed by small, additive backend endpoints; the sample-decision gap is closed by enriching an existing endpoint instead (Section 1).
 
 ## Scope
 
 **In scope (this sub-project):**
 - Patient/caregiver mobile screens for: viewing current level content, cycle status, logging training, starting their first cycle, viewing cycle/level history, viewing a specialist's decision once made.
-- The backend read/lookup changes needed to support the above (one new endpoint, one enrichment of an existing one).
+- The backend read/lookup changes needed to support the above (two new endpoints, one enrichment of an existing one).
 - Age-group theming wired to real patient data for the first time (palettes already exist, unused until now).
 
 **Out of scope (deferred to later sub-projects, decided explicitly during brainstorming):**
@@ -46,6 +47,12 @@ One small additive endpoint, plus one small enrichment of an existing one. No sc
 - No permission change (already `VIEW_CYCLE`, already granted to `PATIENT`/`CAREGIVER`). No new state, no mutation — this is strictly an additive field on an already-read-only response.
 - This is the only place the mobile app looks for a specialist's decision. There is deliberately no "current cycle's sample" endpoint at all, per the design-review note above.
 
+### `GET /api/v1/levels/:levelId/versions/active`
+
+- Found while gathering exact file contents for the implementation plan: `LevelsService.getActiveVersion(levelId)` already exists and does exactly what Level Content needs (finds the most recently published `LevelVersion` for a level), but it is only ever called internally (by `TrainingCyclesService.startFirstCycle` and `SpecialistReviewService`'s `openNextLevelCycle`) — no controller route exposes it. `GET /api/v1/levels` only returns bare `Level[]` (`name`/`order`/`status`), with no version content at all. Without this, Level Content has no way to fetch `behavioralTechnique`, the cognitive-video questions, or `trainingListJson`.
+- Permission: `VIEW_LEVELS` (already granted to `PATIENT`/`CAREGIVER`, same as the existing `GET /api/v1/levels`).
+- A one-line addition to the existing `LevelsController`: `@Get(':levelId/versions/active')` calling the already-existing `levelsService.getActiveVersion(levelId)`. That service method already throws `ConflictException` (→ HTTP `409`) when the level has no published version yet — the mobile app treats that specific `409` the same as "not ready," not as a real error, same as its other expected non-200 states.
+
 ## Section 2: Screens & navigation
 
 Four screens under Expo Router's file-based routing, all read-only or single-action — no multi-step forms.
@@ -74,7 +81,7 @@ Always visible regardless of state: links to **History** and **Level Content**, 
 
 ### `app/program/level-content.tsx` — **Level Content**
 
-Shows the current level's therapeutic content, parsed from the current `LevelVersion`:
+Fetches `GET /api/v1/levels/:levelId/versions/active` (using the current cycle's `levelId`) and shows the current level's therapeutic content, parsed from that `LevelVersion`:
 - `behavioralTechnique` (plain text).
 - `cognitiveVideo1Question` / `cognitiveVideo2Question`, if present, framed as reflection prompts ("As you watch, think about: …") — no actual video playback.
 - `trainingListJson`, parsed as a JSON array of strings, rendered as a plain reference list (display-only; no per-item completion tracking, since the backend's training-event endpoint has no concept of individual list items).
@@ -99,6 +106,7 @@ Reached only from History, for a specific past (closed) cycle whose sample has a
 - `useCurrentCycle()` — `GET .../cycles/current`, treating 404 as "no active cycle," not an error
 - `useCycleHistory()` — `GET .../cycles` (enriched with each cycle's sample per Section 1) — used by both the History screen and My Program's "message from your therapist" banner check
 - `useActiveTreatmentPlan()` — `GET .../treatment-plans/active`, used only by My Program's "no cycle yet" branch
+- `useActiveLevelVersion(levelId)` — `GET /api/v1/levels/:levelId/versions/active`, used only by Level Content, treating `409` as "not ready" rather than an error
 
 **Refetching after actions.** No cross-screen cache-invalidation system. The acting screen refetches its own data locally before navigating back (e.g., Level Content refetches the cycle after "mark as watched" succeeds); My Program refetches on every re-focus via `useFocusEffect`, so returning to it after any action always shows fresh state.
 
@@ -129,7 +137,7 @@ Roughly 40–60 new keys total.
 
 ## Section 7: Testing plan
 
-- **Backend changes**: real e2e tests against Postgres, following this codebase's established inline-registration pattern exactly (see any `treatment-engine-*.e2e-spec.ts` file for the convention) — one test proving `GET /patients/me`'s success and 404 shapes, and one proving `GET .../cycles` now includes each cycle's sample/decision where one exists.
+- **Backend changes**: real e2e tests against Postgres, following this codebase's established inline-registration pattern exactly (see any `treatment-engine-*.e2e-spec.ts` file for the convention) — one test proving `GET /patients/me`'s success and 404 shapes, one proving `GET .../cycles` now includes each cycle's sample/decision where one exists, and one proving `GET /api/v1/levels/:levelId/versions/active`'s success and "no published version" shapes.
 - **Mobile hooks**: unit tests mocking `apiRequest`, covering both the success response and the expected-404 response for each hook.
 - **Screens**: component tests covering the state-table branches in Section 2 (right message/action renders for each cycle status) and that each action (start program, mark as watched, log training) calls the right endpoint and triggers a refetch.
 - **No new mobile-to-backend e2e test infrastructure** — none exists yet in this app; introducing one is a larger decision outside this sub-project's scope.
@@ -141,4 +149,4 @@ Roughly 40–60 new keys total.
 - No specialist/clinician-facing UI in this app.
 - No multi-child caregiver account switching.
 - No new global state-management library.
-- No changes to the 13-state machine, gating algorithm, or any other Treatment Engine v2 backend logic beyond the additive read changes in Section 1 (one new endpoint, one enriched query).
+- No changes to the 13-state machine, gating algorithm, or any other Treatment Engine v2 backend logic beyond the additive read changes in Section 1 (two new endpoints, one enriched query).
