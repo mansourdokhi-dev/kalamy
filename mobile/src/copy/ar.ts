@@ -92,4 +92,11 @@ export const ar = {
     selfReportTitle: 'تقييمك الذاتي',
     notFound: 'تعذر العثور على هذه النتيجة',
   },
+  sampleRecording: {
+    title: 'تسجيل عينتك الصوتية',
+    record: 'ابدأ التسجيل',
+    stopRecording: 'إيقاف التسجيل',
+    micPermissionDenied: 'يلزم الوصول إلى الميكروفون لتسجيل عينتك',
+    maxDurationReached: 'تم بلوغ الحد الأقصى لمدة التسجيل (3 دقائق)',
+  },
 };
