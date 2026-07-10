@@ -60,16 +60,29 @@ describe('ReportsScreen', () => {
 
     render(<ThemeProvider><ReportsScreen /></ThemeProvider>);
 
-    await waitFor(() => {
-      expect(screen.getByText('نتائج التقييمات')).toBeTruthy();
-      expect(screen.getByText('أولي')).toBeTruthy();
-      expect(screen.getByText('متوسط')).toBeTruthy();
-      expect(screen.getByText('22')).toBeTruthy();
-      expect(screen.getByText('التقرير الطبي')).toBeTruthy();
-      expect(screen.getByText('Patient One')).toBeTruthy();
-      expect(screen.getByText('تلعثم منذ الطفولة')).toBeTruthy();
-      expect(screen.getByText('Improve fluency')).toBeTruthy();
-    });
+    // See home.test.tsx (commit 42da9d6) and its several later repeats
+    // (history.test.tsx, sample-recording.test.tsx, sample-rerecord.test.tsx)
+    // for why: under CPU-contended/cold-start conditions, RTL's default ~1s
+    // waitFor timeout has been too tight even for mocked promises with no
+    // real I/O — especially for the first test in a file.
+    await waitFor(
+      () => {
+        expect(screen.getByText('نتائج التقييمات')).toBeTruthy();
+        // 'أولي' (type), 'متوسط' (severity), and '22' (SSI-4 total) each legitimately
+        // appear twice: once in the assessments-list card, once in the medical
+        // report's "latest approved assessment" summary — this is real,
+        // expected duplication (the same assessment record shown in two
+        // places), not a test bug to paper over.
+        expect(screen.getAllByText('أولي')).toHaveLength(2);
+        expect(screen.getAllByText('متوسط')).toHaveLength(2);
+        expect(screen.getAllByText('22')).toHaveLength(2);
+        expect(screen.getByText('التقرير الطبي')).toBeTruthy();
+        expect(screen.getByText('Patient One')).toBeTruthy();
+        expect(screen.getByText('تلعثم منذ الطفولة')).toBeTruthy();
+        expect(screen.getByText('Improve fluency')).toBeTruthy();
+      },
+      { timeout: 3000 },
+    );
   });
 
   it('shows the empty-assessments message when there are none', async () => {

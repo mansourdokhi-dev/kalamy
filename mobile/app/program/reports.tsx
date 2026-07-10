@@ -140,8 +140,17 @@ export default function ReportsScreen() {
           <Text style={[styles.subSectionTitle, { color: tokens.colors.text }]}>{ar.reports.latestAssessmentTitle}</Text>
           {medicalReport.latestApprovedAssessment ? (
             <View style={{ marginBottom: 16 }}>
+              <Text style={{ color: tokens.colors.text }}>
+                {ar.reports.assessmentTypeLabel}: <Text>{typeLabel(medicalReport.latestApprovedAssessment.type)}</Text>
+              </Text>
+              <Text style={{ color: tokens.colors.text }}>
+                {ar.reports.severityLabel}: <Text>{severityLabel(medicalReport.latestApprovedAssessment.severityCategory)}</Text>
+              </Text>
+              <Text style={{ color: tokens.colors.text }}>
+                {ar.reports.ssi4TotalLabel}: <Text>{medicalReport.latestApprovedAssessment.ssi4Total ?? ar.reports.notAvailable}</Text>
+              </Text>
               <Text style={{ color: tokens.colors.textSecondary }}>
-                {ar.reports.approvedAtLabel}: {medicalReport.latestApprovedAssessment.approvedAt}
+                {ar.reports.approvedAtLabel}: <Text>{medicalReport.latestApprovedAssessment.approvedAt ?? ar.reports.notApprovedYet}</Text>
               </Text>
             </View>
           ) : (
