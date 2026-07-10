@@ -28,6 +28,12 @@ export class ComplaintsController {
     return this.complaintsService.listAll({ status, relatedClinicianUserId });
   }
 
+  @Get('mine')
+  @RequirePermission(Permission.VIEW_COMPLAINT)
+  findMine(@CurrentUser() user: AuthenticatedUser) {
+    return this.complaintsService.findMine(user);
+  }
+
   @Get(':id')
   @RequirePermission(Permission.VIEW_COMPLAINT)
   findOne(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {

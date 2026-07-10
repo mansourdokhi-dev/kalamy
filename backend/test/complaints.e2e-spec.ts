@@ -243,3 +243,79 @@ describe('Complaints: update status', () => {
     expect(response.status).toBe(403);
   });
 });
+
+describe('Complaints: mine (patient-scoped history)', () => {
+  let app: INestApplication;
+  let prisma: PrismaService;
+
+  beforeAll(async () => {
+    ({ app, prisma } = await createTestApp());
+  });
+
+  afterAll(async () => {
+    await app.close();
+  });
+
+  beforeEach(async () => {
+    await resetDatabase(prisma);
+  });
+
+  async function createUserToken(mobile: string, password: string, role: 'PATIENT' | 'CAREGIVER'): Promise<string> {
+    const registerResponse = await request(app.getHttpServer()).post('/api/v1/auth/register').send({
+      fullName: 'Complaint Mine Test User',
+      mobile,
+      password,
+      role: 'PATIENT',
+    });
+    await request(app.getHttpServer())
+      .post('/api/v1/auth/verify')
+      .send({ mobile, code: registerResponse.body.devOtpCode });
+    if (role !== 'PATIENT') {
+      await prisma.user.update({ where: { mobile }, data: { role } });
+    }
+    const loginResponse = await request(app.getHttpServer()).post('/api/v1/auth/login').send({ mobile, password });
+    return loginResponse.body.token;
+  }
+
+  it('lets a PATIENT list their own complaints, newest first', async () => {
+    const token = await createUserToken('+966500000920', 'password123', 'PATIENT');
+    await request(app.getHttpServer())
+      .post('/api/v1/complaints')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ type: 'COMPLAINT', subject: 'First complaint', description: 'Submitted first' });
+    await request(app.getHttpServer())
+      .post('/api/v1/complaints')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ type: 'SUGGESTION', subject: 'Second complaint', description: 'Submitted second' });
+
+    const response = await request(app.getHttpServer()).get('/api/v1/complaints/mine').set('Authorization', `Bearer ${token}`);
+
+    expect(response.status).toBe(200);
+    expect(response.body).toHaveLength(2);
+    expect(response.body[0].subject).toBe('Second complaint');
+    expect(response.body[1].subject).toBe('First complaint');
+  });
+
+  it("does not include another user's complaints", async () => {
+    const ownToken = await createUserToken('+966500000921', 'password123', 'PATIENT');
+    const otherToken = await createUserToken('+966500000922', 'password123', 'PATIENT');
+    await request(app.getHttpServer())
+      .post('/api/v1/complaints')
+      .set('Authorization', `Bearer ${otherToken}`)
+      .send({ type: 'COMPLAINT', subject: "Someone else's complaint", description: 'Not mine' });
+
+    const response = await request(app.getHttpServer()).get('/api/v1/complaints/mine').set('Authorization', `Bearer ${ownToken}`);
+
+    expect(response.status).toBe(200);
+    expect(response.body).toHaveLength(0);
+  });
+
+  it('returns an empty array for a CAREGIVER with no complaints submitted', async () => {
+    const token = await createUserToken('+966500000923', 'password123', 'CAREGIVER');
+
+    const response = await request(app.getHttpServer()).get('/api/v1/complaints/mine').set('Authorization', `Bearer ${token}`);
+
+    expect(response.status).toBe(200);
+    expect(response.body).toEqual([]);
+  });
+});

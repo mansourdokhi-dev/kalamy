@@ -32,6 +32,13 @@ export class ComplaintsService {
     });
   }
 
+  async findMine(actor: AuthenticatedUser): Promise<Complaint[]> {
+    return this.prisma.complaint.findMany({
+      where: { submittedByUserId: actor.id },
+      orderBy: { createdAt: 'desc' },
+    });
+  }
+
   async listAll(filters: ComplaintFilters): Promise<Complaint[]> {
     return this.prisma.complaint.findMany({
       where: {
