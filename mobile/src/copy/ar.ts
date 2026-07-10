@@ -67,6 +67,7 @@ export const ar = {
     viewHistory: 'السجل',
     viewLevelContent: 'محتوى المستوى',
     viewReports: 'التقارير',
+    viewComplaints: 'الشكاوى',
     logout: 'تسجيل الخروج',
   },
   levelContent: {
