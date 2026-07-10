@@ -68,7 +68,7 @@ export function AudioRecorder({ onRecorded, disabled }: AudioRecorderProps) {
       {hitMaxDuration ? (
         <Text style={{ color: tokens.colors.textSecondary, marginBottom: 8 }}>{ar.sampleRecording.maxDurationReached}</Text>
       ) : recorderState.isRecording ? (
-        <Text style={{ color: tokens.colors.text, marginBottom: 8 }}>{`${seconds}s`}</Text>
+        <Text style={{ color: tokens.colors.text, marginBottom: 8 }}>{`${seconds} ${ar.sampleRecording.secondsUnit}`}</Text>
       ) : null}
       <Button
         title={recorderState.isRecording ? ar.sampleRecording.stopRecording : ar.sampleRecording.record}

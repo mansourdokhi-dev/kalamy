@@ -98,5 +98,6 @@ export const ar = {
     stopRecording: 'إيقاف التسجيل',
     micPermissionDenied: 'يلزم الوصول إلى الميكروفون لتسجيل عينتك',
     maxDurationReached: 'تم بلوغ الحد الأقصى لمدة التسجيل (3 دقائق)',
+    secondsUnit: 'ث',
   },
 };
