@@ -42,6 +42,7 @@ export interface TrainingCycle {
   closedAt: string | null;
   createdAt: string;
   updatedAt: string;
+  speechSample?: SpeechSample | null;
 }
 
 export function getCurrentCycle(patientProfileId: string): Promise<TrainingCycle> {
@@ -150,4 +151,101 @@ export interface Level {
 
 export function getLevels(): Promise<Level[]> {
   return apiRequest<Level[]>('/api/v1/levels', { auth: true });
+}
+
+export interface SampleSession {
+  id: string;
+  trainingCycleId: string;
+  attemptsUsed: number;
+  status: 'OPEN' | 'CLOSED_SUBMITTED' | 'CLOSED_EXHAUSTED';
+  createdAt: string;
+  updatedAt: string;
+}
+
+export function openSampleSession(patientProfileId: string): Promise<SampleSession> {
+  return apiRequest<SampleSession>(`/api/v1/patients/${patientProfileId}/cycles/current/sample-session`, {
+    method: 'POST',
+    auth: true,
+  });
+}
+
+export interface SampleAttempt {
+  id: string;
+  sampleSessionId: string;
+  attemptNumber: number;
+  recordingUrl: string;
+  deletedAt: string | null;
+  createdAt: string;
+}
+
+export function listAttempts(patientProfileId: string): Promise<SampleAttempt[]> {
+  return apiRequest<SampleAttempt[]>(`/api/v1/patients/${patientProfileId}/cycles/current/sample-session/attempts`, {
+    auth: true,
+  });
+}
+
+export function recordAttempt(patientProfileId: string, recordingUrl: string): Promise<SampleAttempt> {
+  return apiRequest<SampleAttempt>(`/api/v1/patients/${patientProfileId}/cycles/current/sample-session/attempts`, {
+    method: 'POST',
+    auth: true,
+    body: { recordingUrl },
+  });
+}
+
+export function deleteAttempt(patientProfileId: string, attemptId: string): Promise<SampleAttempt> {
+  return apiRequest<SampleAttempt>(
+    `/api/v1/patients/${patientProfileId}/cycles/current/sample-session/attempts/${attemptId}`,
+    { method: 'DELETE', auth: true },
+  );
+}
+
+export interface SubmitSamplePart {
+  partType: string;
+  label: string;
+  order: number;
+  sourceAttemptId: string;
+}
+
+export interface SubmitSampleInput {
+  parts: SubmitSamplePart[];
+  selfSeverityCurrent: number;
+  selfSeverityExpectedNext: number;
+  camperdownPerformanceRating: number;
+  clientOpinionScore: number;
+}
+
+export function submitSample(patientProfileId: string, dto: SubmitSampleInput): Promise<SpeechSample> {
+  return apiRequest<SpeechSample>(`/api/v1/patients/${patientProfileId}/cycles/current/sample-session/submit`, {
+    method: 'POST',
+    auth: true,
+    body: dto,
+  });
+}
+
+export interface RerecordPartInput {
+  id: string;
+  recordingUrl: string;
+}
+
+export function rerecordDamagedParts(patientProfileId: string, parts: RerecordPartInput[]): Promise<SpeechSample> {
+  return apiRequest<SpeechSample>(`/api/v1/patients/${patientProfileId}/cycles/current/sample-session/rerecord`, {
+    method: 'POST',
+    auth: true,
+    body: { parts },
+  });
+}
+
+export function uploadRecording(patientProfileId: string, fileUri: string): Promise<{ url: string }> {
+  const formData = new FormData();
+  const filename = fileUri.split('/').pop() ?? 'recording.m4a';
+  formData.append('audio', {
+    uri: fileUri,
+    name: filename,
+    type: 'audio/m4a',
+  } as unknown as Blob);
+  return apiRequest<{ url: string }>(`/api/v1/patients/${patientProfileId}/cycles/current/sample-session/upload`, {
+    method: 'POST',
+    auth: true,
+    formData,
+  });
 }

@@ -68,4 +68,42 @@ describe('apiRequest', () => {
       code: 'PARSE_ERROR',
     });
   });
+
+  it('sends a FormData body directly, without JSON-encoding it or forcing a JSON content-type', async () => {
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: true,
+      status: 201,
+      json: async () => ({ url: 'http://localhost:3000/uploads/audio/x.m4a' }),
+    }) as unknown as typeof fetch;
+    const formData = new FormData();
+    formData.append('audio', 'fake-file-data');
+
+    await apiRequest('/api/v1/upload', { method: 'POST', formData });
+
+    expect(global.fetch).toHaveBeenCalledWith(
+      expect.stringContaining('/api/v1/upload'),
+      expect.objectContaining({
+        body: formData,
+        headers: expect.not.objectContaining({ 'Content-Type': 'application/json' }),
+      }),
+    );
+  });
+
+  it('still JSON-encodes and sets Content-Type when formData is not provided', async () => {
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({}),
+    }) as unknown as typeof fetch;
+
+    await apiRequest('/api/v1/x', { method: 'POST', body: { a: 1 } });
+
+    expect(global.fetch).toHaveBeenCalledWith(
+      expect.stringContaining('/api/v1/x'),
+      expect.objectContaining({
+        body: JSON.stringify({ a: 1 }),
+        headers: expect.objectContaining({ 'Content-Type': 'application/json' }),
+      }),
+    );
+  });
 });

@@ -18,11 +18,15 @@ export class ApiError extends Error {
 interface ApiRequestOptions {
   method?: string;
   body?: unknown;
+  formData?: FormData;
   auth?: boolean;
 }
 
 export async function apiRequest<T>(path: string, options: ApiRequestOptions = {}): Promise<T> {
-  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+  const headers: Record<string, string> = {};
+  if (!options.formData) {
+    headers['Content-Type'] = 'application/json';
+  }
 
   if (options.auth) {
     const token = await getToken();
@@ -34,7 +38,7 @@ export async function apiRequest<T>(path: string, options: ApiRequestOptions = {
   const response = await fetch(`${API_BASE_URL}${path}`, {
     method: options.method ?? 'GET',
     headers,
-    body: options.body !== undefined ? JSON.stringify(options.body) : undefined,
+    body: options.formData ?? (options.body !== undefined ? JSON.stringify(options.body) : undefined),
   });
 
   let data: any;
