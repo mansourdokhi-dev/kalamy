@@ -96,6 +96,8 @@ export const ar = {
     title: 'تسجيل عينتك الصوتية',
     record: 'ابدأ التسجيل',
     stopRecording: 'إيقاف التسجيل',
+    play: 'تشغيل',
+    pause: 'إيقاف مؤقت',
     micPermissionDenied: 'يلزم الوصول إلى الميكروفون لتسجيل عينتك',
     maxDurationReached: 'تم بلوغ الحد الأقصى لمدة التسجيل (3 دقائق)',
     secondsUnit: 'ث',
