@@ -8,10 +8,11 @@ interface TextFieldProps {
   error?: string;
   secureTextEntry?: boolean;
   keyboardType?: KeyboardTypeOptions;
+  multiline?: boolean;
   testID?: string;
 }
 
-export function TextField({ label, value, onChangeText, error, secureTextEntry, keyboardType, testID }: TextFieldProps) {
+export function TextField({ label, value, onChangeText, error, secureTextEntry, keyboardType, multiline, testID }: TextFieldProps) {
   const { tokens } = useTheme();
 
   return (
@@ -23,8 +24,10 @@ export function TextField({ label, value, onChangeText, error, secureTextEntry, 
         onChangeText={onChangeText}
         secureTextEntry={secureTextEntry}
         keyboardType={keyboardType}
+        multiline={multiline}
         style={[
           styles.input,
+          multiline ? styles.multilineInput : null,
           {
             borderColor: error ? tokens.colors.danger : tokens.colors.border,
             borderRadius: tokens.radius.sm,
@@ -40,4 +43,5 @@ export function TextField({ label, value, onChangeText, error, secureTextEntry, 
 
 const styles = StyleSheet.create({
   input: { borderWidth: 1, paddingHorizontal: 12, paddingVertical: 10, fontSize: 15, textAlign: 'right' },
+  multilineInput: { minHeight: 100, textAlignVertical: 'top' },
 });
