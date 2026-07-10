@@ -21,7 +21,7 @@ import {
   TreatmentPlan,
 } from '../src/api/treatmentEngine';
 
-const STATES_NEEDING_SAMPLE_RECORDING = new Set(['SAMPLE_ELIGIBLE', 'SAMPLE_PREPARATION', 'TECHNICAL_PARTIAL_RERECORD']);
+const STATES_NEEDING_SAMPLE_RECORDING = new Set(['SAMPLE_ELIGIBLE', 'SAMPLE_PREPARATION']);
 const STATES_WAITING_ON_SPECIALIST = new Set(['WAITING_FOR_SPECIALIST', 'UNDER_REVIEW']);
 
 function mostRecentDecidedCycle(history: TrainingCycleWithSample[]): TrainingCycleWithSample | null {
@@ -149,7 +149,10 @@ export default function HomeScreen() {
       return <Button title={ar.program.logTraining} onPress={handleLogTraining} loading={submitting} />;
     }
     if (STATES_NEEDING_SAMPLE_RECORDING.has(cycle.status)) {
-      return <Text style={{ color: tokens.colors.textSecondary }}>{ar.program.sampleComingSoon}</Text>;
+      return <Button title={ar.program.recordSample} onPress={() => router.push('/program/sample-recording')} />;
+    }
+    if (cycle.status === 'TECHNICAL_PARTIAL_RERECORD') {
+      return <Button title={ar.program.rerecordParts} onPress={() => router.push('/program/sample-rerecord')} />;
     }
     if (STATES_WAITING_ON_SPECIALIST.has(cycle.status)) {
       return <Text style={{ color: tokens.colors.textSecondary }}>{ar.program.waitingForSpecialist}</Text>;

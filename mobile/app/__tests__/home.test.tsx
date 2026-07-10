@@ -138,4 +138,28 @@ describe('HomeScreen (My Program)', () => {
       expect(screen.getByText('لديك رسالة من أخصائيك')).toBeTruthy();
     });
   });
+
+  it('shows the "record your sample" action for SAMPLE_ELIGIBLE and SAMPLE_PREPARATION', async () => {
+    (getProgress as jest.Mock).mockResolvedValue(baseProgress);
+    mockNoDecisionHistory();
+    (getCurrentCycle as jest.Mock).mockResolvedValue({ id: 'cycle-1', levelId: 'level-1', status: 'SAMPLE_ELIGIBLE' });
+
+    render(<ThemeProvider><HomeScreen /></ThemeProvider>);
+
+    await waitFor(() => {
+      expect(screen.getByText('سجّل عينتك')).toBeTruthy();
+    });
+  });
+
+  it('shows the "re-record required parts" action for TECHNICAL_PARTIAL_RERECORD', async () => {
+    (getProgress as jest.Mock).mockResolvedValue(baseProgress);
+    mockNoDecisionHistory();
+    (getCurrentCycle as jest.Mock).mockResolvedValue({ id: 'cycle-1', levelId: 'level-1', status: 'TECHNICAL_PARTIAL_RERECORD' });
+
+    render(<ThemeProvider><HomeScreen /></ThemeProvider>);
+
+    await waitFor(() => {
+      expect(screen.getByText('أعد تسجيل الأجزاء المطلوبة')).toBeTruthy();
+    });
+  });
 });
