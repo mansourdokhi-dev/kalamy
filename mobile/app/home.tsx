@@ -211,6 +211,7 @@ export default function HomeScreen() {
       <View style={styles.linksRow}>
         <Button title={ar.program.viewLevelContent} onPress={() => router.push('/program/level-content')} />
         <Button title={ar.program.viewHistory} onPress={() => router.push('/program/history')} />
+        <Button title={ar.program.viewReports} onPress={() => router.push('/program/reports')} />
       </View>
 
       <View style={{ marginTop: 24 }}>

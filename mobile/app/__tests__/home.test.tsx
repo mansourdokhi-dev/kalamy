@@ -162,4 +162,16 @@ describe('HomeScreen (My Program)', () => {
       expect(screen.getByText('أعد تسجيل الأجزاء المطلوبة')).toBeTruthy();
     });
   });
+
+  it('always shows the "Reports" link in the links row, regardless of cycle status', async () => {
+    (getProgress as jest.Mock).mockResolvedValue(baseProgress);
+    mockNoDecisionHistory();
+    (getCurrentCycle as jest.Mock).mockResolvedValue({ id: 'cycle-1', levelId: 'level-1', status: 'ACTIVE_LEVEL_TRAINING', humanModelWatchedAt: '2026-07-01T00:00:00.000Z' });
+
+    render(<ThemeProvider><HomeScreen /></ThemeProvider>);
+
+    await waitFor(() => {
+      expect(screen.getByText('التقارير')).toBeTruthy();
+    });
+  });
 });

@@ -66,6 +66,7 @@ export const ar = {
     therapistMessageBanner: 'لديك رسالة من أخصائيك',
     viewHistory: 'السجل',
     viewLevelContent: 'محتوى المستوى',
+    viewReports: 'التقارير',
     logout: 'تسجيل الخروج',
   },
   levelContent: {
