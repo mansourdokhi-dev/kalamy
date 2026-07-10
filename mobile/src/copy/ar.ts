@@ -117,4 +117,10 @@ export const ar = {
     clientOpinionLabel: 'رأيك في أدائك',
     submit: 'إرسال العينة',
   },
+  sampleRerecord: {
+    title: 'إعادة تسجيل الأجزاء المطلوبة',
+    instructions: 'أعد تسجيل الأجزاء التالية التي طلب أخصائيك إعادة تسجيلها',
+    recorded: 'تم التسجيل',
+    submit: 'إرسال',
+  },
 };
