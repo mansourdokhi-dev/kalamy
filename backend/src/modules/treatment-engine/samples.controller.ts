@@ -1,4 +1,10 @@
-import { Body, Controller, Delete, Get, Param, Post, UseGuards } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Delete, Get, Param, Post, Req, UploadedFile, UseGuards, UseInterceptors } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
+import { diskStorage } from 'multer';
+import { randomUUID } from 'crypto';
+import { extname, join } from 'path';
+import { mkdirSync } from 'fs';
+import type { Request } from 'express';
 import { SamplesService } from './samples.service';
 import { TrainingCyclesService } from './training-cycles.service';
 import { SessionGuard, AuthenticatedUser } from '../../common/auth/session.guard';
@@ -23,6 +29,43 @@ export class SamplesController {
   async openSession(@Param('patientId') patientId: string, @CurrentUser() user: AuthenticatedUser) {
     const current = await this.trainingCyclesService.getCurrent(patientId, user);
     return this.samplesService.openSession(current.id, user);
+  }
+
+  @Post('upload')
+  @RequirePermission(Permission.PREPARE_SAMPLE)
+  @UseInterceptors(
+    FileInterceptor('audio', {
+      storage: diskStorage({
+        destination: (_req, _file, cb) => {
+          const dir = join(process.cwd(), 'uploads', 'audio');
+          mkdirSync(dir, { recursive: true });
+          cb(null, dir);
+        },
+        filename: (_req, file, cb) => {
+          cb(null, `${randomUUID()}${extname(file.originalname)}`);
+        },
+      }),
+      limits: { fileSize: 10 * 1024 * 1024 },
+      fileFilter: (_req, file, cb) => {
+        if (!file.mimetype.startsWith('audio/')) {
+          cb(new BadRequestException('Only audio files are accepted'), false);
+          return;
+        }
+        cb(null, true);
+      },
+    }),
+  )
+  async uploadRecording(
+    @Param('patientId') patientId: string,
+    @UploadedFile() file: Express.Multer.File,
+    @Req() req: Request,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    await this.trainingCyclesService.getCurrent(patientId, user);
+    if (!file) {
+      throw new BadRequestException('No audio file provided');
+    }
+    return { url: `${req.protocol}://${req.get('host')}/uploads/audio/${file.filename}` };
   }
 
   @Post('attempts')
