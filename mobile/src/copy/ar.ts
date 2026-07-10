@@ -167,4 +167,24 @@ export const ar = {
     noActivePlan: 'لا توجد خطة علاجية حالية',
     notAvailable: '-',
   },
+  complaints: {
+    title: 'شكاوى ومقترحاتي',
+    submitLinkLabel: 'تقديم شكوى جديدة',
+    submitScreenTitle: 'تقديم شكوى أو اقتراح',
+    types: {
+      COMPLAINT: 'شكوى',
+      SUGGESTION: 'اقتراح',
+    },
+    statuses: {
+      OPEN: 'مفتوحة',
+      REVIEWED: 'قيد المراجعة',
+      RESOLVED: 'تم الحل',
+    },
+    typeLabel: 'النوع',
+    statusLabel: 'الحالة',
+    subjectLabel: 'الموضوع',
+    descriptionLabel: 'الوصف',
+    submitButtonLabel: 'إرسال',
+    noComplaintsYet: 'لا توجد شكاوى بعد',
+  },
 };
