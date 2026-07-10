@@ -906,7 +906,7 @@ describe('AudioPlayer', () => {
     render(<ThemeProvider><AudioPlayer uri="file:///tmp/a.m4a" /></ThemeProvider>);
 
     expect(screen.getByText('تشغيل')).toBeTruthy();
-    expect(screen.getByText('0s / 12s')).toBeTruthy();
+    expect(screen.getByText('0 ث / 12 ث')).toBeTruthy();
   });
 
   it('calls player.play() when the play button is pressed', () => {
@@ -971,7 +971,7 @@ export function AudioPlayer({ uri }: AudioPlayerProps) {
     <View style={styles.row}>
       <Button title={status.playing ? ar.sampleRecording.pause : ar.sampleRecording.play} onPress={handlePress} />
       <Text style={{ color: tokens.colors.textSecondary }}>
-        {`${Math.floor(status.currentTime)}s / ${Math.floor(status.duration)}s`}
+        {`${Math.floor(status.currentTime)} ${ar.sampleRecording.secondsUnit} / ${Math.floor(status.duration)} ${ar.sampleRecording.secondsUnit}`}
       </Text>
     </View>
   );
