@@ -113,13 +113,14 @@ export class TrainingCyclesService {
     });
   }
 
-  async getCurrent(patientProfileId: string, actor: AuthenticatedUser): Promise<TrainingCycle72h> {
+  async getCurrent(patientProfileId: string, actor: AuthenticatedUser): Promise<TrainingCycleWithSample> {
     const profile = await this.findPatientProfileOrThrow(patientProfileId);
     await this.patientAccessService.assertCanAccess(actor, profile);
 
     let cycle = await this.prisma.trainingCycle72h.findFirst({
       where: { patientProfileId, closedAt: null },
       orderBy: { createdAt: 'desc' },
+      include: { speechSample: { include: { parts: true } } },
     });
     if (!cycle) {
       throw new NotFoundException('No active training cycle');
@@ -129,6 +130,7 @@ export class TrainingCyclesService {
       cycle = await this.prisma.trainingCycle72h.update({
         where: { id: cycle.id },
         data: { status: 'CLOSED_DUE_TO_INACTIVITY', closedAt: new Date() },
+        include: { speechSample: { include: { parts: true } } },
       });
     }
 
