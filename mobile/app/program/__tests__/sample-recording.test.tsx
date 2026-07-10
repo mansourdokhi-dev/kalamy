@@ -83,11 +83,20 @@ describe('SampleRecordingScreen', () => {
 
     render(<ThemeProvider><SampleRecordingScreen /></ThemeProvider>);
 
-    await waitFor(() => {
-      expect(openSampleSession).toHaveBeenCalledWith('profile-1');
-      expect(screen.getByText('مقطع 1')).toBeTruthy();
-      expect(screen.getByText('كلمة 1')).toBeTruthy();
-    });
+    // See home.test.tsx (commit 42da9d6) and history.test.tsx for why: under
+    // CPU-contended/cold-start conditions (e.g. a freshly installed
+    // node_modules with no jest transform cache yet), RTL's default ~1s
+    // waitFor timeout has been too tight even for mocked promises with no
+    // real I/O — especially for the first test in a file, which pays the
+    // cost of transforming the module fresh.
+    await waitFor(
+      () => {
+        expect(openSampleSession).toHaveBeenCalledWith('profile-1');
+        expect(screen.getByText('مقطع 1')).toBeTruthy();
+        expect(screen.getByText('كلمة 1')).toBeTruthy();
+      },
+      { timeout: 3000 },
+    );
   });
 
   it('does not re-open a session when the cycle is already SAMPLE_PREPARATION, and lists existing attempts', async () => {
