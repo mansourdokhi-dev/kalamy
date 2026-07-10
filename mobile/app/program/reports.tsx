@@ -149,9 +149,6 @@ export default function ReportsScreen() {
               <Text style={{ color: tokens.colors.text }}>
                 {ar.reports.ssi4TotalLabel}: <Text>{medicalReport.latestApprovedAssessment.ssi4Total ?? ar.reports.notAvailable}</Text>
               </Text>
-              <Text style={{ color: tokens.colors.textSecondary }}>
-                {ar.reports.approvedAtLabel}: <Text>{medicalReport.latestApprovedAssessment.approvedAt ?? ar.reports.notApprovedYet}</Text>
-              </Text>
             </View>
           ) : (
             <Text style={{ color: tokens.colors.textSecondary, marginBottom: 16 }}>{ar.reports.noApprovedAssessment}</Text>
