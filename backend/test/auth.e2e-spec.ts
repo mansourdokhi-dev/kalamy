@@ -438,3 +438,81 @@ describe('Auth: mustChangePassword + change-password', () => {
     void user;
   });
 });
+
+describe('Auth: GET /me', () => {
+  let app: INestApplication;
+  let prisma: PrismaService;
+
+  beforeAll(async () => {
+    ({ app, prisma } = await createTestApp());
+  });
+
+  afterAll(async () => {
+    await app.close();
+  });
+
+  beforeEach(async () => {
+    await resetDatabase(prisma);
+  });
+
+  it('returns the current user\'s own basic profile', async () => {
+    const registerResponse = await request(app.getHttpServer()).post('/api/v1/auth/register').send({
+      fullName: 'Me Endpoint Patient',
+      mobile: '+966500000930',
+      password: 'password123',
+      role: 'PATIENT',
+    });
+    await request(app.getHttpServer())
+      .post('/api/v1/auth/verify')
+      .send({ mobile: '+966500000930', code: registerResponse.body.devOtpCode });
+    const loginResponse = await request(app.getHttpServer())
+      .post('/api/v1/auth/login')
+      .send({ mobile: '+966500000930', password: 'password123' });
+
+    const response = await request(app.getHttpServer())
+      .get('/api/v1/auth/me')
+      .set('Authorization', `Bearer ${loginResponse.body.token}`);
+
+    expect(response.status).toBe(200);
+    expect(response.body).toEqual({
+      id: registerResponse.body.userId,
+      fullName: 'Me Endpoint Patient',
+      mobile: '+966500000930',
+      role: 'PATIENT',
+      mustChangePassword: false,
+    });
+  });
+
+  it('reflects mustChangePassword: true for a staff account created with that flag set', async () => {
+    const registerResponse = await request(app.getHttpServer()).post('/api/v1/auth/register').send({
+      fullName: 'Me Endpoint Clinician',
+      mobile: '+966500000931',
+      password: 'password123',
+      role: 'PATIENT',
+    });
+    await request(app.getHttpServer())
+      .post('/api/v1/auth/verify')
+      .send({ mobile: '+966500000931', code: registerResponse.body.devOtpCode });
+    await prisma.user.update({
+      where: { mobile: '+966500000931' },
+      data: { role: 'CLINICIAN', mustChangePassword: true },
+    });
+    const loginResponse = await request(app.getHttpServer())
+      .post('/api/v1/auth/login')
+      .send({ mobile: '+966500000931', password: 'password123' });
+
+    const response = await request(app.getHttpServer())
+      .get('/api/v1/auth/me')
+      .set('Authorization', `Bearer ${loginResponse.body.token}`);
+
+    expect(response.status).toBe(200);
+    expect(response.body.role).toBe('CLINICIAN');
+    expect(response.body.mustChangePassword).toBe(true);
+  });
+
+  it('rejects a request with no bearer token', async () => {
+    const response = await request(app.getHttpServer()).get('/api/v1/auth/me');
+
+    expect(response.status).toBe(401);
+  });
+});

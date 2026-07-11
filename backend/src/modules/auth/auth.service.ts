@@ -6,7 +6,7 @@ import {
   NotFoundException,
   UnauthorizedException,
 } from '@nestjs/common';
-import { OtpPurpose, UserStatus } from '@prisma/client';
+import { OtpPurpose, Role, UserStatus } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { OtpService } from './otp.service';
 import { PasswordService } from '../../common/security/password.service';
@@ -118,6 +118,17 @@ export class AuthService {
     });
 
     return { token, expiresAt, mustChangePassword: user.mustChangePassword };
+  }
+
+  async me(userId: string): Promise<{ id: string; fullName: string; mobile: string; role: Role; mustChangePassword: boolean }> {
+    const user = await this.prisma.user.findUniqueOrThrow({ where: { id: userId } });
+    return {
+      id: user.id,
+      fullName: user.fullName,
+      mobile: user.mobile,
+      role: user.role,
+      mustChangePassword: user.mustChangePassword,
+    };
   }
 
   async changePassword(userId: string, dto: ChangePasswordDto): Promise<void> {
