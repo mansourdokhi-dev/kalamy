@@ -26,7 +26,8 @@ export function AssessmentsSection() {
 
   const [assessments, setAssessments] = useState<Assessment[] | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [selected, setSelected] = useState<Assessment | null>(null);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const selected = assessments?.find((a) => a.id === selectedId) ?? null;
   const [newType, setNewType] = useState<AssessmentType>('INITIAL');
   const [creating, setCreating] = useState(false);
 
@@ -64,7 +65,7 @@ export function AssessmentsSection() {
   }, [patient?.id]);
 
   function selectAssessment(assessment: Assessment) {
-    setSelected(assessment);
+    setSelectedId(assessment.id);
     setBaseline(null);
     setBaselineError(null);
     setMedicalHistory(assessment.medicalHistory ?? '');
@@ -200,7 +201,6 @@ export function AssessmentsSection() {
             ]}
             value={newType}
             onChange={(value) => setNewType((value as AssessmentType) ?? 'INITIAL')}
-            comboboxProps={{ keepMounted: false }}
           />
           <Button onClick={handleCreate} loading={creating}>{ar.patientDetail.newAssessmentButton}</Button>
         </Group>
@@ -250,7 +250,6 @@ export function AssessmentsSection() {
                 ]}
                 value={severityCategory}
                 onChange={(value) => setSeverityCategory((value as SeverityCategory) ?? 'MILD')}
-                comboboxProps={{ keepMounted: false }}
               />
               <Button color="green" onClick={handleApprove} loading={approving}>{ar.patientDetail.approveButton}</Button>
             </Group>

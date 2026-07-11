@@ -58,7 +58,12 @@ describe('AssessmentsSection', () => {
   });
 
   it('creates a new draft assessment and opens its intake form', async () => {
-    (listAssessments as ReturnType<typeof vi.fn>).mockResolvedValue([]);
+    // First call is the mount-time load (empty list); refreshList() after the
+    // create call reflects the backend now having the new draft in it, same
+    // as a real listAssessments endpoint would after a write.
+    (listAssessments as ReturnType<typeof vi.fn>)
+      .mockResolvedValueOnce([])
+      .mockResolvedValue([draftAssessment]);
     (createAssessment as ReturnType<typeof vi.fn>).mockResolvedValue(draftAssessment);
     renderSection();
 
@@ -72,12 +77,17 @@ describe('AssessmentsSection', () => {
   });
 
   it('approves a draft assessment with the selected severity category', async () => {
-    (listAssessments as ReturnType<typeof vi.fn>).mockResolvedValue([draftAssessment]);
+    // Mount-time load returns the draft; refreshList() after approval returns
+    // the same row updated to APPROVED, mirroring a real backend's list
+    // endpoint reflecting the prior write instead of a static mock.
+    (listAssessments as ReturnType<typeof vi.fn>)
+      .mockResolvedValueOnce([draftAssessment])
+      .mockResolvedValue([{ ...draftAssessment, status: 'APPROVED', severityCategory: 'MILD' }]);
     (approveAssessment as ReturnType<typeof vi.fn>).mockResolvedValue({ ...draftAssessment, status: 'APPROVED', severityCategory: 'MILD' });
     renderSection();
 
-    await waitFor(() => expect(screen.getByText('أولي')).toBeTruthy());
-    fireEvent.click(screen.getByText('أولي'));
+    await waitFor(() => expect(screen.getByTestId('assessment-row-assessment-1')).toBeTruthy());
+    fireEvent.click(screen.getByTestId('assessment-row-assessment-1'));
     await waitFor(() => expect(screen.getByText('اعتماد')).toBeTruthy());
     fireEvent.click(screen.getByText('اعتماد'));
 
@@ -90,9 +100,9 @@ describe('AssessmentsSection', () => {
     (listAssessments as ReturnType<typeof vi.fn>).mockResolvedValue([draftAssessment]);
     renderSection('SUPERVISOR');
 
-    await waitFor(() => expect(screen.getByText('أولي')).toBeTruthy());
+    await waitFor(() => expect(screen.getByTestId('assessment-row-assessment-1')).toBeTruthy());
     expect(screen.queryByText('تقييم جديد')).toBeNull();
-    fireEvent.click(screen.getByText('أولي'));
+    fireEvent.click(screen.getByTestId('assessment-row-assessment-1'));
     await waitFor(() => {
       expect(screen.queryByTestId('assessment-intake-form')).toBeNull();
     });
