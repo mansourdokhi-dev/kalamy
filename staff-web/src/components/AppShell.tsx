@@ -22,9 +22,7 @@ export function AppShell({ children }: { children: ReactNode }) {
             {user ? (
               <Group gap={4}>
                 <Text size="sm">{user.fullName}</Text>
-                <Text size="sm" c="dimmed">
-                  —
-                </Text>
+                <Text size="sm">—</Text>
                 <Text size="sm">{ar.shell.roles[user.role]}</Text>
               </Group>
             ) : null}
