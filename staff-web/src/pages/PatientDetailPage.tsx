@@ -4,6 +4,7 @@ import { ar } from '../copy/ar';
 import { PatientDetailProvider, usePatientDetail } from '../patients/PatientDetailContext';
 import { ProfileSection } from '../patients/ProfileSection';
 import { AssessmentsSection } from '../patients/AssessmentsSection';
+import { TreatmentPlanSection } from '../patients/TreatmentPlanSection';
 
 function PatientDetailContent() {
   const { patient, loading, error } = usePatientDetail();
@@ -25,6 +26,7 @@ function PatientDetailContent() {
       </Group>
       <ProfileSection />
       <AssessmentsSection />
+      <TreatmentPlanSection />
     </Stack>
   );
 }
