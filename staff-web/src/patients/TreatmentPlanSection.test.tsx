@@ -125,7 +125,7 @@ describe('TreatmentPlanSection', () => {
     fireEvent.submit(screen.getByTestId('phase-transition-form'));
 
     await waitFor(() => {
-      expect(transitionPhase).toHaveBeenCalledWith('patient-1', 'plan-1', { toPhase: 'PHASE_1', rationale: undefined });
+      expect(transitionPhase).toHaveBeenCalledWith('patient-1', 'plan-1', { toPhase: 'PHASE_2', rationale: undefined });
     });
   });
 

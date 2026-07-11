@@ -267,7 +267,12 @@ export function AssessmentsSection() {
             <Stack gap={4} mt="sm">
               <Text fw={600}>{ar.patientDetail.baselineComparisonTitle}</Text>
               {baseline.delta ? (
-                <Text>{ar.patientDetail.ssi4TotalLabel}: {baseline.delta.ssi4TotalDelta}</Text>
+                <>
+                  <Text>{ar.patientDetail.ssi4FrequencyLabel}: {baseline.delta.ssi4FrequencyDelta}</Text>
+                  <Text>{ar.patientDetail.ssi4DurationLabel}: {baseline.delta.ssi4DurationDelta}</Text>
+                  <Text>{ar.patientDetail.ssi4PhysicalConcomitantsLabel}: {baseline.delta.ssi4PhysicalConcomitantsDelta}</Text>
+                  <Text>{ar.patientDetail.ssi4TotalLabel}: {baseline.delta.ssi4TotalDelta}</Text>
+                </>
               ) : (
                 <Text c="dimmed">{ar.patientDetail.noBaselineYet}</Text>
               )}

@@ -31,7 +31,7 @@ export function TreatmentPlanSection() {
   const { user } = useAuth();
   const canEdit = user ? canEditClinicalData(user.role) : false;
 
-  const [activePlan, setActivePlan] = useState<TreatmentPlan | null>(null);
+  const [activePlan, setActivePlan] = useState<TreatmentPlan | null | undefined>(undefined);
   const [pastPlans, setPastPlans] = useState<TreatmentPlan[]>([]);
   const [planExercises, setPlanExercises] = useState<PlanExercise[]>([]);
   const [approvedAssessments, setApprovedAssessments] = useState<Assessment[]>([]);
@@ -67,7 +67,8 @@ export function TreatmentPlanSection() {
       setApprovedAssessments(assessments.filter((a) => a.status === 'APPROVED'));
       setCatalog(exerciseCatalog);
       if (active) {
-        setToPhase(active.phase);
+        const nextPhaseIndex = Math.min(PHASES.indexOf(active.phase) + 1, PHASES.length - 1);
+        setToPhase(PHASES[nextPhaseIndex]);
         const exercises = await listPlanExercises(patient.id, active.id);
         setPlanExercises(exercises);
       } else {
@@ -161,7 +162,7 @@ export function TreatmentPlanSection() {
 
       {error ? <Alert color="red" mb="sm">{error}</Alert> : null}
 
-      {activePlan ? (
+      {activePlan === undefined ? null : activePlan ? (
         <Stack gap="xs" mb="md">
           <Text><b>{ar.patientDetail.goalsLabel}:</b> {activePlan.goals}</Text>
           <Text><b>{ar.patientDetail.phaseLabel}:</b> {ar.patientDetail.phases[activePlan.phase]}</Text>
