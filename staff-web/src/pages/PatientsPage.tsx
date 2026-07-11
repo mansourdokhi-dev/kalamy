@@ -6,6 +6,10 @@ import { searchPatients } from '../api/patients';
 import type { PatientSearchResult } from '../api/patients';
 import { ApiError } from '../api/client';
 
+function formatDate(isoString: string): string {
+  return new Date(isoString).toLocaleDateString('ar-SA');
+}
+
 export function PatientsPage() {
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<PatientSearchResult[] | null>(null);
@@ -37,7 +41,7 @@ export function PatientsPage() {
             onChange={(e) => setQuery(e.currentTarget.value)}
             style={{ flex: 1 }}
           />
-          <Button type="submit" loading={searching}>{ar.patients.searchPlaceholder}</Button>
+          <Button type="submit" loading={searching}>{ar.patients.searchButton}</Button>
         </Group>
       </form>
 
@@ -64,7 +68,7 @@ export function PatientsPage() {
                 <Table.Td>{patient.fullName}</Table.Td>
                 <Table.Td>{patient.nationalId}</Table.Td>
                 <Table.Td>{ar.patients.genders[patient.gender]}</Table.Td>
-                <Table.Td>{patient.dateOfBirth}</Table.Td>
+                <Table.Td>{formatDate(patient.dateOfBirth)}</Table.Td>
                 <Table.Td>{ar.patients.statuses[patient.status]}</Table.Td>
               </Table.Tr>
             ))}

@@ -36,6 +36,7 @@ export const ar = {
   patients: {
     title: 'بحث عن المرضى',
     searchPlaceholder: 'ابحث بالاسم أو رقم الهوية',
+    searchButton: 'بحث',
     tableName: 'الاسم',
     tableNationalId: 'رقم الهوية',
     tableGender: 'الجنس',
