@@ -1,7 +1,8 @@
 import { useParams } from 'react-router-dom';
-import { Container, Title, Badge, Group, Loader, Alert, Stack, Text } from '@mantine/core';
+import { Container, Title, Badge, Group, Loader, Alert, Stack } from '@mantine/core';
 import { ar } from '../copy/ar';
 import { PatientDetailProvider, usePatientDetail } from '../patients/PatientDetailContext';
+import { ProfileSection } from '../patients/ProfileSection';
 
 function PatientDetailContent() {
   const { patient, loading, error } = usePatientDetail();
@@ -21,7 +22,7 @@ function PatientDetailContent() {
           {ar.patients.statuses[patient.status]}
         </Badge>
       </Group>
-      <Text c="dimmed">{patient.nationalId}</Text>
+      <ProfileSection />
     </Stack>
   );
 }
