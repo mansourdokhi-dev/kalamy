@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import type { FormEvent } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Container, Title, TextInput, Button, Table, Alert, Group, Text } from '@mantine/core';
 import { ar } from '../copy/ar';
 import { searchPatients } from '../api/patients';
@@ -11,6 +12,7 @@ function formatDate(isoString: string): string {
 }
 
 export function PatientsPage() {
+  const navigate = useNavigate();
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<PatientSearchResult[] | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -64,7 +66,11 @@ export function PatientsPage() {
           </Table.Thead>
           <Table.Tbody>
             {results.map((patient) => (
-              <Table.Tr key={patient.id}>
+              <Table.Tr
+                key={patient.id}
+                onClick={() => navigate(`/patients/${patient.id}`)}
+                style={{ cursor: 'pointer' }}
+              >
                 <Table.Td>{patient.fullName}</Table.Td>
                 <Table.Td>{patient.nationalId}</Table.Td>
                 <Table.Td>{ar.patients.genders[patient.gender]}</Table.Td>

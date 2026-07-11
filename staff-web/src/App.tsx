@@ -7,6 +7,7 @@ import { ForgotPasswordPage } from './pages/ForgotPasswordPage';
 import { ResetPasswordPage } from './pages/ResetPasswordPage';
 import { ChangePasswordPage } from './pages/ChangePasswordPage';
 import { PatientsPage } from './pages/PatientsPage';
+import { PatientDetailPage } from './pages/PatientDetailPage';
 
 export default function App() {
   return (
@@ -31,6 +32,16 @@ export default function App() {
               <RequireAuth>
                 <AppShell>
                   <PatientsPage />
+                </AppShell>
+              </RequireAuth>
+            }
+          />
+          <Route
+            path="/patients/:id"
+            element={
+              <RequireAuth>
+                <AppShell>
+                  <PatientDetailPage />
                 </AppShell>
               </RequireAuth>
             }

@@ -47,6 +47,9 @@ export const ar = {
     noResults: 'لا توجد نتائج',
     emptyState: 'ابحث عن مريض بالاسم أو رقم الهوية',
   },
+  patientDetail: {
+    loadError: 'تعذر تحميل بيانات المريض',
+  },
   errors: {
     unexpected: 'حدث خطأ غير متوقع',
   },

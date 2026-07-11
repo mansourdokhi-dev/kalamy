@@ -1,5 +1,6 @@
 import { render, screen, waitFor, fireEvent } from '@testing-library/react';
 import { MantineProvider } from '@mantine/core';
+import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { PatientsPage } from './PatientsPage';
 import { searchPatients } from '../api/patients';
 import { ApiError } from '../api/client';
@@ -14,7 +15,9 @@ describe('PatientsPage', () => {
   it('shows the empty-state prompt before any search is run', () => {
     render(
       <MantineProvider>
-        <PatientsPage />
+        <MemoryRouter>
+          <PatientsPage />
+        </MemoryRouter>
       </MantineProvider>,
     );
     expect(screen.getByText('ابحث عن مريض بالاسم أو رقم الهوية')).toBeTruthy();
@@ -35,7 +38,9 @@ describe('PatientsPage', () => {
 
     render(
       <MantineProvider>
-        <PatientsPage />
+        <MemoryRouter>
+          <PatientsPage />
+        </MemoryRouter>
       </MantineProvider>,
     );
     fireEvent.change(screen.getByPlaceholderText('ابحث بالاسم أو رقم الهوية'), { target: { value: 'محمد' } });
@@ -58,7 +63,9 @@ describe('PatientsPage', () => {
 
     render(
       <MantineProvider>
-        <PatientsPage />
+        <MemoryRouter>
+          <PatientsPage />
+        </MemoryRouter>
       </MantineProvider>,
     );
     fireEvent.change(screen.getByPlaceholderText('ابحث بالاسم أو رقم الهوية'), { target: { value: 'zzz' } });
@@ -74,7 +81,9 @@ describe('PatientsPage', () => {
 
     render(
       <MantineProvider>
-        <PatientsPage />
+        <MemoryRouter>
+          <PatientsPage />
+        </MemoryRouter>
       </MantineProvider>,
     );
     fireEvent.change(screen.getByPlaceholderText('ابحث بالاسم أو رقم الهوية'), { target: { value: 'a' } });
@@ -82,6 +91,40 @@ describe('PatientsPage', () => {
 
     await waitFor(() => {
       expect(screen.getByText('Something broke')).toBeTruthy();
+    });
+  });
+
+  it('navigates to the patient detail page when a row is clicked', async () => {
+    (searchPatients as ReturnType<typeof vi.fn>).mockResolvedValue([
+      {
+        id: 'patient-42',
+        fullName: 'خالد القحطاني',
+        nationalId: '9998887770',
+        gender: 'MALE',
+        dateOfBirth: '1988-01-01T00:00:00.000Z',
+        status: 'ACTIVE',
+      },
+    ]);
+
+    render(
+      <MantineProvider>
+        <MemoryRouter initialEntries={['/patients']}>
+          <Routes>
+            <Route path="/patients" element={<PatientsPage />} />
+            <Route path="/patients/:id" element={<div>patient detail page</div>} />
+          </Routes>
+        </MemoryRouter>
+      </MantineProvider>,
+    );
+    fireEvent.change(screen.getByPlaceholderText('ابحث بالاسم أو رقم الهوية'), { target: { value: 'خالد' } });
+    fireEvent.submit(screen.getByTestId('patient-search-form'));
+
+    await waitFor(() => {
+      expect(screen.getByText('خالد القحطاني')).toBeTruthy();
+    });
+    fireEvent.click(screen.getByText('خالد القحطاني'));
+    await waitFor(() => {
+      expect(screen.getByText('patient detail page')).toBeTruthy();
     });
   });
 });
