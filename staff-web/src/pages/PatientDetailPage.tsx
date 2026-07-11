@@ -3,6 +3,7 @@ import { Container, Title, Badge, Group, Loader, Alert, Stack } from '@mantine/c
 import { ar } from '../copy/ar';
 import { PatientDetailProvider, usePatientDetail } from '../patients/PatientDetailContext';
 import { ProfileSection } from '../patients/ProfileSection';
+import { AssessmentsSection } from '../patients/AssessmentsSection';
 
 function PatientDetailContent() {
   const { patient, loading, error } = usePatientDetail();
@@ -23,6 +24,7 @@ function PatientDetailContent() {
         </Badge>
       </Group>
       <ProfileSection />
+      <AssessmentsSection />
     </Stack>
   );
 }
