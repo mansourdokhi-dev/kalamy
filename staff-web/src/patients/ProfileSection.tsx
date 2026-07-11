@@ -29,6 +29,9 @@ export function ProfileSection() {
   const [linkingGuardian, setLinkingGuardian] = useState(false);
   const [guardianError, setGuardianError] = useState<string | null>(null);
 
+  const [togglingStatus, setTogglingStatus] = useState(false);
+  const [statusError, setStatusError] = useState<string | null>(null);
+
   if (!patient) {
     return null;
   }
@@ -72,9 +75,17 @@ export function ProfileSection() {
   }
 
   async function toggleStatus() {
-    const nextStatus = currentPatient.status === 'ACTIVE' ? 'DISABLED' : 'ACTIVE';
-    await updatePatientStatus(currentPatient.id, nextStatus);
-    await refresh();
+    setStatusError(null);
+    setTogglingStatus(true);
+    try {
+      const nextStatus = currentPatient.status === 'ACTIVE' ? 'DISABLED' : 'ACTIVE';
+      await updatePatientStatus(currentPatient.id, nextStatus);
+      await refresh();
+    } catch (err) {
+      setStatusError(err instanceof ApiError ? err.message : ar.errors.unexpected);
+    } finally {
+      setTogglingStatus(false);
+    }
   }
 
   async function handleLinkGuardian(event: FormEvent) {
@@ -127,12 +138,15 @@ export function ProfileSection() {
           <Text><b>{ar.patientDetail.allergiesLabel}:</b> {patient.clinicalInfo?.allergies ?? '—'}</Text>
           <Text><b>{ar.patientDetail.familyHistoryLabel}:</b> {patient.clinicalInfo?.familyHistory ?? '—'}</Text>
           {canEdit ? (
-            <Group mt="sm">
-              <Button onClick={startEditing}>{ar.patientDetail.editButton}</Button>
-              <Button color={patient.status === 'ACTIVE' ? 'red' : 'green'} variant="outline" onClick={toggleStatus}>
-                {patient.status === 'ACTIVE' ? ar.patientDetail.disableButton : ar.patientDetail.enableButton}
-              </Button>
-            </Group>
+            <>
+              {statusError ? <Alert color="red">{statusError}</Alert> : null}
+              <Group mt="sm">
+                <Button onClick={startEditing}>{ar.patientDetail.editButton}</Button>
+                <Button color={patient.status === 'ACTIVE' ? 'red' : 'green'} variant="outline" onClick={toggleStatus} loading={togglingStatus}>
+                  {patient.status === 'ACTIVE' ? ar.patientDetail.disableButton : ar.patientDetail.enableButton}
+                </Button>
+              </Group>
+            </>
           ) : null}
         </Stack>
       )}
