@@ -661,3 +661,159 @@ describe('Patients: disable and search', () => {
     expect(response.status).toBe(403);
   });
 });
+
+describe('Patients: edit clinical info', () => {
+  let app: INestApplication;
+  let prisma: PrismaService;
+
+  beforeAll(async () => {
+    ({ app, prisma } = await createTestApp());
+  });
+
+  afterAll(async () => {
+    await app.close();
+  });
+
+  beforeEach(async () => {
+    await resetDatabase(prisma);
+  });
+
+  async function loginAs(mobile: string, password: string): Promise<string> {
+    const response = await request(app.getHttpServer()).post('/api/v1/auth/login').send({ mobile, password });
+    return response.body.token;
+  }
+
+  async function registerActivateAndLogin(mobile: string, password: string, role: 'PATIENT' | 'CAREGIVER') {
+    const registerResponse = await request(app.getHttpServer()).post('/api/v1/auth/register').send({
+      fullName: 'Test User',
+      mobile,
+      password,
+      role,
+    });
+    await request(app.getHttpServer())
+      .post('/api/v1/auth/verify')
+      .send({ mobile, code: registerResponse.body.devOtpCode });
+    return { token: await loginAs(mobile, password), userId: registerResponse.body.userId };
+  }
+
+  async function createClinicianToken(mobile: string, password: string): Promise<string> {
+    const registerResponse = await request(app.getHttpServer()).post('/api/v1/auth/register').send({
+      fullName: 'Clinician User',
+      mobile,
+      password,
+      role: 'PATIENT',
+    });
+    await request(app.getHttpServer())
+      .post('/api/v1/auth/verify')
+      .send({ mobile, code: registerResponse.body.devOtpCode });
+    await prisma.user.update({ where: { mobile }, data: { role: 'CLINICIAN' } });
+    return loginAs(mobile, password);
+  }
+
+  it('lets a CLINICIAN add clinical info to a patient who has none yet', async () => {
+    const clinicianToken = await createClinicianToken('+966500000120', 'password123');
+    const patient = await registerActivateAndLogin('+966500000121', 'password123', 'PATIENT');
+
+    const createResponse = await request(app.getHttpServer())
+      .post('/api/v1/patients')
+      .set('Authorization', `Bearer ${clinicianToken}`)
+      .send({
+        userId: patient.userId,
+        fullName: 'No Clinical Info Yet',
+        gender: 'MALE',
+        dateOfBirth: '1990-05-01',
+        nationalId: 'CLINICAL-INFO-1',
+      });
+    const profileId = createResponse.body.id;
+    expect(createResponse.body.clinicalInfo).toBeNull();
+
+    const updateResponse = await request(app.getHttpServer())
+      .put(`/api/v1/patients/${profileId}`)
+      .set('Authorization', `Bearer ${clinicianToken}`)
+      .send({ clinicalInfo: { initialDiagnosis: 'Moderate stutter', allergies: 'None known' } });
+
+    expect(updateResponse.status).toBe(200);
+    expect(updateResponse.body.clinicalInfo.initialDiagnosis).toBe('Moderate stutter');
+    expect(updateResponse.body.clinicalInfo.allergies).toBe('None known');
+  });
+
+  it('updates only the provided clinical-info fields without clearing the others', async () => {
+    const clinicianToken = await createClinicianToken('+966500000122', 'password123');
+    const patient = await registerActivateAndLogin('+966500000123', 'password123', 'PATIENT');
+
+    const createResponse = await request(app.getHttpServer())
+      .post('/api/v1/patients')
+      .set('Authorization', `Bearer ${clinicianToken}`)
+      .send({
+        userId: patient.userId,
+        fullName: 'Has Clinical Info',
+        gender: 'MALE',
+        dateOfBirth: '1990-05-01',
+        nationalId: 'CLINICAL-INFO-2',
+        clinicalInfo: { initialDiagnosis: 'Original diagnosis', medications: 'Original meds' },
+      });
+    const profileId = createResponse.body.id;
+
+    const updateResponse = await request(app.getHttpServer())
+      .put(`/api/v1/patients/${profileId}`)
+      .set('Authorization', `Bearer ${clinicianToken}`)
+      .send({ clinicalInfo: { medications: 'Updated meds' } });
+
+    expect(updateResponse.status).toBe(200);
+    expect(updateResponse.body.clinicalInfo.medications).toBe('Updated meds');
+    expect(updateResponse.body.clinicalInfo.initialDiagnosis).toBe('Original diagnosis');
+  });
+
+  it('forbids a CAREGIVER from editing clinical info', async () => {
+    const clinicianToken = await createClinicianToken('+966500000124', 'password123');
+    const minor = await registerActivateAndLogin('+966500000125', 'password123', 'PATIENT');
+    const guardian = await registerActivateAndLogin('+966500000126', 'password123', 'CAREGIVER');
+
+    const createResponse = await request(app.getHttpServer())
+      .post('/api/v1/patients')
+      .set('Authorization', `Bearer ${clinicianToken}`)
+      .send({
+        userId: minor.userId,
+        fullName: 'Guarded Minor',
+        gender: 'FEMALE',
+        dateOfBirth: '2015-05-01',
+        nationalId: 'CLINICAL-INFO-3',
+        guardianUserId: guardian.userId,
+      });
+    const profileId = createResponse.body.id;
+
+    const updateResponse = await request(app.getHttpServer())
+      .put(`/api/v1/patients/${profileId}`)
+      .set('Authorization', `Bearer ${guardian.token}`)
+      .send({ clinicalInfo: { initialDiagnosis: 'Should not be allowed' } });
+
+    expect(updateResponse.status).toBe(403);
+  });
+
+  it('still lets a CAREGIVER update basic fields without clinicalInfo', async () => {
+    const clinicianToken = await createClinicianToken('+966500000127', 'password123');
+    const minor = await registerActivateAndLogin('+966500000128', 'password123', 'PATIENT');
+    const guardian = await registerActivateAndLogin('+966500000129', 'password123', 'CAREGIVER');
+
+    const createResponse = await request(app.getHttpServer())
+      .post('/api/v1/patients')
+      .set('Authorization', `Bearer ${clinicianToken}`)
+      .send({
+        userId: minor.userId,
+        fullName: 'Guarded Minor Two',
+        gender: 'FEMALE',
+        dateOfBirth: '2015-05-01',
+        nationalId: 'CLINICAL-INFO-4',
+        guardianUserId: guardian.userId,
+      });
+    const profileId = createResponse.body.id;
+
+    const updateResponse = await request(app.getHttpServer())
+      .put(`/api/v1/patients/${profileId}`)
+      .set('Authorization', `Bearer ${guardian.token}`)
+      .send({ address: 'Jeddah, Saudi Arabia' });
+
+    expect(updateResponse.status).toBe(200);
+    expect(updateResponse.body.address).toBe('Jeddah, Saudi Arabia');
+  });
+});

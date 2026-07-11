@@ -116,12 +116,24 @@ export class PatientsService {
     }
     await this.assertCanAccess(actor, profile);
 
+    if (dto.clinicalInfo && actor.role !== Role.CLINICIAN && actor.role !== Role.ADMIN) {
+      throw new ForbiddenException('Only clinical staff can edit clinical information');
+    }
+
     return this.prisma.patientProfile.update({
       where: { id },
       data: {
         fullName: dto.fullName,
         address: dto.address,
         referralSource: dto.referralSource,
+        clinicalInfo: dto.clinicalInfo
+          ? {
+              upsert: {
+                create: dto.clinicalInfo,
+                update: dto.clinicalInfo,
+              },
+            }
+          : undefined,
       },
       include: { clinicalInfo: true },
     });
