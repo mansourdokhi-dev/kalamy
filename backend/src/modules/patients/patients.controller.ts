@@ -27,6 +27,12 @@ export class PatientsController {
     return this.patientsService.findMine(user);
   }
 
+  @Get('lookup-caregiver')
+  @RequirePermission(Permission.LINK_GUARDIAN)
+  lookupCaregiver(@Query('mobile') mobile?: string) {
+    return this.patientsService.lookupCaregiverByMobile(mobile);
+  }
+
   @Get(':id')
   @RequirePermission(Permission.VIEW_PATIENT_PROFILE)
   findOne(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {

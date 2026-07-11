@@ -846,3 +846,95 @@ describe('Patients: edit clinical info', () => {
     expect(updateResponse.body.address).toBe('Jeddah, Saudi Arabia');
   });
 });
+
+describe('Patients: lookup caregiver by mobile', () => {
+  let app: INestApplication;
+  let prisma: PrismaService;
+
+  beforeAll(async () => {
+    ({ app, prisma } = await createTestApp());
+  });
+
+  afterAll(async () => {
+    await app.close();
+  });
+
+  beforeEach(async () => {
+    await resetDatabase(prisma);
+  });
+
+  async function loginAs(mobile: string, password: string): Promise<string> {
+    const response = await request(app.getHttpServer()).post('/api/v1/auth/login').send({ mobile, password });
+    return response.body.token;
+  }
+
+  async function registerActivateAndLogin(mobile: string, password: string, role: 'PATIENT' | 'CAREGIVER') {
+    const registerResponse = await request(app.getHttpServer()).post('/api/v1/auth/register').send({
+      fullName: 'Caregiver Lookup Target',
+      mobile,
+      password,
+      role,
+    });
+    await request(app.getHttpServer())
+      .post('/api/v1/auth/verify')
+      .send({ mobile, code: registerResponse.body.devOtpCode });
+    return { token: await loginAs(mobile, password), userId: registerResponse.body.userId };
+  }
+
+  async function createClinicianToken(mobile: string, password: string): Promise<string> {
+    const registerResponse = await request(app.getHttpServer()).post('/api/v1/auth/register').send({
+      fullName: 'Clinician User',
+      mobile,
+      password,
+      role: 'PATIENT',
+    });
+    await request(app.getHttpServer())
+      .post('/api/v1/auth/verify')
+      .send({ mobile, code: registerResponse.body.devOtpCode });
+    await prisma.user.update({ where: { mobile }, data: { role: 'CLINICIAN' } });
+    return loginAs(mobile, password);
+  }
+
+  it('resolves a caregiver mobile number to their userId and name', async () => {
+    const clinicianToken = await createClinicianToken('+966500000130', 'password123');
+    const caregiver = await registerActivateAndLogin('+966500000131', 'password123', 'CAREGIVER');
+
+    const response = await request(app.getHttpServer())
+      .get('/api/v1/patients/lookup-caregiver?mobile=%2B966500000131')
+      .set('Authorization', `Bearer ${clinicianToken}`);
+
+    expect(response.status).toBe(200);
+    expect(response.body).toEqual({ userId: caregiver.userId, fullName: 'Caregiver Lookup Target' });
+  });
+
+  it('returns 404 when no user has that mobile number', async () => {
+    const clinicianToken = await createClinicianToken('+966500000132', 'password123');
+
+    const response = await request(app.getHttpServer())
+      .get('/api/v1/patients/lookup-caregiver?mobile=%2B966500000199')
+      .set('Authorization', `Bearer ${clinicianToken}`);
+
+    expect(response.status).toBe(404);
+  });
+
+  it('returns 404 when the mobile number belongs to a non-caregiver', async () => {
+    const clinicianToken = await createClinicianToken('+966500000133', 'password123');
+    await registerActivateAndLogin('+966500000134', 'password123', 'PATIENT');
+
+    const response = await request(app.getHttpServer())
+      .get('/api/v1/patients/lookup-caregiver?mobile=%2B966500000134')
+      .set('Authorization', `Bearer ${clinicianToken}`);
+
+    expect(response.status).toBe(404);
+  });
+
+  it('rejects a PATIENT trying to look up a caregiver', async () => {
+    const patient = await registerActivateAndLogin('+966500000135', 'password123', 'PATIENT');
+
+    const response = await request(app.getHttpServer())
+      .get('/api/v1/patients/lookup-caregiver?mobile=%2B966500000131')
+      .set('Authorization', `Bearer ${patient.token}`);
+
+    expect(response.status).toBe(403);
+  });
+});

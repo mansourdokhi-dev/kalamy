@@ -170,6 +170,17 @@ export class PatientsService {
     throw new ForbiddenException('Access denied');
   }
 
+  async lookupCaregiverByMobile(mobile: string | undefined): Promise<{ userId: string; fullName: string }> {
+    if (!mobile) {
+      throw new BadRequestException('mobile query parameter is required');
+    }
+    const user = await this.prisma.user.findUnique({ where: { mobile } });
+    if (!user || user.role !== Role.CAREGIVER) {
+      throw new NotFoundException('No caregiver found with this mobile number');
+    }
+    return { userId: user.id, fullName: user.fullName };
+  }
+
   async linkGuardian(patientProfileId: string, dto: LinkGuardianDto): Promise<GuardianLink> {
     const profile = await this.prisma.patientProfile.findUnique({ where: { id: patientProfileId } });
     if (!profile) {
