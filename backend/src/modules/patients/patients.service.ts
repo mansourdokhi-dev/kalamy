@@ -1,5 +1,5 @@
 import { BadRequestException, ConflictException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
-import { GuardianLink, PatientProfile, Role } from '@prisma/client';
+import { Gender, GuardianLink, PatientProfile, PatientProfileStatus, Role } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { calculateAge } from './patient-age.util';
 import { CreatePatientDto } from './dto/create-patient.dto';
@@ -7,6 +7,15 @@ import { UpdatePatientDto } from './dto/update-patient.dto';
 import { LinkGuardianDto } from './dto/link-guardian.dto';
 import { UpdateStatusDto } from './dto/update-status.dto';
 import { AuthenticatedUser } from '../../common/auth/session.guard';
+
+export interface PatientSearchResult {
+  id: string;
+  fullName: string;
+  nationalId: string;
+  gender: Gender;
+  dateOfBirth: Date;
+  status: PatientProfileStatus;
+}
 
 @Injectable()
 export class PatientsService {
@@ -199,14 +208,21 @@ export class PatientsService {
     });
   }
 
-  async search(query: string | undefined): Promise<PatientProfile[]> {
+  async search(query: string | undefined): Promise<PatientSearchResult[]> {
     return this.prisma.patientProfile.findMany({
       where: query
         ? {
             OR: [{ fullName: { contains: query, mode: 'insensitive' } }, { nationalId: { contains: query } }],
           }
         : undefined,
-      include: { clinicalInfo: true },
+      select: {
+        id: true,
+        fullName: true,
+        nationalId: true,
+        gender: true,
+        dateOfBirth: true,
+        status: true,
+      },
       take: 50,
     });
   }

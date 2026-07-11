@@ -651,6 +651,35 @@ describe('Patients: disable and search', () => {
     expect(response.body[0].fullName).toBe('Findable Patient Name');
   });
 
+  it('does not include clinical info in search results', async () => {
+    const clinicianToken = await createClinicianToken('+966500000117', 'password123');
+    const patient = await registerActivateAndLogin('+966500000118', 'password123', 'PATIENT');
+
+    await request(app.getHttpServer())
+      .post('/api/v1/patients')
+      .set('Authorization', `Bearer ${clinicianToken}`)
+      .send({
+        userId: patient.userId,
+        fullName: 'Findable Clinical Patient',
+        gender: 'MALE',
+        dateOfBirth: '1990-05-01',
+        nationalId: 'SEARCH-CLINICAL-1',
+        clinicalInfo: { initialDiagnosis: 'Should not leak into search results' },
+      });
+
+    const response = await request(app.getHttpServer())
+      .get('/api/v1/patients?q=Findable Clinical')
+      .set('Authorization', `Bearer ${clinicianToken}`);
+
+    expect(response.status).toBe(200);
+    expect(response.body).toHaveLength(1);
+    expect(response.body[0].fullName).toBe('Findable Clinical Patient');
+    expect(response.body[0].clinicalInfo).toBeUndefined();
+    expect(Object.keys(response.body[0]).sort()).toEqual(
+      ['dateOfBirth', 'fullName', 'gender', 'id', 'nationalId', 'status'].sort(),
+    );
+  });
+
   it('rejects a PATIENT trying to search', async () => {
     const patient = await registerActivateAndLogin('+966500000116', 'password123', 'PATIENT');
 
