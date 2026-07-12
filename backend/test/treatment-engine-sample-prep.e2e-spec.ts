@@ -283,4 +283,77 @@ describe('Treatment Engine — Sample preparation (e2e)', () => {
     expect(finalCount).toBe(10);
     expect(finalCount).toBeLessThanOrEqual(10);
   });
+
+  describe('sample-session upload', () => {
+    let patientId: string;
+    let patientToken: string;
+
+    beforeEach(async () => {
+      const clinicianToken = await registerAndLogin(app, prisma, '+966500002300', 'CLINICIAN');
+      patientToken = await registerAndLogin(app, prisma, '+966500002301', null);
+      void clinicianToken;
+
+      const patientProfile = await prisma.patientProfile.create({
+        data: {
+          userId: (await prisma.user.findUniqueOrThrow({ where: { mobile: '+966500002301' } })).id,
+          fullName: 'Sample Upload Test Patient',
+          gender: 'MALE',
+          dateOfBirth: new Date('2000-01-01'),
+          nationalId: 'SAMPLE-UPLOAD-TEST-1',
+        },
+      });
+      patientId = patientProfile.id;
+
+      const assessment = await prisma.assessment.create({
+        data: {
+          patientProfileId: patientProfile.id,
+          clinicianUserId: (await prisma.user.findUniqueOrThrow({ where: { mobile: '+966500002300' } })).id,
+          type: 'INITIAL',
+          status: 'APPROVED',
+        },
+      });
+      const plan = await prisma.treatmentPlan.create({
+        data: { patientProfileId: patientProfile.id, clinicianUserId: assessment.clinicianUserId, assessmentId: assessment.id, goals: 'g', reviewDate: new Date() },
+      });
+      const level = await prisma.level.create({ data: { name: 'Level 1', order: 1 } });
+      await prisma.levelVersion.create({
+        data: {
+          levelId: level.id,
+          versionNumber: 1,
+          behavioralTechnique: 'x',
+          trainingListJson: '[]',
+          samplePartTemplateJson: '[]',
+          publishedAt: new Date(),
+        },
+      });
+
+      await request(app.getHttpServer())
+        .post(`/api/v1/patients/${patientId}/cycles/start`)
+        .set('Authorization', `Bearer ${patientToken}`)
+        .send({ treatmentPlanId: plan.id })
+        .expect(201);
+    });
+
+    it('accepts a video file upload and returns url, mimeType, and fileSizeBytes', async () => {
+      const response = await request(app.getHttpServer())
+        .post(`/api/v1/patients/${patientId}/cycles/current/sample-session/upload`)
+        .set('Authorization', `Bearer ${patientToken}`)
+        .attach('audio', Buffer.from('fake mp4 bytes'), { filename: 'clip.mp4', contentType: 'video/mp4' });
+
+      expect(response.status).toBe(201);
+      expect(response.body.mimeType).toBe('video/mp4');
+      expect(response.body.fileSizeBytes).toBeGreaterThan(0);
+      expect(response.body.url).toMatch(/\.mp4$/);
+      expect(response.body.url).not.toMatch(/^https?:\/\//);
+    });
+
+    it('rejects a non-video file upload', async () => {
+      const response = await request(app.getHttpServer())
+        .post(`/api/v1/patients/${patientId}/cycles/current/sample-session/upload`)
+        .set('Authorization', `Bearer ${patientToken}`)
+        .attach('audio', Buffer.from('not a video'), { filename: 'notes.txt', contentType: 'text/plain' });
+
+      expect(response.status).toBe(400);
+    });
+  });
 });

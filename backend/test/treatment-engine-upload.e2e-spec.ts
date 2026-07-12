@@ -90,26 +90,28 @@ describe('Treatment Engine — Sample upload (e2e)', () => {
     return { patientProfile, patientToken };
   }
 
-  it('accepts an audio file upload and returns a servable URL', async () => {
+  it('accepts a video file upload and returns a bare storage key', async () => {
     const { patientProfile, patientToken } = await seedPatientReadyForSample('+966500003000', '+966500003001');
 
     const res = await request(app.getHttpServer())
       .post(`/api/v1/patients/${patientProfile.id}/cycles/current/sample-session/upload`)
       .set('Authorization', `Bearer ${patientToken}`)
-      .attach('audio', Buffer.from('fake-audio-bytes'), { filename: 'test.m4a', contentType: 'audio/m4a' })
+      .attach('audio', Buffer.from('fake-video-bytes'), { filename: 'test.mp4', contentType: 'video/mp4' })
       .expect(201);
 
-    expect(res.body.url).toContain('/uploads/audio/');
-    expect(res.body.url).toMatch(/\.m4a$/);
+    expect(res.body.url).not.toMatch(/^https?:\/\//);
+    expect(res.body.url).toMatch(/\.mp4$/);
+    expect(res.body.mimeType).toBe('video/mp4');
+    expect(res.body.fileSizeBytes).toBeGreaterThan(0);
   });
 
-  it('rejects a non-audio file with 400', async () => {
+  it('rejects a non-video file with 400', async () => {
     const { patientProfile, patientToken } = await seedPatientReadyForSample('+966500003100', '+966500003101');
 
     await request(app.getHttpServer())
       .post(`/api/v1/patients/${patientProfile.id}/cycles/current/sample-session/upload`)
       .set('Authorization', `Bearer ${patientToken}`)
-      .attach('audio', Buffer.from('not audio'), { filename: 'test.txt', contentType: 'text/plain' })
+      .attach('audio', Buffer.from('not video'), { filename: 'test.txt', contentType: 'text/plain' })
       .expect(400);
   });
 
@@ -119,7 +121,7 @@ describe('Treatment Engine — Sample upload (e2e)', () => {
     await request(app.getHttpServer())
       .post('/api/v1/patients/00000000-0000-0000-0000-000000000000/cycles/current/sample-session/upload')
       .set('Authorization', `Bearer ${patientToken}`)
-      .attach('audio', Buffer.from('fake-audio-bytes'), { filename: 'test.m4a', contentType: 'audio/m4a' })
+      .attach('audio', Buffer.from('fake-video-bytes'), { filename: 'test.mp4', contentType: 'video/mp4' })
       .expect(404);
   });
 });

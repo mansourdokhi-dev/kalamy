@@ -1,10 +1,8 @@
-import { BadRequestException, Body, Controller, Delete, Get, Param, Post, Req, UploadedFile, UseGuards, UseInterceptors } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Delete, Get, Param, Post, UploadedFile, UseGuards, UseInterceptors } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { diskStorage } from 'multer';
 import { randomUUID } from 'crypto';
-import { extname, join } from 'path';
-import { mkdirSync } from 'fs';
-import type { Request } from 'express';
+import { extname } from 'path';
 import { SamplesService } from './samples.service';
 import { TrainingCyclesService } from './training-cycles.service';
 import { SessionGuard, AuthenticatedUser } from '../../common/auth/session.guard';
@@ -15,14 +13,32 @@ import { Permission } from '../../common/rbac/permissions';
 import { RecordAttemptDto } from './dto/record-attempt.dto';
 import { SubmitSampleDto } from './dto/submit-sample.dto';
 import { RerecordPartsDto } from './dto/rerecord-parts.dto';
+import { MediaStorageService } from './media-storage/media-storage.service';
 
 @Controller('api/v1/patients/:patientId/cycles/current/sample-session')
 @UseGuards(SessionGuard, PermissionsGuard)
 export class SamplesController {
+  // Multer's diskStorage `destination` callback runs outside Nest's request
+  // DI context (it's invoked directly by the underlying storage engine, not
+  // by Nest's interceptor pipeline) and is wired up via decorator metadata
+  // evaluated once at class-definition time, before any controller instance
+  // exists — so it cannot close over `this` or use constructor injection.
+  // `req.app.get(token)` does not help either: `req.app` is the raw Express
+  // instance, and its `.get()` is Express's app-settings getter, not Nest's
+  // DI resolver (verified: it returns `undefined` for a class token).
+  // SamplesController is a default (singleton) provider, so its constructor
+  // runs once per application instance, before any request is handled;
+  // stashing the resolved instance on this static field makes it safely
+  // available to the callback below.
+  private static mediaStorageServiceInstance: MediaStorageService;
+
   constructor(
     private readonly samplesService: SamplesService,
     private readonly trainingCyclesService: TrainingCyclesService,
-  ) {}
+    private readonly mediaStorageService: MediaStorageService,
+  ) {
+    SamplesController.mediaStorageServiceInstance = mediaStorageService;
+  }
 
   @Post()
   @RequirePermission(Permission.PREPARE_SAMPLE)
@@ -37,18 +53,16 @@ export class SamplesController {
     FileInterceptor('audio', {
       storage: diskStorage({
         destination: (_req, _file, cb) => {
-          const dir = join(process.cwd(), 'uploads', 'audio');
-          mkdirSync(dir, { recursive: true });
-          cb(null, dir);
+          cb(null, SamplesController.mediaStorageServiceInstance.getUploadDir());
         },
         filename: (_req, file, cb) => {
           cb(null, `${randomUUID()}${extname(file.originalname)}`);
         },
       }),
-      limits: { fileSize: 10 * 1024 * 1024 },
+      limits: { fileSize: 100 * 1024 * 1024 },
       fileFilter: (_req, file, cb) => {
-        if (!file.mimetype.startsWith('audio/')) {
-          cb(new BadRequestException('Only audio files are accepted'), false);
+        if (!file.mimetype.startsWith('video/')) {
+          cb(new BadRequestException('Only video files are accepted'), false);
           return;
         }
         cb(null, true);
@@ -58,14 +72,13 @@ export class SamplesController {
   async uploadRecording(
     @Param('patientId') patientId: string,
     @UploadedFile() file: Express.Multer.File,
-    @Req() req: Request,
     @CurrentUser() user: AuthenticatedUser,
   ) {
     await this.trainingCyclesService.getCurrent(patientId, user);
     if (!file) {
-      throw new BadRequestException('No audio file provided');
+      throw new BadRequestException('No video file provided');
     }
-    return { url: `${req.protocol}://${req.get('host')}/uploads/audio/${file.filename}` };
+    return { url: file.filename, mimeType: file.mimetype, fileSizeBytes: file.size };
   }
 
   @Post('attempts')
