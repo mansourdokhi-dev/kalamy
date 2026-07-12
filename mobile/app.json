@@ -36,7 +36,16 @@
           "enableBackgroundRecording": false,
           "enableBackgroundPlayback": false
         }
-      ]
+      ],
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "يحتاج كلامي إلى الوصول إلى الكاميرا لتسجيل عينتك المرئية.",
+          "microphonePermission": "يحتاج كلامي إلى الوصول إلى الميكروفون لتسجيل عينتك المرئية.",
+          "recordAudioAndroid": true
+        }
+      ],
+      "expo-video"
     ]
   }
 }
