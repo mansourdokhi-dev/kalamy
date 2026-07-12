@@ -58,7 +58,7 @@ export class SamplesService {
       }
 
       const attempt = await tx.sampleAttempt.create({
-        data: { sampleSessionId: session.id, attemptNumber: totalAttemptsIncludingDeleted + 1, recordingUrl: dto.recordingUrl },
+        data: { sampleSessionId: session.id, attemptNumber: totalAttemptsIncludingDeleted + 1, recordingUrl: dto.recordingUrl, mimeType: 'video/mp4', fileSizeBytes: 0 },
       });
       await tx.sampleSession.update({ where: { id: session.id }, data: { attemptsUsed: totalAttemptsIncludingDeleted + 1 } });
       return { exhausted: false as const, attempt };
