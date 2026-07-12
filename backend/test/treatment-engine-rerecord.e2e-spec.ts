@@ -66,11 +66,12 @@ describe('Treatment Engine — Resubmit after technical re-record (e2e)', () => 
       data: { speechSampleId: sample.id, partType: 'كلمة', label: 'كلمة 1', order: 2, technicallyDamaged: false, recordingUrl: 'https://example.com/untouched.mp4' },
     });
 
-    await request(app.getHttpServer())
+    const rerecordRes = await request(app.getHttpServer())
       .post(`/api/v1/patients/${profile.id}/cycles/current/sample-session/rerecord`)
       .set('Authorization', `Bearer ${patientToken}`)
-      .send({ parts: [{ id: damagedPart.id, recordingUrl: 'https://example.com/fixed.mp4' }] })
+      .send({ parts: [{ id: damagedPart.id, recordingUrl: 'clip-4.mp4', mimeType: 'video/mp4', fileSizeBytes: 300000, durationSeconds: 15 }] })
       .expect(201);
+    expect(rerecordRes.body.parts.find((p: any) => p.id === damagedPart.id).mimeType).toBe('video/mp4');
 
     const cycleRes = await request(app.getHttpServer())
       .get(`/api/v1/patients/${profile.id}/cycles/current`)
@@ -80,7 +81,10 @@ describe('Treatment Engine — Resubmit after technical re-record (e2e)', () => 
 
     const fixedPart = await prisma.sampleSamplePart.findUniqueOrThrow({ where: { id: damagedPart.id } });
     expect(fixedPart.technicallyDamaged).toBe(false);
-    expect(fixedPart.recordingUrl).toBe('https://example.com/fixed.mp4');
+    expect(fixedPart.recordingUrl).toBe('clip-4.mp4');
+    expect(fixedPart.mimeType).toBe('video/mp4');
+    expect(fixedPart.fileSizeBytes).toBe(300000);
+    expect(fixedPart.durationSeconds).toBe(15);
     const stillUntouchedPart = await prisma.sampleSamplePart.findUniqueOrThrow({ where: { id: untouchedPart.id } });
     expect(stillUntouchedPart.recordingUrl).toBe('https://example.com/untouched.mp4');
 
@@ -135,7 +139,7 @@ describe('Treatment Engine — Resubmit after technical re-record (e2e)', () => 
     await request(app.getHttpServer())
       .post(`/api/v1/patients/${profile.id}/cycles/current/sample-session/rerecord`)
       .set('Authorization', `Bearer ${patientToken}`)
-      .send({ parts: [{ id: part1.id, recordingUrl: 'https://example.com/fixed.mp4' }] })
+      .send({ parts: [{ id: part1.id, recordingUrl: 'fixed.mp4', mimeType: 'video/mp4', fileSizeBytes: 300000, durationSeconds: 15 }] })
       .expect(409);
   });
 
@@ -184,8 +188,8 @@ describe('Treatment Engine — Resubmit after technical re-record (e2e)', () => 
       .set('Authorization', `Bearer ${patientToken}`)
       .send({
         parts: [
-          { id: damagedPart.id, recordingUrl: 'https://example.com/fixed.mp4' },
-          { id: alreadyFinePart.id, recordingUrl: 'https://example.com/fine-override.mp4' },
+          { id: damagedPart.id, recordingUrl: 'fixed.mp4', mimeType: 'video/mp4', fileSizeBytes: 300000, durationSeconds: 15 },
+          { id: alreadyFinePart.id, recordingUrl: 'fine-override.mp4', mimeType: 'video/mp4', fileSizeBytes: 300000, durationSeconds: 15 },
         ],
       })
       .expect(404);

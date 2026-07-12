@@ -58,7 +58,14 @@ export class SamplesService {
       }
 
       const attempt = await tx.sampleAttempt.create({
-        data: { sampleSessionId: session.id, attemptNumber: totalAttemptsIncludingDeleted + 1, recordingUrl: dto.recordingUrl, mimeType: 'video/mp4', fileSizeBytes: 0 },
+        data: {
+          sampleSessionId: session.id,
+          attemptNumber: totalAttemptsIncludingDeleted + 1,
+          recordingUrl: dto.recordingUrl,
+          mimeType: dto.mimeType,
+          fileSizeBytes: dto.fileSizeBytes,
+          durationSeconds: dto.durationSeconds,
+        },
       });
       await tx.sampleSession.update({ where: { id: session.id }, data: { attemptsUsed: totalAttemptsIncludingDeleted + 1 } });
       return { exhausted: false as const, attempt };
@@ -126,13 +133,19 @@ export class SamplesService {
           clientOpinionScore: dto.clientOpinionScore,
           submittedAt: new Date(),
           parts: {
-            create: dto.parts.map((part) => ({
-              partType: part.partType,
-              label: part.label,
-              order: part.order,
-              sourceAttemptId: part.sourceAttemptId,
-              recordingUrl: attemptsById.get(part.sourceAttemptId)!.recordingUrl,
-            })),
+            create: dto.parts.map((part) => {
+              const sourceAttempt = attemptsById.get(part.sourceAttemptId)!;
+              return {
+                partType: part.partType,
+                label: part.label,
+                order: part.order,
+                sourceAttemptId: part.sourceAttemptId,
+                recordingUrl: sourceAttempt.recordingUrl,
+                mimeType: sourceAttempt.mimeType,
+                fileSizeBytes: sourceAttempt.fileSizeBytes,
+                durationSeconds: sourceAttempt.durationSeconds,
+              };
+            }),
           },
         },
         include: { parts: true },
@@ -193,7 +206,13 @@ export class SamplesService {
         dto.parts.map((part) =>
           tx.sampleSamplePart.update({
             where: { id: part.id },
-            data: { recordingUrl: part.recordingUrl, technicallyDamaged: false },
+            data: {
+              recordingUrl: part.recordingUrl,
+              mimeType: part.mimeType,
+              fileSizeBytes: part.fileSizeBytes,
+              durationSeconds: part.durationSeconds,
+              technicallyDamaged: false,
+            },
           }),
         ),
       );

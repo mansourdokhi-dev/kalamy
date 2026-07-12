@@ -87,7 +87,10 @@ export class SpecialistReviewService {
       // TECHNICAL_RERECORD
       await Promise.all(
         dto.damagedPartIds.map((partId) =>
-          tx.sampleSamplePart.update({ where: { id: partId }, data: { technicallyDamaged: true, recordingUrl: null } }),
+          tx.sampleSamplePart.update({
+            where: { id: partId },
+            data: { technicallyDamaged: true, recordingUrl: null, mimeType: null, fileSizeBytes: null, durationSeconds: null },
+          }),
         ),
       );
       const updatedSample = await tx.speechSample.update({

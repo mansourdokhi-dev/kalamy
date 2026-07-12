@@ -96,7 +96,7 @@ describe('Treatment Engine — Sample preparation (e2e)', () => {
       const res = await request(app.getHttpServer())
         .post(`/api/v1/patients/${patientProfile.id}/cycles/current/sample-session/attempts`)
         .set('Authorization', `Bearer ${patientToken}`)
-        .send({ recordingUrl: `https://example.com/attempt-${i}.mp4` })
+        .send({ recordingUrl: `attempt-${i}.mp4`, mimeType: 'video/mp4', fileSizeBytes: 100000, durationSeconds: 10 })
         .expect(201);
       lastAttemptId = res.body.id;
     }
@@ -116,7 +116,7 @@ describe('Treatment Engine — Sample preparation (e2e)', () => {
     await request(app.getHttpServer())
       .post(`/api/v1/patients/${patientProfile.id}/cycles/current/sample-session/attempts`)
       .set('Authorization', `Bearer ${patientToken}`)
-      .send({ recordingUrl: 'https://example.com/attempt-11.mp4' })
+      .send({ recordingUrl: 'attempt-11.mp4', mimeType: 'video/mp4', fileSizeBytes: 100000, durationSeconds: 10 })
       .expect(409);
   });
 
@@ -176,7 +176,7 @@ describe('Treatment Engine — Sample preparation (e2e)', () => {
       await request(app.getHttpServer())
         .post(`/api/v1/patients/${patientProfile.id}/cycles/current/sample-session/attempts`)
         .set('Authorization', `Bearer ${patientToken}`)
-        .send({ recordingUrl: `https://example.com/attempt-${i}.mp4` })
+        .send({ recordingUrl: `attempt-${i}.mp4`, mimeType: 'video/mp4', fileSizeBytes: 100000, durationSeconds: 10 })
         .expect(201);
     }
 
@@ -187,7 +187,7 @@ describe('Treatment Engine — Sample preparation (e2e)', () => {
     await request(app.getHttpServer())
       .post(`/api/v1/patients/${patientProfile.id}/cycles/current/sample-session/attempts`)
       .set('Authorization', `Bearer ${patientToken}`)
-      .send({ recordingUrl: 'https://example.com/attempt-11.mp4' })
+      .send({ recordingUrl: 'attempt-11.mp4', mimeType: 'video/mp4', fileSizeBytes: 100000, durationSeconds: 10 })
       .expect(409);
 
     const session = await prisma.sampleSession.findUniqueOrThrow({ where: { trainingCycleId: startRes.body.id } });
@@ -255,7 +255,7 @@ describe('Treatment Engine — Sample preparation (e2e)', () => {
       await request(app.getHttpServer())
         .post(`/api/v1/patients/${patientProfile.id}/cycles/current/sample-session/attempts`)
         .set('Authorization', `Bearer ${patientToken}`)
-        .send({ recordingUrl: `https://example.com/seed-attempt-${i}.mp4` })
+        .send({ recordingUrl: `seed-attempt-${i}.mp4`, mimeType: 'video/mp4', fileSizeBytes: 100000, durationSeconds: 10 })
         .expect(201);
     }
 
@@ -269,7 +269,7 @@ describe('Treatment Engine — Sample preparation (e2e)', () => {
         request(app.getHttpServer())
           .post(`/api/v1/patients/${patientProfile.id}/cycles/current/sample-session/attempts`)
           .set('Authorization', `Bearer ${patientToken}`)
-          .send({ recordingUrl: `https://example.com/concurrent-attempt-${i}.mp4` }),
+          .send({ recordingUrl: `concurrent-attempt-${i}.mp4`, mimeType: 'video/mp4', fileSizeBytes: 100000, durationSeconds: 10 }),
       ),
     );
 
@@ -327,10 +327,21 @@ describe('Treatment Engine — Sample preparation (e2e)', () => {
         },
       });
 
-      await request(app.getHttpServer())
+      const startRes = await request(app.getHttpServer())
         .post(`/api/v1/patients/${patientId}/cycles/start`)
         .set('Authorization', `Bearer ${patientToken}`)
         .send({ treatmentPlanId: plan.id })
+        .expect(201);
+
+      // fast-forward to SAMPLE_ELIGIBLE and open the sample session so both
+      // the upload endpoint and the attempt-recording endpoint are usable.
+      await prisma.trainingCycle72h.update({
+        where: { id: startRes.body.id },
+        data: { status: 'SAMPLE_ELIGIBLE' },
+      });
+      await request(app.getHttpServer())
+        .post(`/api/v1/patients/${patientId}/cycles/current/sample-session`)
+        .set('Authorization', `Bearer ${patientToken}`)
         .expect(201);
     });
 
@@ -352,6 +363,27 @@ describe('Treatment Engine — Sample preparation (e2e)', () => {
         .post(`/api/v1/patients/${patientId}/cycles/current/sample-session/upload`)
         .set('Authorization', `Bearer ${patientToken}`)
         .attach('audio', Buffer.from('not a video'), { filename: 'notes.txt', contentType: 'text/plain' });
+
+      expect(response.status).toBe(400);
+    });
+
+    it('persists mimeType, fileSizeBytes, and durationSeconds on the attempt', async () => {
+      const response = await request(app.getHttpServer())
+        .post(`/api/v1/patients/${patientId}/cycles/current/sample-session/attempts`)
+        .set('Authorization', `Bearer ${patientToken}`)
+        .send({ recordingUrl: 'clip-2.mp4', mimeType: 'video/mp4', fileSizeBytes: 512000, durationSeconds: 20 });
+
+      expect(response.status).toBe(201);
+      expect(response.body.mimeType).toBe('video/mp4');
+      expect(response.body.fileSizeBytes).toBe(512000);
+      expect(response.body.durationSeconds).toBe(20);
+    });
+
+    it('rejects recording an attempt without mimeType or fileSizeBytes', async () => {
+      const response = await request(app.getHttpServer())
+        .post(`/api/v1/patients/${patientId}/cycles/current/sample-session/attempts`)
+        .set('Authorization', `Bearer ${patientToken}`)
+        .send({ recordingUrl: 'clip-3.mp4' });
 
       expect(response.status).toBe(400);
     });

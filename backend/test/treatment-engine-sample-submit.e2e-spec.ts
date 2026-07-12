@@ -93,12 +93,12 @@ describe('Treatment Engine — Sample submission (e2e)', () => {
     const attempt1 = await request(app.getHttpServer())
       .post(`/api/v1/patients/${patientProfile.id}/cycles/current/sample-session/attempts`)
       .set('Authorization', `Bearer ${patientToken}`)
-      .send({ recordingUrl: 'https://example.com/attempt-1.mp4' })
+      .send({ recordingUrl: 'attempt-1.mp4', mimeType: 'video/mp4', fileSizeBytes: 204800, durationSeconds: 12 })
       .expect(201);
     const attempt2 = await request(app.getHttpServer())
       .post(`/api/v1/patients/${patientProfile.id}/cycles/current/sample-session/attempts`)
       .set('Authorization', `Bearer ${patientToken}`)
-      .send({ recordingUrl: 'https://example.com/attempt-2.mp4' })
+      .send({ recordingUrl: 'attempt-2.mp4', mimeType: 'video/mp4', fileSizeBytes: 307200, durationSeconds: 18 })
       .expect(201);
     const attempt1Id = attempt1.body.id;
     const attempt2Id = attempt2.body.id;
@@ -119,6 +119,8 @@ describe('Treatment Engine — Sample submission (e2e)', () => {
       .expect(201);
 
     expect(submitRes.body.parts).toHaveLength(2);
+    expect(submitRes.body.parts[0].mimeType).toBe('video/mp4');
+    expect(submitRes.body.parts[0].fileSizeBytes).toBeGreaterThan(0);
 
     const cycleRes = await request(app.getHttpServer())
       .get(`/api/v1/patients/${patientProfile.id}/cycles/current`)
@@ -195,12 +197,12 @@ describe('Treatment Engine — Sample submission (e2e)', () => {
     const attempt1 = await request(app.getHttpServer())
       .post(`/api/v1/patients/${patientProfile.id}/cycles/current/sample-session/attempts`)
       .set('Authorization', `Bearer ${patientToken}`)
-      .send({ recordingUrl: 'https://example.com/race-attempt-1.mp4' })
+      .send({ recordingUrl: 'race-attempt-1.mp4', mimeType: 'video/mp4', fileSizeBytes: 204800, durationSeconds: 12 })
       .expect(201);
     const attempt2 = await request(app.getHttpServer())
       .post(`/api/v1/patients/${patientProfile.id}/cycles/current/sample-session/attempts`)
       .set('Authorization', `Bearer ${patientToken}`)
-      .send({ recordingUrl: 'https://example.com/race-attempt-2.mp4' })
+      .send({ recordingUrl: 'race-attempt-2.mp4', mimeType: 'video/mp4', fileSizeBytes: 307200, durationSeconds: 18 })
       .expect(201);
     const attempt1Id = attempt1.body.id;
     const attempt2Id = attempt2.body.id;

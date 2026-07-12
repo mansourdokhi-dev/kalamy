@@ -6,7 +6,10 @@ export const RerecordPartsSchema = z.object({
     .array(
       z.object({
         id: z.string().uuid(),
-        recordingUrl: z.url(),
+        recordingUrl: z.string().min(1),
+        mimeType: z.string().min(1),
+        fileSizeBytes: z.number().int().positive(),
+        durationSeconds: z.number().int().positive().optional(),
       }),
     )
     .min(1),
