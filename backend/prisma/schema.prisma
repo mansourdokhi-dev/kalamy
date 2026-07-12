@@ -432,6 +432,9 @@ model SampleAttempt {
   sampleSession   SampleSession @relation(fields: [sampleSessionId], references: [id])
   attemptNumber   Int
   recordingUrl    String
+  mimeType        String
+  fileSizeBytes   Int
+  durationSeconds Int?
   deletedAt       DateTime?
   createdAt       DateTime      @default(now())
 
@@ -462,18 +465,21 @@ model SpeechSample {
 }
 
 model SampleSamplePart {
-  id               String         @id @default(uuid())
-  speechSampleId   String
-  speechSample     SpeechSample   @relation(fields: [speechSampleId], references: [id])
-  sourceAttemptId  String?
-  sourceAttempt    SampleAttempt? @relation(fields: [sourceAttemptId], references: [id])
-  partType         String
-  label            String
-  order            Int
-  recordingUrl     String?
-  technicallyDamaged Boolean      @default(false)
-  createdAt        DateTime       @default(now())
-  updatedAt        DateTime       @updatedAt
+  id                 String         @id @default(uuid())
+  speechSampleId     String
+  speechSample       SpeechSample   @relation(fields: [speechSampleId], references: [id])
+  sourceAttemptId    String?
+  sourceAttempt      SampleAttempt? @relation(fields: [sourceAttemptId], references: [id])
+  partType           String
+  label              String
+  order              Int
+  recordingUrl       String?
+  mimeType           String?
+  fileSizeBytes      Int?
+  durationSeconds    Int?
+  technicallyDamaged Boolean        @default(false)
+  createdAt          DateTime       @default(now())
+  updatedAt          DateTime       @updatedAt
 
   @@index([speechSampleId, order])
 }
