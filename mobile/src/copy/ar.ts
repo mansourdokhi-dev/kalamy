@@ -102,6 +102,8 @@ export const ar = {
     play: 'تشغيل',
     pause: 'إيقاف مؤقت',
     micPermissionDenied: 'يلزم الوصول إلى الميكروفون لتسجيل عينتك',
+    cameraPermissionDenied: 'يلزم الوصول إلى الكاميرا والميكروفون لتسجيل عينتك',
+    enableCamera: 'تفعيل الكاميرا',
     maxDurationReached: 'تم بلوغ الحد الأقصى لمدة التسجيل (3 دقائق)',
     secondsUnit: 'ث',
     requiredPartsTitle: 'الأجزاء المطلوبة',
