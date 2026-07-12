@@ -9,9 +9,10 @@ import { SpecialistReviewController } from './specialist-review.controller';
 import { SpecialistReviewService } from './specialist-review.service';
 import { AuthModule } from '../auth/auth.module';
 import { PatientAccessModule } from '../../common/patient-access/patient-access.module';
+import { MediaStorageModule } from './media-storage/media-storage.module';
 
 @Module({
-  imports: [AuthModule, PatientAccessModule],
+  imports: [AuthModule, PatientAccessModule, MediaStorageModule],
   controllers: [LevelsController, TrainingCyclesController, SamplesController, SpecialistReviewController],
   providers: [LevelsService, TrainingCyclesService, SamplesService, SpecialistReviewService],
   exports: [LevelsService, TrainingCyclesService, SamplesService, SpecialistReviewService],
