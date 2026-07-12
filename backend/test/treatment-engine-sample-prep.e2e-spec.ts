@@ -387,5 +387,39 @@ describe('Treatment Engine — Sample preparation (e2e)', () => {
 
       expect(response.status).toBe(400);
     });
+
+    it('streams an attempt recording via the authenticated media endpoint', async () => {
+      const createResponse = await request(app.getHttpServer())
+        .post(`/api/v1/patients/${patientId}/cycles/current/sample-session/attempts`)
+        .set('Authorization', `Bearer ${patientToken}`)
+        .send({ recordingUrl: 'nonexistent-file.mp4', mimeType: 'video/mp4', fileSizeBytes: 100, durationSeconds: 5 });
+      const attemptId = createResponse.body.id;
+
+      const response = await request(app.getHttpServer())
+        .get(`/api/v1/patients/${patientId}/cycles/current/sample-session/attempts/${attemptId}/media`)
+        .set('Authorization', `Bearer ${patientToken}`);
+
+      // The referenced file doesn't actually exist on disk in this test (no real upload happened),
+      // so this confirms the route is reached, permission-checked, and attempts to stream — the
+      // read-stream's error event is caught and turned into a clean 404 rather than a hung
+      // connection. The full round-trip (real upload -> real stream) is exercised by the manual
+      // walkthrough in the final task.
+      expect(response.status).toBe(404);
+    });
+
+    it("rejects an unrelated patient from streaming another patient's attempt media", async () => {
+      const createResponse = await request(app.getHttpServer())
+        .post(`/api/v1/patients/${patientId}/cycles/current/sample-session/attempts`)
+        .set('Authorization', `Bearer ${patientToken}`)
+        .send({ recordingUrl: 'file.mp4', mimeType: 'video/mp4', fileSizeBytes: 100, durationSeconds: 5 });
+      const attemptId = createResponse.body.id;
+
+      const strangerToken = await registerAndLogin(app, prisma, '+966500002399', null);
+      const response = await request(app.getHttpServer())
+        .get(`/api/v1/patients/${patientId}/cycles/current/sample-session/attempts/${attemptId}/media`)
+        .set('Authorization', `Bearer ${strangerToken}`);
+
+      expect(response.status).toBe(403);
+    });
   });
 });

@@ -1,7 +1,9 @@
-import { BadRequestException, Body, Controller, Delete, Get, Param, Post, UploadedFile, UseGuards, UseInterceptors } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Delete, Get, Param, Post, Res, UploadedFile, UseGuards, UseInterceptors } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
+import type { Response } from 'express';
 import { SamplesService } from './samples.service';
 import { TrainingCyclesService } from './training-cycles.service';
+import { MediaStorageService } from './media-storage/media-storage.service';
 import { SessionGuard, AuthenticatedUser } from '../../common/auth/session.guard';
 import { CurrentUser } from '../../common/auth/current-user.decorator';
 import { PermissionsGuard } from '../../common/rbac/permissions.guard';
@@ -17,6 +19,7 @@ export class SamplesController {
   constructor(
     private readonly samplesService: SamplesService,
     private readonly trainingCyclesService: TrainingCyclesService,
+    private readonly mediaStorageService: MediaStorageService,
   ) {}
 
   @Post()
@@ -68,6 +71,28 @@ export class SamplesController {
   async listAttempts(@Param('patientId') patientId: string, @CurrentUser() user: AuthenticatedUser) {
     const current = await this.trainingCyclesService.getCurrent(patientId, user);
     return this.samplesService.listAttempts(current.id, user);
+  }
+
+  @Get('attempts/:attemptId/media')
+  @RequirePermission(Permission.PREPARE_SAMPLE)
+  async streamAttemptMedia(
+    @Param('patientId') patientId: string,
+    @Param('attemptId') attemptId: string,
+    @CurrentUser() user: AuthenticatedUser,
+    @Res() res: Response,
+  ) {
+    const current = await this.trainingCyclesService.getCurrent(patientId, user);
+    const attempt = await this.samplesService.findAttemptOrThrow(current.id, attemptId, user);
+    res.setHeader('Content-Type', attempt.mimeType);
+    const stream = this.mediaStorageService.createReadStream(attempt.recordingUrl);
+    stream.on('error', () => {
+      if (!res.headersSent) {
+        res.status(404).end();
+      } else {
+        res.end();
+      }
+    });
+    stream.pipe(res);
   }
 
   @Post('submit')

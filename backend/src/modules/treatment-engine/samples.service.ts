@@ -230,6 +230,16 @@ export class SamplesService {
     return result.sample;
   }
 
+  async findAttemptOrThrow(cycleId: string, attemptId: string, actor: AuthenticatedUser): Promise<SampleAttempt> {
+    await this.trainingCyclesService.findCycleForActor(cycleId, actor);
+    const session = await this.findSessionOrThrow(cycleId);
+    const attempt = await this.prisma.sampleAttempt.findUnique({ where: { id: attemptId } });
+    if (!attempt || attempt.sampleSessionId !== session.id || attempt.deletedAt) {
+      throw new NotFoundException('Attempt not found');
+    }
+    return attempt;
+  }
+
   private async findSessionOrThrow(cycleId: string): Promise<SampleSession> {
     const session = await this.prisma.sampleSession.findUnique({ where: { trainingCycleId: cycleId } });
     if (!session) {

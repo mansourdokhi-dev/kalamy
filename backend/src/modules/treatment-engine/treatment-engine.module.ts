@@ -9,6 +9,7 @@ import { TrainingCyclesController } from './training-cycles.controller';
 import { TrainingCyclesService } from './training-cycles.service';
 import { SamplesController } from './samples.controller';
 import { SamplesService } from './samples.service';
+import { SampleMediaController } from './sample-media.controller';
 import { SpecialistReviewController } from './specialist-review.controller';
 import { SpecialistReviewService } from './specialist-review.service';
 import { AuthModule } from '../auth/auth.module';
@@ -52,7 +53,7 @@ import { MediaStorageService } from './media-storage/media-storage.service';
       }),
     }),
   ],
-  controllers: [LevelsController, TrainingCyclesController, SamplesController, SpecialistReviewController],
+  controllers: [LevelsController, TrainingCyclesController, SamplesController, SampleMediaController, SpecialistReviewController],
   providers: [LevelsService, TrainingCyclesService, SamplesService, SpecialistReviewService],
   exports: [LevelsService, TrainingCyclesService, SamplesService, SpecialistReviewService],
 })
