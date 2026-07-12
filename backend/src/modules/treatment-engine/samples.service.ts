@@ -6,6 +6,7 @@ import { TrainingCyclesService } from './training-cycles.service';
 import { RecordAttemptDto } from './dto/record-attempt.dto';
 import { SubmitSampleDto } from './dto/submit-sample.dto';
 import { RerecordPartsDto } from './dto/rerecord-parts.dto';
+import { MediaStorageService } from './media-storage/media-storage.service';
 
 const MAX_ATTEMPTS = 10;
 
@@ -14,6 +15,7 @@ export class SamplesService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly trainingCyclesService: TrainingCyclesService,
+    private readonly mediaStorageService: MediaStorageService,
   ) {}
 
   async openSession(cycleId: string, actor: AuthenticatedUser): Promise<SampleSession> {
@@ -84,7 +86,16 @@ export class SamplesService {
     if (!attempt || attempt.sampleSessionId !== session.id) {
       throw new NotFoundException('Attempt not found');
     }
-    return this.prisma.sampleAttempt.update({ where: { id: attemptId }, data: { deletedAt: new Date() } });
+    const deleted = await this.prisma.sampleAttempt.update({ where: { id: attemptId }, data: { deletedAt: new Date() } });
+    try {
+      await this.mediaStorageService.delete(attempt.recordingUrl);
+    } catch (error) {
+      // Best-effort: a filesystem error here shouldn't block the patient's delete action —
+      // the database soft-delete (above) is the source of truth for whether an attempt is "gone".
+      // eslint-disable-next-line no-console
+      console.error(`Failed to delete media file for attempt ${attemptId}:`, error);
+    }
+    return deleted;
   }
 
   async listAttempts(cycleId: string, actor: AuthenticatedUser): Promise<SampleAttempt[]> {

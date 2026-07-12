@@ -2,6 +2,8 @@ import { INestApplication } from '@nestjs/common';
 import request from 'supertest';
 import { createTestApp, resetDatabase } from './utils/test-app';
 import { PrismaService } from '../src/prisma/prisma.service';
+import * as fs from 'fs';
+import * as path from 'path';
 
 async function registerAndLogin(
   app: INestApplication,
@@ -420,6 +422,29 @@ describe('Treatment Engine — Sample preparation (e2e)', () => {
         .set('Authorization', `Bearer ${strangerToken}`);
 
       expect(response.status).toBe(403);
+    });
+
+    it('physically removes the media file from disk when an attempt is deleted', async () => {
+      const createResponse = await request(app.getHttpServer())
+        .post(`/api/v1/patients/${patientId}/cycles/current/sample-session/upload`)
+        .set('Authorization', `Bearer ${patientToken}`)
+        .attach('audio', Buffer.from('fake mp4 bytes'), { filename: 'to-be-deleted.mp4', contentType: 'video/mp4' });
+      const { url, mimeType, fileSizeBytes } = createResponse.body;
+
+      const attemptResponse = await request(app.getHttpServer())
+        .post(`/api/v1/patients/${patientId}/cycles/current/sample-session/attempts`)
+        .set('Authorization', `Bearer ${patientToken}`)
+        .send({ recordingUrl: url, mimeType, fileSizeBytes, durationSeconds: 5 });
+      const attemptId = attemptResponse.body.id;
+
+      const filePath = path.join(process.cwd(), 'uploads', 'video', url);
+      expect(fs.existsSync(filePath)).toBe(true);
+
+      await request(app.getHttpServer())
+        .delete(`/api/v1/patients/${patientId}/cycles/current/sample-session/attempts/${attemptId}`)
+        .set('Authorization', `Bearer ${patientToken}`);
+
+      expect(fs.existsSync(filePath)).toBe(false);
     });
   });
 });
