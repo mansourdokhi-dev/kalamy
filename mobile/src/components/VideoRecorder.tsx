@@ -20,6 +20,12 @@ export function VideoRecorder({ onRecorded, disabled }: VideoRecorderProps) {
   const [permissionsGranted, setPermissionsGranted] = useState(false);
   const [permissionDenied, setPermissionDenied] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
+  // Tracks whether a native recordAsync() call is actually in flight. This is
+  // deliberately separate from `isRecording` (which flips immediately on user
+  // input for responsive UI / test-timing reasons) so a rapid stop-then-start
+  // re-press can't fire a second recordAsync() while the first is still
+  // finishing on the native side.
+  const isNativeRecordingActiveRef = useRef(false);
 
   async function handleEnableCamera() {
     const cam = cameraPermission?.granted ? cameraPermission : await requestCameraPermission();
@@ -44,12 +50,20 @@ export function VideoRecorder({ onRecorded, disabled }: VideoRecorderProps) {
       return;
     }
     if (!cameraRef.current) return;
+    if (isNativeRecordingActiveRef.current) return;
+    isNativeRecordingActiveRef.current = true;
     setIsRecording(true);
     const startedAt = Date.now();
-    const result = await cameraRef.current.recordAsync({ maxDuration: MAX_DURATION_SECONDS });
-    if (result?.uri) {
-      const durationSeconds = Math.max(1, Math.round((Date.now() - startedAt) / 1000));
-      onRecorded(result.uri, durationSeconds);
+    try {
+      const result = await cameraRef.current.recordAsync({ maxDuration: MAX_DURATION_SECONDS });
+      if (result?.uri) {
+        const durationSeconds = Math.max(1, Math.round((Date.now() - startedAt) / 1000));
+        onRecorded(result.uri, durationSeconds);
+      }
+    } catch (error) {
+      setIsRecording(false);
+    } finally {
+      isNativeRecordingActiveRef.current = false;
     }
   }
 
