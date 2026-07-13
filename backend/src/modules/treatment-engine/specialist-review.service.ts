@@ -9,6 +9,7 @@ import { RequestInterventionDto } from './dto/request-intervention.dto';
 import { CompleteInterventionDto } from './dto/complete-intervention.dto';
 import { TransferReviewDto } from './dto/transfer-review.dto';
 import { hasPermission, Permission } from '../../common/rbac/permissions';
+import { NotificationsService } from '../notifications/notifications.service';
 
 const REVIEW_BOOKING_WINDOW_MS = 24 * 60 * 60 * 1000; // §9: escalate if unreserved 24h after submission
 const REVIEW_DECISION_WINDOW_MS = 48 * 60 * 60 * 1000; // §9: auto-release if undecided 48h after reservation
@@ -19,6 +20,7 @@ export class SpecialistReviewService {
     private readonly prisma: PrismaService,
     private readonly trainingCyclesService: TrainingCyclesService,
     private readonly levelsService: LevelsService,
+    private readonly notificationsService: NotificationsService,
   ) {}
 
   async review(cycleId: string, dto: ReviewSampleDto, actor: AuthenticatedUser): Promise<SpeechSample> {
@@ -157,6 +159,13 @@ export class SpecialistReviewService {
       Date.now() - sample.submittedAt.getTime() > REVIEW_BOOKING_WINDOW_MS
     ) {
       const updatedSample = await this.prisma.speechSample.update({ where: { id: sample.id }, data: { escalatedAt: new Date() } });
+      const { patientName, levelName } = await this.getNotificationContext(cycle);
+      await this.notificationsService.notifyRole(
+        'SUPERVISOR',
+        'SAMPLE_ESCALATED_TO_SUPERVISOR',
+        { patientName, levelName },
+        { entity: 'SpeechSample', entityId: updatedSample.id },
+      );
       return { cycle, sample: updatedSample };
     }
 
@@ -353,5 +362,13 @@ export class SpecialistReviewService {
         cycleNumber: 1,
       },
     });
+  }
+
+  private async getNotificationContext(cycle: { patientProfileId: string; levelId: string }): Promise<{ patientName: string; levelName: string }> {
+    const [patientProfile, level] = await Promise.all([
+      this.prisma.patientProfile.findUniqueOrThrow({ where: { id: cycle.patientProfileId } }),
+      this.prisma.level.findUniqueOrThrow({ where: { id: cycle.levelId } }),
+    ]);
+    return { patientName: patientProfile.fullName, levelName: level.name };
   }
 }

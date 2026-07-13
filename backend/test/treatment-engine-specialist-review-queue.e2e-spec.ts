@@ -296,4 +296,25 @@ describe('Treatment Engine — Specialist review queue (e2e)', () => {
       .send({ toUserId: clinicianBUserId, reason: 'trying to self-transfer' })
       .expect(403);
   });
+
+  it('notifies every supervisor when a sample is escalated for lacking a reservation past 24h', async () => {
+    const clinicianToken = await registerAndLogin(app, prisma, '+966500005070', 'CLINICIAN');
+    const clinicianUserId = (await prisma.user.findUniqueOrThrow({ where: { mobile: '+966500005070' } })).id;
+    const supervisorToken = await registerAndLogin(app, prisma, '+966500005071', 'SUPERVISOR');
+    const { plan, patientProfile } = await setupPatientAndPlan(prisma, '+966500005072', clinicianUserId);
+    const { sample } = await createSubmittedSampleCycle(prisma, patientProfile.id, plan.id, clinicianUserId);
+    await prisma.speechSample.update({ where: { id: sample.id }, data: { submittedAt: new Date(Date.now() - 25 * 60 * 60 * 1000) } });
+
+    await request(app.getHttpServer())
+      .get('/api/v1/specialist-review/available-samples')
+      .set('Authorization', `Bearer ${clinicianToken}`)
+      .expect(200);
+
+    const notificationsRes = await request(app.getHttpServer())
+      .get('/api/v1/notifications')
+      .set('Authorization', `Bearer ${supervisorToken}`)
+      .expect(200);
+
+    expect(notificationsRes.body.some((n: any) => n.type === 'SAMPLE_ESCALATED_TO_SUPERVISOR')).toBe(true);
+  });
 });

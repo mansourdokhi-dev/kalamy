@@ -17,12 +17,14 @@ import { AuthModule } from '../auth/auth.module';
 import { PatientAccessModule } from '../../common/patient-access/patient-access.module';
 import { MediaStorageModule } from './media-storage/media-storage.module';
 import { MediaStorageService } from './media-storage/media-storage.service';
+import { NotificationsModule } from '../notifications/notifications.module';
 
 @Module({
   imports: [
     AuthModule,
     PatientAccessModule,
     MediaStorageModule,
+    NotificationsModule,
     // Registered here (rather than options passed directly to `FileInterceptor` in
     // SamplesController) because Multer's diskStorage `destination` callback runs
     // outside Nest's request DI context and can't use constructor injection or
