@@ -1,4 +1,4 @@
-import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import { ConflictException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma, SpeechSample, TrainingCycle72h } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { AuthenticatedUser } from '../../common/auth/session.guard';
@@ -19,12 +19,23 @@ export class SpecialistReviewService {
 
   async review(cycleId: string, dto: ReviewSampleDto, actor: AuthenticatedUser): Promise<SpeechSample> {
     const cycle = await this.trainingCyclesService.findCycleForActor(cycleId, actor);
-    if (cycle.status !== 'WAITING_FOR_SPECIALIST' && cycle.status !== 'UNDER_REVIEW') {
+    const reviewableStatuses = ['WAITING_FOR_SPECIALIST', 'UNDER_REVIEW', 'WAITING_FINAL_DECISION_AFTER_INTERVENTION'];
+    if (!reviewableStatuses.includes(cycle.status)) {
       throw new ConflictException(`Cannot review a cycle in status ${cycle.status}`);
     }
+
+    await this.evaluateReviewDeadlines(cycleId);
+    const freshCycle = await this.trainingCyclesService.findCycleForActor(cycleId, actor);
+    if (!reviewableStatuses.includes(freshCycle.status)) {
+      throw new ConflictException(`Cannot review a cycle in status ${freshCycle.status}`);
+    }
+
     const sample = await this.prisma.speechSample.findUnique({ where: { trainingCycleId: cycleId }, include: { parts: true } });
     if (!sample) {
       throw new NotFoundException('No submitted sample found for this cycle');
+    }
+    if (sample.reservedByUserId && sample.reservedByUserId !== actor.id) {
+      throw new ForbiddenException('This sample is reserved by a different specialist');
     }
 
     if (dto.decision === 'TECHNICAL_RERECORD') {

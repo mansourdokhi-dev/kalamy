@@ -97,6 +97,11 @@ describe('Treatment Engine — Specialist review (e2e)', () => {
       data: { trainingCycleId: cycle.id, submittedAt: new Date() },
     });
 
+    await request(app.getHttpServer())
+      .post(`/api/v1/specialist-review/cycles/${cycle.id}/reserve`)
+      .set('Authorization', `Bearer ${clinicianToken}`)
+      .expect(201);
+
     const reviewRes = await request(app.getHttpServer())
       .post(`/api/v1/patients/${patientProfile.id}/cycles/current/review`)
       .set('Authorization', `Bearer ${clinicianToken}`)
@@ -161,6 +166,11 @@ describe('Treatment Engine — Specialist review (e2e)', () => {
     await prisma.speechSample.create({
       data: { trainingCycleId: cycle.id, submittedAt: new Date() },
     });
+
+    await request(app.getHttpServer())
+      .post(`/api/v1/specialist-review/cycles/${cycle.id}/reserve`)
+      .set('Authorization', `Bearer ${clinicianToken}`)
+      .expect(201);
 
     await request(app.getHttpServer())
       .post(`/api/v1/patients/${patientProfile.id}/cycles/current/review`)
@@ -234,6 +244,11 @@ describe('Treatment Engine — Specialist review (e2e)', () => {
     });
     const partId1 = part1.id;
     const partId2 = part2.id;
+
+    await request(app.getHttpServer())
+      .post(`/api/v1/specialist-review/cycles/${cycle.id}/reserve`)
+      .set('Authorization', `Bearer ${clinicianToken}`)
+      .expect(201);
 
     await request(app.getHttpServer())
       .post(`/api/v1/patients/${patientProfile.id}/cycles/current/review`)
@@ -401,6 +416,11 @@ describe('Treatment Engine — Specialist review (e2e)', () => {
     });
 
     await request(app.getHttpServer())
+      .post(`/api/v1/specialist-review/cycles/${cycle.id}/reserve`)
+      .set('Authorization', `Bearer ${clinicianToken}`)
+      .expect(201);
+
+    await request(app.getHttpServer())
       .post(`/api/v1/patients/${patientProfile.id}/cycles/current/review`)
       .set('Authorization', `Bearer ${clinicianToken}`)
       .send({ decision: 'TECHNICAL_RERECORD', damagedPartIds: [foreignPart.id], reviewNotes: 'test' })
@@ -466,6 +486,11 @@ describe('Treatment Engine — Specialist review (e2e)', () => {
       data: { trainingCycleId: cycle.id, submittedAt: new Date() },
     });
 
+    await request(app.getHttpServer())
+      .post(`/api/v1/specialist-review/cycles/${cycle.id}/reserve`)
+      .set('Authorization', `Bearer ${clinicianToken}`)
+      .expect(201);
+
     const [res1, res2] = await Promise.all([
       request(app.getHttpServer())
         .post(`/api/v1/patients/${patientProfile.id}/cycles/current/review`)
@@ -484,5 +509,42 @@ describe('Treatment Engine — Specialist review (e2e)', () => {
       where: { patientProfileId: patientProfile.id, levelId: level2.id },
     });
     expect(nextLevelCycles).toHaveLength(1);
+  });
+
+  it('rejects a review decision from a clinician who does not hold the reservation', async () => {
+    const clinicianAToken = await registerAndLogin(app, prisma, '+966500004100', 'CLINICIAN');
+    const clinicianBToken = await registerAndLogin(app, prisma, '+966500004101', 'CLINICIAN');
+    const clinicianUserId = (await prisma.user.findUniqueOrThrow({ where: { mobile: '+966500004100' } })).id;
+    const patientToken = await registerAndLogin(app, prisma, '+966500004102', null);
+    const patientUserId = (await prisma.user.findUniqueOrThrow({ where: { mobile: '+966500004102' } })).id;
+
+    const patientProfile = await prisma.patientProfile.create({
+      data: { userId: patientUserId, fullName: 'Ownership Test Patient', gender: 'MALE', dateOfBirth: new Date('2000-01-01'), nationalId: 'OWNERSHIP-TEST-1' },
+    });
+    const assessment = await prisma.assessment.create({
+      data: { patientProfileId: patientProfile.id, clinicianUserId, type: 'INITIAL', status: 'APPROVED' },
+    });
+    const plan = await prisma.treatmentPlan.create({
+      data: { patientProfileId: patientProfile.id, clinicianUserId, assessmentId: assessment.id, goals: 'g', reviewDate: new Date() },
+    });
+    const level = await prisma.level.create({ data: { name: 'Ownership Level', order: 90001 } });
+    const levelVersion = await prisma.levelVersion.create({
+      data: { levelId: level.id, versionNumber: 1, behavioralTechnique: 'x', trainingListJson: '[]', samplePartTemplateJson: '[]', publishedAt: new Date() },
+    });
+    const cycle = await prisma.trainingCycle72h.create({
+      data: { patientProfileId: patientProfile.id, treatmentPlanId: plan.id, levelId: level.id, levelVersionId: levelVersion.id, cycleNumber: 1, status: 'WAITING_FOR_SPECIALIST' },
+    });
+    await prisma.speechSample.create({ data: { trainingCycleId: cycle.id, submittedAt: new Date() } });
+
+    await request(app.getHttpServer())
+      .post(`/api/v1/specialist-review/cycles/${cycle.id}/reserve`)
+      .set('Authorization', `Bearer ${clinicianAToken}`)
+      .expect(201);
+
+    await request(app.getHttpServer())
+      .post(`/api/v1/patients/${patientProfile.id}/cycles/current/review`)
+      .set('Authorization', `Bearer ${clinicianBToken}`)
+      .send({ decision: 'TRANSITION', clinicianOpinionScore: 8, reviewNotes: 'x' })
+      .expect(403);
   });
 });
