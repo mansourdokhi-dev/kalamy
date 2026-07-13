@@ -11,6 +11,7 @@ import { SamplesController } from './samples.controller';
 import { SamplesService } from './samples.service';
 import { SampleMediaController } from './sample-media.controller';
 import { SpecialistReviewController } from './specialist-review.controller';
+import { SpecialistReviewQueueController } from './specialist-review-queue.controller';
 import { SpecialistReviewService } from './specialist-review.service';
 import { AuthModule } from '../auth/auth.module';
 import { PatientAccessModule } from '../../common/patient-access/patient-access.module';
@@ -53,7 +54,7 @@ import { MediaStorageService } from './media-storage/media-storage.service';
       }),
     }),
   ],
-  controllers: [LevelsController, TrainingCyclesController, SamplesController, SampleMediaController, SpecialistReviewController],
+  controllers: [LevelsController, TrainingCyclesController, SamplesController, SampleMediaController, SpecialistReviewController, SpecialistReviewQueueController],
   providers: [LevelsService, TrainingCyclesService, SamplesService, SpecialistReviewService],
   exports: [LevelsService, TrainingCyclesService, SamplesService, SpecialistReviewService],
 })

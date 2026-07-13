@@ -1,10 +1,13 @@
 import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
-import { Prisma, SpeechSample } from '@prisma/client';
+import { Prisma, SpeechSample, TrainingCycle72h } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { AuthenticatedUser } from '../../common/auth/session.guard';
 import { TrainingCyclesService } from './training-cycles.service';
 import { LevelsService } from './levels.service';
 import { ReviewSampleDto } from './dto/review-sample.dto';
+
+const REVIEW_BOOKING_WINDOW_MS = 24 * 60 * 60 * 1000; // §9: escalate if unreserved 24h after submission
+const REVIEW_DECISION_WINDOW_MS = 48 * 60 * 60 * 1000; // §9: auto-release if undecided 48h after reservation
 
 @Injectable()
 export class SpecialistReviewService {
@@ -111,6 +114,113 @@ export class SpecialistReviewService {
       throw new ConflictException(`Cannot review a cycle in status ${result.status}`);
     }
     return result.sample;
+  }
+
+  /**
+   * Applies any SLA transition that is due as of now (escalation or auto-release),
+   * then returns the fresh cycle+sample. Called first by every method that acts on
+   * a reviewable sample, mirroring the lazy CLOSED_DUE_TO_INACTIVITY check in
+   * TrainingCyclesService.getCurrent — no background job exists for this (see design
+   * spec's scope decision on lazy SLA evaluation).
+   */
+  async evaluateReviewDeadlines(cycleId: string): Promise<{ cycle: TrainingCycle72h; sample: SpeechSample }> {
+    const cycle = await this.prisma.trainingCycle72h.findUniqueOrThrow({ where: { id: cycleId } });
+    const sample = await this.prisma.speechSample.findUnique({ where: { trainingCycleId: cycleId } });
+    if (!sample) {
+      // Every status this method is ever called for (WAITING_FOR_SPECIALIST onward) implies a
+      // submitted sample already exists — this is a genuine invariant violation, not a normal
+      // "not found" a caller should handle differently, so every caller's own re-fetch-and-throw
+      // never actually needs to run. Fail loudly rather than silently returning a fake value.
+      throw new NotFoundException('No submitted sample found for this cycle');
+    }
+
+    if (
+      cycle.status === 'WAITING_FOR_SPECIALIST' &&
+      sample.submittedAt &&
+      !sample.reservedByUserId &&
+      !sample.escalatedAt &&
+      Date.now() - sample.submittedAt.getTime() > REVIEW_BOOKING_WINDOW_MS
+    ) {
+      const updatedSample = await this.prisma.speechSample.update({ where: { id: sample.id }, data: { escalatedAt: new Date() } });
+      return { cycle, sample: updatedSample };
+    }
+
+    const inDecisionWindow = cycle.status === 'UNDER_REVIEW' || cycle.status === 'WAITING_FINAL_DECISION_AFTER_INTERVENTION';
+    if (inDecisionWindow && sample.reviewDeadlineAt && Date.now() > sample.reviewDeadlineAt.getTime()) {
+      const releasedFromUserId = sample.reservedByUserId;
+      const { updatedCycle, updatedSample } = await this.prisma.$transaction(async (tx) => {
+        const updatedCycle = await tx.trainingCycle72h.update({ where: { id: cycleId }, data: { status: 'WAITING_FOR_SPECIALIST' } });
+        const updatedSample = await tx.speechSample.update({
+          where: { id: sample.id },
+          data: { reservedByUserId: null, reservedAt: null, reviewDeadlineAt: null },
+        });
+        await tx.auditLog.create({
+          data: {
+            userId: releasedFromUserId,
+            action: 'REVIEW_RESERVATION_AUTO_RELEASED',
+            entity: 'SpeechSample',
+            entityId: sample.id,
+            before: { reservedByUserId: releasedFromUserId },
+            after: { reservedByUserId: null },
+          },
+        });
+        return { updatedCycle, updatedSample };
+      });
+      return { cycle: updatedCycle, sample: updatedSample };
+    }
+
+    if (
+      cycle.status === 'DIRECT_INTERVENTION_REQUIRED' &&
+      sample.interventionDeadlineAt &&
+      !sample.escalatedAt &&
+      Date.now() > sample.interventionDeadlineAt.getTime()
+    ) {
+      const updatedSample = await this.prisma.speechSample.update({ where: { id: sample.id }, data: { escalatedAt: new Date() } });
+      return { cycle, sample: updatedSample };
+    }
+
+    return { cycle, sample };
+  }
+
+  async listAvailableSamples(): Promise<Array<TrainingCycle72h & { speechSample: SpeechSample | null; patientProfile: { id: string; fullName: string } }>> {
+    const cycles = await this.prisma.trainingCycle72h.findMany({
+      where: { status: 'WAITING_FOR_SPECIALIST' },
+      include: { speechSample: true, patientProfile: { select: { id: true, fullName: true } } },
+      orderBy: { updatedAt: 'asc' },
+    });
+    const evaluated = await Promise.all(cycles.map((c) => this.evaluateReviewDeadlines(c.id)));
+    return cycles.map((c, i) => ({ ...c, speechSample: evaluated[i].sample }));
+  }
+
+  async reserve(cycleId: string, actor: AuthenticatedUser): Promise<SpeechSample> {
+    await this.evaluateReviewDeadlines(cycleId);
+
+    return this.prisma.$transaction(async (tx) => {
+      await tx.$queryRaw`SELECT id FROM "TrainingCycle72h" WHERE id = ${cycleId} FOR UPDATE`;
+
+      const cycle = await tx.trainingCycle72h.findUniqueOrThrow({ where: { id: cycleId } });
+      if (cycle.status !== 'WAITING_FOR_SPECIALIST') {
+        throw new ConflictException(`Cannot reserve a cycle in status ${cycle.status}`);
+      }
+      const sample = await tx.speechSample.findUnique({ where: { trainingCycleId: cycleId } });
+      if (!sample) {
+        throw new NotFoundException('No submitted sample found for this cycle');
+      }
+      if (sample.reservedByUserId) {
+        throw new ConflictException('This sample is already reserved by another specialist');
+      }
+
+      await tx.trainingCycle72h.update({ where: { id: cycleId }, data: { status: 'UNDER_REVIEW' } });
+      return tx.speechSample.update({
+        where: { id: sample.id },
+        data: {
+          reservedByUserId: actor.id,
+          reservedAt: new Date(),
+          reviewDeadlineAt: new Date(Date.now() + REVIEW_DECISION_WINDOW_MS),
+          escalatedAt: null,
+        },
+      });
+    });
   }
 
   private async openNextLevelCycle(
