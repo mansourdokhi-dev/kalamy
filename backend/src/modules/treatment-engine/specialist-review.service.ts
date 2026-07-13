@@ -5,6 +5,8 @@ import { AuthenticatedUser } from '../../common/auth/session.guard';
 import { TrainingCyclesService } from './training-cycles.service';
 import { LevelsService } from './levels.service';
 import { ReviewSampleDto } from './dto/review-sample.dto';
+import { RequestInterventionDto } from './dto/request-intervention.dto';
+import { CompleteInterventionDto } from './dto/complete-intervention.dto';
 
 const REVIEW_BOOKING_WINDOW_MS = 24 * 60 * 60 * 1000; // §9: escalate if unreserved 24h after submission
 const REVIEW_DECISION_WINDOW_MS = 48 * 60 * 60 * 1000; // §9: auto-release if undecided 48h after reservation
@@ -231,6 +233,61 @@ export class SpecialistReviewService {
           escalatedAt: null,
         },
       });
+    });
+  }
+
+  async requestIntervention(cycleId: string, dto: RequestInterventionDto, actor: AuthenticatedUser): Promise<SpeechSample> {
+    await this.evaluateReviewDeadlines(cycleId);
+    const cycle = await this.trainingCyclesService.findCycleForActor(cycleId, actor);
+    if (cycle.status !== 'UNDER_REVIEW') {
+      throw new ConflictException(`Cannot request intervention from status ${cycle.status}`);
+    }
+    const sample = await this.prisma.speechSample.findUnique({ where: { trainingCycleId: cycleId } });
+    if (!sample) {
+      throw new NotFoundException('No submitted sample found for this cycle');
+    }
+    if (sample.reservedByUserId !== actor.id) {
+      throw new ForbiddenException('Only the specialist holding the reservation can request intervention');
+    }
+
+    await this.prisma.trainingCycle72h.update({ where: { id: cycleId }, data: { status: 'DIRECT_INTERVENTION_REQUIRED' } });
+    return this.prisma.speechSample.update({
+      where: { id: sample.id },
+      data: {
+        interventionType: dto.interventionType,
+        interventionRequestedAt: new Date(),
+        interventionDeadlineAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+        interventionOutcomeNotes: dto.reasonNote,
+        // §11: the first review deadline is paused, not extended — a fresh 48h starts only once
+        // the intervention is documented complete (see completeIntervention below).
+        reviewDeadlineAt: null,
+      },
+    });
+  }
+
+  async completeIntervention(cycleId: string, dto: CompleteInterventionDto, actor: AuthenticatedUser): Promise<SpeechSample> {
+    await this.evaluateReviewDeadlines(cycleId);
+    const cycle = await this.trainingCyclesService.findCycleForActor(cycleId, actor);
+    if (cycle.status !== 'DIRECT_INTERVENTION_REQUIRED') {
+      throw new ConflictException(`Cannot complete intervention from status ${cycle.status}`);
+    }
+    const sample = await this.prisma.speechSample.findUnique({ where: { trainingCycleId: cycleId } });
+    if (!sample) {
+      throw new NotFoundException('No submitted sample found for this cycle');
+    }
+    if (sample.reservedByUserId !== actor.id) {
+      throw new ForbiddenException('Only the specialist holding the reservation can complete this intervention');
+    }
+
+    await this.prisma.trainingCycle72h.update({ where: { id: cycleId }, data: { status: 'WAITING_FINAL_DECISION_AFTER_INTERVENTION' } });
+    return this.prisma.speechSample.update({
+      where: { id: sample.id },
+      data: {
+        interventionExecutedByUserId: actor.id,
+        interventionCompletedAt: new Date(),
+        interventionOutcomeNotes: dto.outcomeNotes,
+        reviewDeadlineAt: new Date(Date.now() + REVIEW_DECISION_WINDOW_MS),
+      },
     });
   }
 

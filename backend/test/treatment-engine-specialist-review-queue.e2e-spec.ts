@@ -123,4 +123,74 @@ describe('Treatment Engine — Specialist review queue (e2e)', () => {
     const afterReserve = await prisma.trainingCycle72h.findUniqueOrThrow({ where: { id: cycle.id } });
     expect(afterReserve.status).toBe('UNDER_REVIEW');
   });
+
+  it('pauses the review deadline during a direct intervention, then starts a fresh one on completion', async () => {
+    const clinicianToken = await registerAndLogin(app, prisma, '+966500005030', 'CLINICIAN');
+    const clinicianUserId = (await prisma.user.findUniqueOrThrow({ where: { mobile: '+966500005030' } })).id;
+    const { plan, patientProfile } = await setupPatientAndPlan(prisma, '+966500005031', clinicianUserId);
+    const { cycle } = await createSubmittedSampleCycle(prisma, patientProfile.id, plan.id, clinicianUserId);
+
+    await request(app.getHttpServer())
+      .post(`/api/v1/specialist-review/cycles/${cycle.id}/reserve`)
+      .set('Authorization', `Bearer ${clinicianToken}`)
+      .expect(201);
+
+    const interventionRes = await request(app.getHttpServer())
+      .post(`/api/v1/specialist-review/cycles/${cycle.id}/intervention`)
+      .set('Authorization', `Bearer ${clinicianToken}`)
+      .send({ interventionType: 'VOICE_CONSULTATION', reasonNote: 'Needs clarification on hand-sync' })
+      .expect(201);
+    expect(interventionRes.body.interventionType).toBe('VOICE_CONSULTATION');
+    expect(interventionRes.body.reviewDeadlineAt).toBeNull();
+
+    const afterRequest = await prisma.trainingCycle72h.findUniqueOrThrow({ where: { id: cycle.id } });
+    expect(afterRequest.status).toBe('DIRECT_INTERVENTION_REQUIRED');
+
+    const completeRes = await request(app.getHttpServer())
+      .post(`/api/v1/specialist-review/cycles/${cycle.id}/intervention/complete`)
+      .set('Authorization', `Bearer ${clinicianToken}`)
+      .send({ outcomeNotes: 'Patient understands hand-sync now' })
+      .expect(201);
+    expect(completeRes.body.interventionCompletedAt).not.toBeNull();
+    expect(completeRes.body.reviewDeadlineAt).not.toBeNull();
+
+    const afterComplete = await prisma.trainingCycle72h.findUniqueOrThrow({ where: { id: cycle.id } });
+    expect(afterComplete.status).toBe('WAITING_FINAL_DECISION_AFTER_INTERVENTION');
+  });
+
+  it('escalates an intervention not executed within 7 days', async () => {
+    const clinicianToken = await registerAndLogin(app, prisma, '+966500005040', 'CLINICIAN');
+    const clinicianUserId = (await prisma.user.findUniqueOrThrow({ where: { mobile: '+966500005040' } })).id;
+    const { plan, patientProfile } = await setupPatientAndPlan(prisma, '+966500005041', clinicianUserId);
+    const { cycle, sample } = await createSubmittedSampleCycle(prisma, patientProfile.id, plan.id, clinicianUserId);
+
+    await request(app.getHttpServer())
+      .post(`/api/v1/specialist-review/cycles/${cycle.id}/reserve`)
+      .set('Authorization', `Bearer ${clinicianToken}`)
+      .expect(201);
+    await request(app.getHttpServer())
+      .post(`/api/v1/specialist-review/cycles/${cycle.id}/intervention`)
+      .set('Authorization', `Bearer ${clinicianToken}`)
+      .send({ interventionType: 'VIDEO_MEETING', reasonNote: 'x' })
+      .expect(201);
+
+    await prisma.speechSample.update({
+      where: { id: sample.id },
+      data: { interventionRequestedAt: new Date(Date.now() - 8 * 24 * 60 * 60 * 1000), interventionDeadlineAt: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000) },
+    });
+
+    // Nothing has triggered a lazy evaluation yet, so the 7-day-overdue intervention
+    // hasn't been flagged — confirm the starting state before the action that does trigger it.
+    const sampleBefore = await prisma.speechSample.findUniqueOrThrow({ where: { id: sample.id } });
+    expect(sampleBefore.escalatedAt).toBeNull();
+
+    await request(app.getHttpServer())
+      .post(`/api/v1/specialist-review/cycles/${cycle.id}/intervention/complete`)
+      .set('Authorization', `Bearer ${clinicianToken}`)
+      .send({ outcomeNotes: 'late but done' })
+      .expect(201);
+
+    const sampleAfterComplete = await prisma.speechSample.findUniqueOrThrow({ where: { id: sample.id } });
+    expect(sampleAfterComplete.escalatedAt).not.toBeNull();
+  });
 });
