@@ -6,8 +6,8 @@ import { useTheme } from '../../src/theme/ThemeContext';
 import { usePatientProfile } from '../../src/patient/PatientProfileProvider';
 import { Button } from '../../src/components/Button';
 import { ErrorBanner } from '../../src/components/ErrorBanner';
-import { AudioRecorder } from '../../src/components/AudioRecorder';
-import { AudioPlayer } from '../../src/components/AudioPlayer';
+import { VideoRecorder } from '../../src/components/VideoRecorder';
+import { VideoPlayer } from '../../src/components/VideoPlayer';
 import { ApiError } from '../../src/api/client';
 import {
   getCurrentCycle,
@@ -88,13 +88,13 @@ export default function SampleRecordingScreen() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [patientProfileId]);
 
-  async function handleRecorded(fileUri: string) {
+  async function handleRecorded(fileUri: string, durationSeconds: number) {
     if (!patientProfileId) return;
     setUploading(true);
     setError(null);
     try {
-      const { url } = await uploadRecording(patientProfileId, fileUri);
-      await recordAttempt(patientProfileId, url);
+      const { url, mimeType, fileSizeBytes } = await uploadRecording(patientProfileId, fileUri);
+      await recordAttempt(patientProfileId, { recordingUrl: url, mimeType, fileSizeBytes, durationSeconds });
       const attemptsResult = await listAttempts(patientProfileId);
       setAttempts(attemptsResult);
     } catch (err) {
@@ -180,7 +180,7 @@ export default function SampleRecordingScreen() {
           {attempts.map((attempt) => (
             <View key={attempt.id} style={styles.attemptRow}>
               <Text style={{ color: tokens.colors.text }}>{`${ar.sampleRecording.attemptLabel} ${attempt.attemptNumber}`}</Text>
-              <AudioPlayer uri={attempt.recordingUrl} />
+              <VideoPlayer path={`/api/v1/patients/${patientProfileId}/cycles/current/sample-session/attempts/${attempt.id}/media`} />
               <Button title={ar.sampleRecording.deleteAttempt} onPress={() => handleDelete(attempt.id)} />
             </View>
           ))}
@@ -190,7 +190,7 @@ export default function SampleRecordingScreen() {
           ) : uploading ? (
             <Text style={{ color: tokens.colors.textSecondary, marginVertical: 8 }}>{ar.sampleRecording.uploading}</Text>
           ) : (
-            <AudioRecorder onRecorded={handleRecorded} />
+            <VideoRecorder onRecorded={handleRecorded} />
           )}
 
           <View style={{ marginTop: 24 }}>
@@ -216,7 +216,7 @@ export default function SampleRecordingScreen() {
                     <Text style={{ color: selected ? tokens.colors.primary : tokens.colors.text }}>
                       {`${ar.sampleRecording.attemptLabel} ${attempt.attemptNumber}`}
                     </Text>
-                    <AudioPlayer uri={attempt.recordingUrl} />
+                    <VideoPlayer path={`/api/v1/patients/${patientProfileId}/cycles/current/sample-session/attempts/${attempt.id}/media`} />
                   </Pressable>
                 );
               })}

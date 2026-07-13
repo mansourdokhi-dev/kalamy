@@ -17,19 +17,19 @@ jest.mock('../../../src/patient/PatientProfileProvider');
 jest.mock('../../../src/api/treatmentEngine');
 jest.mock('expo-router', () => ({ useRouter: () => ({ back: jest.fn() }) }));
 
-jest.mock('../../../src/components/AudioRecorder', () => ({
-  AudioRecorder: ({ onRecorded }: { onRecorded: (uri: string) => void }) => {
+jest.mock('../../../src/components/VideoRecorder', () => ({
+  VideoRecorder: ({ onRecorded }: { onRecorded: (uri: string, durationSeconds: number) => void }) => {
     const { Pressable, Text } = require('react-native');
     return (
-      <Pressable onPress={() => onRecorded('file:///mock-recording.m4a')}>
+      <Pressable onPress={() => onRecorded('file:///mock-recording.mp4', 8)}>
         <Text>SIMULATE_RECORD</Text>
       </Pressable>
     );
   },
 }));
 
-jest.mock('../../../src/components/AudioPlayer', () => ({
-  AudioPlayer: () => {
+jest.mock('../../../src/components/VideoPlayer', () => ({
+  VideoPlayer: () => {
     const { Text } = require('react-native');
     return <Text>MOCK_PLAYER</Text>;
   },
@@ -58,7 +58,10 @@ function mockAttempt(id: string, attemptNumber: number) {
     id,
     sampleSessionId: 'session-1',
     attemptNumber,
-    recordingUrl: `https://example.com/${id}.m4a`,
+    recordingUrl: `${id}.mp4`,
+    mimeType: 'video/mp4',
+    fileSizeBytes: 204800,
+    durationSeconds: 8,
     deletedAt: null,
     createdAt: '2026-07-01T00:00:00.000Z',
   };
@@ -116,7 +119,7 @@ describe('SampleRecordingScreen', () => {
     (listAttempts as jest.Mock)
       .mockResolvedValueOnce([])
       .mockResolvedValueOnce([mockAttempt('attempt-1', 1)]);
-    (uploadRecording as jest.Mock).mockResolvedValue({ url: 'https://example.com/attempt-1.m4a' });
+    (uploadRecording as jest.Mock).mockResolvedValue({ url: 'attempt-1.mp4', mimeType: 'video/mp4', fileSizeBytes: 204800 });
     (recordAttempt as jest.Mock).mockResolvedValue(mockAttempt('attempt-1', 1));
 
     render(<ThemeProvider><SampleRecordingScreen /></ThemeProvider>);
@@ -124,8 +127,13 @@ describe('SampleRecordingScreen', () => {
     fireEvent.press(screen.getByText('SIMULATE_RECORD'));
 
     await waitFor(() => {
-      expect(uploadRecording).toHaveBeenCalledWith('profile-1', 'file:///mock-recording.m4a');
-      expect(recordAttempt).toHaveBeenCalledWith('profile-1', 'https://example.com/attempt-1.m4a');
+      expect(uploadRecording).toHaveBeenCalledWith('profile-1', 'file:///mock-recording.mp4');
+      expect(recordAttempt).toHaveBeenCalledWith('profile-1', {
+        recordingUrl: 'attempt-1.mp4',
+        mimeType: 'video/mp4',
+        fileSizeBytes: 204800,
+        durationSeconds: 8,
+      });
       expect(screen.getByText('محاولة 1')).toBeTruthy();
     });
   });
