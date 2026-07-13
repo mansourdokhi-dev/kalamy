@@ -40,6 +40,7 @@ export enum Permission {
   TRANSFER_REVIEW_RESPONSIBILITY = 'TRANSFER_REVIEW_RESPONSIBILITY',
   REQUEST_CONSULTATION = 'REQUEST_CONSULTATION',
   MANAGE_CONSULTATION = 'MANAGE_CONSULTATION',
+  VIEW_OWN_NOTIFICATIONS = 'VIEW_OWN_NOTIFICATIONS',
 }
 
 export const ROLE_PERMISSIONS: Record<Role, Permission[]> = {
@@ -60,6 +61,7 @@ export const ROLE_PERMISSIONS: Record<Role, Permission[]> = {
     Permission.PREPARE_SAMPLE,
     Permission.SUBMIT_SAMPLE,
     Permission.REQUEST_CONSULTATION,
+    Permission.VIEW_OWN_NOTIFICATIONS,
   ],
   CAREGIVER: [
     Permission.VIEW_PATIENT_PROFILE,
@@ -78,6 +80,7 @@ export const ROLE_PERMISSIONS: Record<Role, Permission[]> = {
     Permission.PREPARE_SAMPLE,
     Permission.SUBMIT_SAMPLE,
     Permission.REQUEST_CONSULTATION,
+    Permission.VIEW_OWN_NOTIFICATIONS,
   ],
   CLINICIAN: [
     Permission.CREATE_PATIENT_PROFILE,
@@ -105,6 +108,7 @@ export const ROLE_PERMISSIONS: Record<Role, Permission[]> = {
     Permission.VIEW_CYCLE,
     Permission.REVIEW_SAMPLE,
     Permission.MANAGE_CONSULTATION,
+    Permission.VIEW_OWN_NOTIFICATIONS,
   ],
   SUPERVISOR: [
     Permission.VIEW_PATIENT_PROFILE,
@@ -122,6 +126,7 @@ export const ROLE_PERMISSIONS: Record<Role, Permission[]> = {
     Permission.VIEW_CYCLE,
     Permission.TRANSFER_REVIEW_RESPONSIBILITY,
     Permission.MANAGE_CONSULTATION,
+    Permission.VIEW_OWN_NOTIFICATIONS,
   ],
   ADMIN: [
     Permission.CREATE_PATIENT_PROFILE,
@@ -156,6 +161,7 @@ export const ROLE_PERMISSIONS: Record<Role, Permission[]> = {
     Permission.VIEW_CYCLE,
     Permission.REVIEW_SAMPLE,
     Permission.MANAGE_CONSULTATION,
+    Permission.VIEW_OWN_NOTIFICATIONS,
   ],
 };
 
