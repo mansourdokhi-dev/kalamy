@@ -158,6 +158,50 @@ describe('Treatment Engine — Specialist review queue (e2e)', () => {
     expect(afterComplete.status).toBe('WAITING_FINAL_DECISION_AFTER_INTERVENTION');
   });
 
+  it('blocks a different clinician from requesting intervention on a sample reserved by someone else', async () => {
+    const clinicianAToken = await registerAndLogin(app, prisma, '+966500005050', 'CLINICIAN');
+    const clinicianBToken = await registerAndLogin(app, prisma, '+966500005051', 'CLINICIAN');
+    const clinicianUserId = (await prisma.user.findUniqueOrThrow({ where: { mobile: '+966500005050' } })).id;
+    const { plan, patientProfile } = await setupPatientAndPlan(prisma, '+966500005052', clinicianUserId);
+    const { cycle } = await createSubmittedSampleCycle(prisma, patientProfile.id, plan.id, clinicianUserId);
+
+    await request(app.getHttpServer())
+      .post(`/api/v1/specialist-review/cycles/${cycle.id}/reserve`)
+      .set('Authorization', `Bearer ${clinicianAToken}`)
+      .expect(201);
+
+    await request(app.getHttpServer())
+      .post(`/api/v1/specialist-review/cycles/${cycle.id}/intervention`)
+      .set('Authorization', `Bearer ${clinicianBToken}`)
+      .send({ interventionType: 'VOICE_CONSULTATION', reasonNote: 'Trying to intervene on someone else\'s reservation' })
+      .expect(403);
+  });
+
+  it('blocks a different clinician from completing an intervention requested by someone else', async () => {
+    const clinicianAToken = await registerAndLogin(app, prisma, '+966500005060', 'CLINICIAN');
+    const clinicianBToken = await registerAndLogin(app, prisma, '+966500005061', 'CLINICIAN');
+    const clinicianUserId = (await prisma.user.findUniqueOrThrow({ where: { mobile: '+966500005060' } })).id;
+    const { plan, patientProfile } = await setupPatientAndPlan(prisma, '+966500005062', clinicianUserId);
+    const { cycle } = await createSubmittedSampleCycle(prisma, patientProfile.id, plan.id, clinicianUserId);
+
+    await request(app.getHttpServer())
+      .post(`/api/v1/specialist-review/cycles/${cycle.id}/reserve`)
+      .set('Authorization', `Bearer ${clinicianAToken}`)
+      .expect(201);
+
+    await request(app.getHttpServer())
+      .post(`/api/v1/specialist-review/cycles/${cycle.id}/intervention`)
+      .set('Authorization', `Bearer ${clinicianAToken}`)
+      .send({ interventionType: 'VOICE_CONSULTATION', reasonNote: 'Needs clarification on hand-sync' })
+      .expect(201);
+
+    await request(app.getHttpServer())
+      .post(`/api/v1/specialist-review/cycles/${cycle.id}/intervention/complete`)
+      .set('Authorization', `Bearer ${clinicianBToken}`)
+      .send({ outcomeNotes: 'Trying to complete someone else\'s intervention' })
+      .expect(403);
+  });
+
   it('escalates an intervention not executed within 7 days', async () => {
     const clinicianToken = await registerAndLogin(app, prisma, '+966500005040', 'CLINICIAN');
     const clinicianUserId = (await prisma.user.findUniqueOrThrow({ where: { mobile: '+966500005040' } })).id;
