@@ -7,6 +7,7 @@ import { RequirePermission } from '../../common/rbac/require-permission.decorato
 import { Permission } from '../../common/rbac/permissions';
 import { RequestInterventionDto } from './dto/request-intervention.dto';
 import { CompleteInterventionDto } from './dto/complete-intervention.dto';
+import { TransferReviewDto } from './dto/transfer-review.dto';
 
 @Controller('api/v1/specialist-review')
 @UseGuards(SessionGuard, PermissionsGuard)
@@ -35,5 +36,11 @@ export class SpecialistReviewQueueController {
   @RequirePermission(Permission.REVIEW_SAMPLE)
   async completeIntervention(@Param('cycleId') cycleId: string, @Body() dto: CompleteInterventionDto, @CurrentUser() user: AuthenticatedUser) {
     return this.specialistReviewService.completeIntervention(cycleId, dto, user);
+  }
+
+  @Post('cycles/:cycleId/transfer')
+  @RequirePermission(Permission.TRANSFER_REVIEW_RESPONSIBILITY)
+  async transfer(@Param('cycleId') cycleId: string, @Body() dto: TransferReviewDto, @CurrentUser() user: AuthenticatedUser) {
+    return this.specialistReviewService.transferResponsibility(cycleId, dto, user);
   }
 }

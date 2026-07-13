@@ -7,6 +7,8 @@ import { LevelsService } from './levels.service';
 import { ReviewSampleDto } from './dto/review-sample.dto';
 import { RequestInterventionDto } from './dto/request-intervention.dto';
 import { CompleteInterventionDto } from './dto/complete-intervention.dto';
+import { TransferReviewDto } from './dto/transfer-review.dto';
+import { hasPermission, Permission } from '../../common/rbac/permissions';
 
 const REVIEW_BOOKING_WINDOW_MS = 24 * 60 * 60 * 1000; // §9: escalate if unreserved 24h after submission
 const REVIEW_DECISION_WINDOW_MS = 48 * 60 * 60 * 1000; // §9: auto-release if undecided 48h after reservation
@@ -234,6 +236,45 @@ export class SpecialistReviewService {
         },
       });
     });
+  }
+
+  async transferResponsibility(cycleId: string, dto: TransferReviewDto, actor: AuthenticatedUser): Promise<SpeechSample> {
+    const cycle = await this.trainingCyclesService.findCycleForActor(cycleId, actor);
+    const sample = await this.prisma.speechSample.findUnique({ where: { trainingCycleId: cycleId } });
+    if (!sample) {
+      throw new NotFoundException('No submitted sample found for this cycle');
+    }
+    if (!['UNDER_REVIEW', 'DIRECT_INTERVENTION_REQUIRED', 'WAITING_FINAL_DECISION_AFTER_INTERVENTION'].includes(cycle.status)) {
+      throw new ConflictException(`Cannot transfer responsibility from status ${cycle.status}`);
+    }
+
+    // reservedByUserId is a real FK to User — an unvalidated toUserId would otherwise surface as
+    // an unhandled FK-violation 500 instead of a clean error, and a transfer to someone who can't
+    // hold a reservation (e.g. a PATIENT or another SUPERVISOR) would strand the review with nobody
+    // able to act on it. Mirrors the damagedPartIds validation pattern in review() above.
+    const targetUser = await this.prisma.user.findUnique({ where: { id: dto.toUserId } });
+    if (!targetUser) {
+      throw new NotFoundException('Target user not found');
+    }
+    if (!hasPermission(targetUser.role, Permission.REVIEW_SAMPLE)) {
+      throw new ConflictException('Target user is not eligible to hold a review reservation');
+    }
+
+    const previousReviewerUserId = sample.reservedByUserId;
+    const [, updatedSample] = await this.prisma.$transaction([
+      this.prisma.auditLog.create({
+        data: {
+          userId: actor.id,
+          action: 'REVIEW_RESPONSIBILITY_TRANSFERRED',
+          entity: 'SpeechSample',
+          entityId: sample.id,
+          before: { reservedByUserId: previousReviewerUserId },
+          after: { reservedByUserId: dto.toUserId },
+        },
+      }),
+      this.prisma.speechSample.update({ where: { id: sample.id }, data: { reservedByUserId: dto.toUserId } }),
+    ]);
+    return updatedSample;
   }
 
   async requestIntervention(cycleId: string, dto: RequestInterventionDto, actor: AuthenticatedUser): Promise<SpeechSample> {

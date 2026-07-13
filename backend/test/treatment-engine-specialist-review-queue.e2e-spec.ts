@@ -237,4 +237,63 @@ describe('Treatment Engine — Specialist review queue (e2e)', () => {
     const sampleAfterComplete = await prisma.speechSample.findUniqueOrThrow({ where: { id: sample.id } });
     expect(sampleAfterComplete.escalatedAt).not.toBeNull();
   });
+
+  it('lets a supervisor transfer review responsibility to a different specialist, with an audit trail', async () => {
+    const clinicianAToken = await registerAndLogin(app, prisma, '+966500005050', 'CLINICIAN');
+    const clinicianBToken = await registerAndLogin(app, prisma, '+966500005051', 'CLINICIAN');
+    const supervisorToken = await registerAndLogin(app, prisma, '+966500005052', 'SUPERVISOR');
+    const clinicianAUserId = (await prisma.user.findUniqueOrThrow({ where: { mobile: '+966500005050' } })).id;
+    const clinicianBUserId = (await prisma.user.findUniqueOrThrow({ where: { mobile: '+966500005051' } })).id;
+    const { plan, patientProfile } = await setupPatientAndPlan(prisma, '+966500005053', clinicianAUserId);
+    const { cycle } = await createSubmittedSampleCycle(prisma, patientProfile.id, plan.id, clinicianAUserId);
+
+    await request(app.getHttpServer())
+      .post(`/api/v1/specialist-review/cycles/${cycle.id}/reserve`)
+      .set('Authorization', `Bearer ${clinicianAToken}`)
+      .expect(201);
+
+    const transferRes = await request(app.getHttpServer())
+      .post(`/api/v1/specialist-review/cycles/${cycle.id}/transfer`)
+      .set('Authorization', `Bearer ${supervisorToken}`)
+      .send({ toUserId: clinicianBUserId, reason: 'Clinician A is on leave' })
+      .expect(201);
+    expect(transferRes.body.reservedByUserId).toBe(clinicianBUserId);
+
+    // Clinician A can no longer decide; clinician B can.
+    await request(app.getHttpServer())
+      .post(`/api/v1/patients/${patientProfile.id}/cycles/current/review`)
+      .set('Authorization', `Bearer ${clinicianAToken}`)
+      .send({ decision: 'TRANSITION', clinicianOpinionScore: 8, reviewNotes: 'x' })
+      .expect(403);
+    await request(app.getHttpServer())
+      .post(`/api/v1/patients/${patientProfile.id}/cycles/current/review`)
+      .set('Authorization', `Bearer ${clinicianBToken}`)
+      .send({ decision: 'TRANSITION', clinicianOpinionScore: 8, reviewNotes: 'x' })
+      .expect(201);
+
+    const auditEntries = await prisma.auditLog.findMany({ where: { action: 'REVIEW_RESPONSIBILITY_TRANSFERRED' } });
+    expect(auditEntries).toHaveLength(1);
+    expect(auditEntries[0].before).toEqual({ reservedByUserId: clinicianAUserId });
+    expect(auditEntries[0].after).toEqual({ reservedByUserId: clinicianBUserId });
+  });
+
+  it('rejects a transfer request from a clinician (not a supervisor)', async () => {
+    const clinicianAToken = await registerAndLogin(app, prisma, '+966500005060', 'CLINICIAN');
+    await registerAndLogin(app, prisma, '+966500005061', 'CLINICIAN');
+    const clinicianBUserId = (await prisma.user.findUniqueOrThrow({ where: { mobile: '+966500005061' } })).id;
+    const clinicianAUserId = (await prisma.user.findUniqueOrThrow({ where: { mobile: '+966500005060' } })).id;
+    const { plan, patientProfile } = await setupPatientAndPlan(prisma, '+966500005062', clinicianAUserId);
+    const { cycle } = await createSubmittedSampleCycle(prisma, patientProfile.id, plan.id, clinicianAUserId);
+
+    await request(app.getHttpServer())
+      .post(`/api/v1/specialist-review/cycles/${cycle.id}/reserve`)
+      .set('Authorization', `Bearer ${clinicianAToken}`)
+      .expect(201);
+
+    await request(app.getHttpServer())
+      .post(`/api/v1/specialist-review/cycles/${cycle.id}/transfer`)
+      .set('Authorization', `Bearer ${clinicianAToken}`)
+      .send({ toUserId: clinicianBUserId, reason: 'trying to self-transfer' })
+      .expect(403);
+  });
 });
