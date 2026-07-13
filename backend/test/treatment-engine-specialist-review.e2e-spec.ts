@@ -547,4 +547,40 @@ describe('Treatment Engine — Specialist review (e2e)', () => {
       .send({ decision: 'TRANSITION', clinicianOpinionScore: 8, reviewNotes: 'x' })
       .expect(403);
   });
+
+  it('accepts a review decision on a cycle waiting for the final decision after an intervention', async () => {
+    const clinicianToken = await registerAndLogin(app, prisma, '+966500004110', 'CLINICIAN');
+    const clinicianUserId = (await prisma.user.findUniqueOrThrow({ where: { mobile: '+966500004110' } })).id;
+    const patientToken = await registerAndLogin(app, prisma, '+966500004111', null);
+    const patientUserId = (await prisma.user.findUniqueOrThrow({ where: { mobile: '+966500004111' } })).id;
+
+    const patientProfile = await prisma.patientProfile.create({
+      data: { userId: patientUserId, fullName: 'Post-Intervention Test Patient', gender: 'MALE', dateOfBirth: new Date('2000-01-01'), nationalId: 'POST-INTERVENTION-TEST-1' },
+    });
+    const assessment = await prisma.assessment.create({
+      data: { patientProfileId: patientProfile.id, clinicianUserId, type: 'INITIAL', status: 'APPROVED' },
+    });
+    const plan = await prisma.treatmentPlan.create({
+      data: { patientProfileId: patientProfile.id, clinicianUserId, assessmentId: assessment.id, goals: 'g', reviewDate: new Date() },
+    });
+    const level = await prisma.level.create({ data: { name: 'Post-Intervention Level', order: 90002 } });
+    const levelVersion = await prisma.levelVersion.create({
+      data: { levelId: level.id, versionNumber: 1, behavioralTechnique: 'x', trainingListJson: '[]', samplePartTemplateJson: '[]', publishedAt: new Date() },
+    });
+    const cycle = await prisma.trainingCycle72h.create({
+      data: { patientProfileId: patientProfile.id, treatmentPlanId: plan.id, levelId: level.id, levelVersionId: levelVersion.id, cycleNumber: 1, status: 'WAITING_FINAL_DECISION_AFTER_INTERVENTION' },
+    });
+    await prisma.speechSample.create({
+      data: { trainingCycleId: cycle.id, submittedAt: new Date(), reservedByUserId: clinicianUserId, reservedAt: new Date(), reviewDeadlineAt: new Date(Date.now() + 48 * 60 * 60 * 1000) },
+    });
+
+    // Regression test for a bug the coordinator caught during Task 4's own review: the
+    // inner transaction's re-check must accept this status too, not just the outer guard,
+    // or every decision on this status would fail with a spurious "already reviewed" 409.
+    await request(app.getHttpServer())
+      .post(`/api/v1/patients/${patientProfile.id}/cycles/current/review`)
+      .set('Authorization', `Bearer ${clinicianToken}`)
+      .send({ decision: 'TRANSITION', clinicianOpinionScore: 8, reviewNotes: 'x' })
+      .expect(201);
+  });
 });

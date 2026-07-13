@@ -54,7 +54,7 @@ export class SpecialistReviewService {
       await tx.$queryRaw`SELECT id FROM "TrainingCycle72h" WHERE id = ${cycleId} FOR UPDATE`;
 
       const freshCycle = await tx.trainingCycle72h.findUniqueOrThrow({ where: { id: cycleId } });
-      if (freshCycle.status !== 'WAITING_FOR_SPECIALIST' && freshCycle.status !== 'UNDER_REVIEW') {
+      if (!reviewableStatuses.includes(freshCycle.status)) {
         return { alreadyReviewed: true as const, status: freshCycle.status };
       }
 
