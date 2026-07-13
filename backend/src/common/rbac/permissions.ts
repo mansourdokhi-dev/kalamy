@@ -37,6 +37,7 @@ export enum Permission {
   PREPARE_SAMPLE = 'PREPARE_SAMPLE',
   SUBMIT_SAMPLE = 'SUBMIT_SAMPLE',
   REVIEW_SAMPLE = 'REVIEW_SAMPLE',
+  TRANSFER_REVIEW_RESPONSIBILITY = 'TRANSFER_REVIEW_RESPONSIBILITY',
 }
 
 export const ROLE_PERMISSIONS: Record<Role, Permission[]> = {
@@ -114,6 +115,7 @@ export const ROLE_PERMISSIONS: Record<Role, Permission[]> = {
     Permission.VIEW_SUPERVISION,
     Permission.VIEW_LEVELS,
     Permission.VIEW_CYCLE,
+    Permission.TRANSFER_REVIEW_RESPONSIBILITY,
   ],
   ADMIN: [
     Permission.CREATE_PATIENT_PROFILE,
