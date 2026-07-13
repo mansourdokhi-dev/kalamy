@@ -6,7 +6,7 @@ import { useTheme } from '../../src/theme/ThemeContext';
 import { usePatientProfile } from '../../src/patient/PatientProfileProvider';
 import { Button } from '../../src/components/Button';
 import { ErrorBanner } from '../../src/components/ErrorBanner';
-import { AudioRecorder } from '../../src/components/AudioRecorder';
+import { VideoRecorder } from '../../src/components/VideoRecorder';
 import { ApiError } from '../../src/api/client';
 import { getCurrentCycle, uploadRecording, rerecordDamagedParts, SampleSamplePart } from '../../src/api/treatmentEngine';
 
@@ -18,7 +18,7 @@ export default function SampleRerecordScreen() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [damagedParts, setDamagedParts] = useState<SampleSamplePart[]>([]);
-  const [recordings, setRecordings] = useState<Record<string, string>>({});
+  const [recordings, setRecordings] = useState<Record<string, { recordingUrl: string; mimeType: string; fileSizeBytes: number; durationSeconds: number }>>({});
   const [submitting, setSubmitting] = useState(false);
 
   const load = useCallback(async (id: string) => {
@@ -42,12 +42,12 @@ export default function SampleRerecordScreen() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [patientProfileId]);
 
-  async function handleRecorded(partId: string, fileUri: string) {
+  async function handleRecorded(partId: string, fileUri: string, durationSeconds: number) {
     if (!patientProfileId) return;
     setError(null);
     try {
-      const { url } = await uploadRecording(patientProfileId, fileUri);
-      setRecordings((prev) => ({ ...prev, [partId]: url }));
+      const { url, mimeType, fileSizeBytes } = await uploadRecording(patientProfileId, fileUri);
+      setRecordings((prev) => ({ ...prev, [partId]: { recordingUrl: url, mimeType, fileSizeBytes, durationSeconds } }));
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'حدث خطأ غير متوقع');
     }
@@ -58,7 +58,7 @@ export default function SampleRerecordScreen() {
     setSubmitting(true);
     setError(null);
     try {
-      const parts = damagedParts.map((part) => ({ id: part.id, recordingUrl: recordings[part.id] }));
+      const parts = damagedParts.map((part) => ({ id: part.id, ...recordings[part.id] }));
       await rerecordDamagedParts(patientProfileId, parts);
       router.back();
     } catch (err) {
@@ -98,7 +98,7 @@ export default function SampleRerecordScreen() {
           {recordings[part.id] ? (
             <Text style={{ color: tokens.colors.primary }}>{ar.sampleRerecord.recorded}</Text>
           ) : (
-            <AudioRecorder onRecorded={(uri) => handleRecorded(part.id, uri)} />
+            <VideoRecorder onRecorded={(uri, durationSeconds) => handleRecorded(part.id, uri, durationSeconds)} />
           )}
         </View>
       ))}

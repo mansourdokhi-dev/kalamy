@@ -8,11 +8,11 @@ jest.mock('../../../src/patient/PatientProfileProvider');
 jest.mock('../../../src/api/treatmentEngine');
 jest.mock('expo-router', () => ({ useRouter: () => ({ back: jest.fn() }) }));
 
-jest.mock('../../../src/components/AudioRecorder', () => ({
-  AudioRecorder: ({ onRecorded }: { onRecorded: (uri: string) => void }) => {
+jest.mock('../../../src/components/VideoRecorder', () => ({
+  VideoRecorder: ({ onRecorded }: { onRecorded: (uri: string, durationSeconds: number) => void }) => {
     const { Pressable, Text } = require('react-native');
     return (
-      <Pressable onPress={() => onRecorded('file:///mock-rerecording.m4a')}>
+      <Pressable onPress={() => onRecorded('file:///mock-rerecording.mp4', 10)}>
         <Text>SIMULATE_RECORD</Text>
       </Pressable>
     );
@@ -82,14 +82,14 @@ describe('SampleRerecordScreen', () => {
 
   it('uploads a re-recording for a damaged part and marks it as recorded', async () => {
     (getCurrentCycle as jest.Mock).mockResolvedValue(mockCycleWithDamagedParts());
-    (uploadRecording as jest.Mock).mockResolvedValue({ url: 'https://example.com/fixed.m4a' });
+    (uploadRecording as jest.Mock).mockResolvedValue({ url: 'part-1.mp4', mimeType: 'video/mp4', fileSizeBytes: 204800 });
 
     render(<ThemeProvider><SampleRerecordScreen /></ThemeProvider>);
     await waitFor(() => expect(screen.getByText('SIMULATE_RECORD')).toBeTruthy());
     fireEvent.press(screen.getByText('SIMULATE_RECORD'));
 
     await waitFor(() => {
-      expect(uploadRecording).toHaveBeenCalledWith('profile-1', 'file:///mock-rerecording.m4a');
+      expect(uploadRecording).toHaveBeenCalledWith('profile-1', 'file:///mock-rerecording.mp4');
       expect(screen.getByText('تم التسجيل')).toBeTruthy();
     });
   });
@@ -105,7 +105,7 @@ describe('SampleRerecordScreen', () => {
       technicallyDamaged: true,
     });
     (getCurrentCycle as jest.Mock).mockResolvedValue(cycleWithTwoDamaged);
-    (uploadRecording as jest.Mock).mockResolvedValue({ url: 'https://example.com/fixed.m4a' });
+    (uploadRecording as jest.Mock).mockResolvedValue({ url: 'part-1.mp4', mimeType: 'video/mp4', fileSizeBytes: 204800 });
     (rerecordDamagedParts as jest.Mock).mockResolvedValue({ id: 'sample-1' });
 
     render(<ThemeProvider><SampleRerecordScreen /></ThemeProvider>);
@@ -124,8 +124,8 @@ describe('SampleRerecordScreen', () => {
 
     await waitFor(() => {
       expect(rerecordDamagedParts).toHaveBeenCalledWith('profile-1', [
-        { id: 'part-1', recordingUrl: 'https://example.com/fixed.m4a' },
-        { id: 'part-3', recordingUrl: 'https://example.com/fixed.m4a' },
+        { id: 'part-1', recordingUrl: 'part-1.mp4', mimeType: 'video/mp4', fileSizeBytes: 204800, durationSeconds: 10 },
+        { id: 'part-3', recordingUrl: 'part-1.mp4', mimeType: 'video/mp4', fileSizeBytes: 204800, durationSeconds: 10 },
       ]);
     });
   });
