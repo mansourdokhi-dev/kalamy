@@ -1,4 +1,5 @@
 import { render, screen, fireEvent, act, waitFor } from '@testing-library/react-native';
+import { Platform } from 'react-native';
 import { ThemeProvider } from '../../theme/ThemeContext';
 import { VideoPlayer } from '../VideoPlayer';
 import { useVideoPlayer } from 'expo-video';
@@ -82,5 +83,63 @@ describe('VideoPlayer', () => {
     });
 
     expect(player.pause).toHaveBeenCalled();
+  });
+
+  describe('on web', () => {
+    const originalFetch = global.fetch;
+    const originalCreateObjectURL = global.URL.createObjectURL;
+    const originalRevokeObjectURL = global.URL.revokeObjectURL;
+
+    beforeEach(() => {
+      Object.defineProperty(Platform, 'OS', { value: 'web', configurable: true });
+    });
+
+    afterEach(() => {
+      Object.defineProperty(Platform, 'OS', { value: 'ios', configurable: true });
+      global.fetch = originalFetch;
+      global.URL.createObjectURL = originalCreateObjectURL;
+      global.URL.revokeObjectURL = originalRevokeObjectURL;
+    });
+
+    it('fetches the video with the auth header and passes a blob object URL to useVideoPlayer, not a headers-based source', async () => {
+      (getToken as jest.Mock).mockResolvedValue('token-123');
+      const fakeBlob = { fake: 'blob' };
+      global.fetch = jest.fn().mockResolvedValue({ blob: () => Promise.resolve(fakeBlob) });
+      global.URL.createObjectURL = jest.fn().mockReturnValue('blob:mock-object-url');
+      global.URL.revokeObjectURL = jest.fn();
+      (useVideoPlayer as jest.Mock).mockReturnValue({ play: jest.fn(), pause: jest.fn(), playing: false });
+      (useEvent as jest.Mock).mockReturnValue({ isPlaying: false });
+
+      await render(<ThemeProvider><VideoPlayer path="/api/v1/patients/p1/sample-parts/part-1/media" /></ThemeProvider>);
+
+      await waitFor(() => {
+        expect(screen.getByTestId('video-view')).toBeTruthy();
+      });
+      expect(global.fetch).toHaveBeenCalledWith(
+        expect.stringContaining('/api/v1/patients/p1/sample-parts/part-1/media'),
+        expect.objectContaining({ headers: { Authorization: 'Bearer token-123' } })
+      );
+      expect(global.URL.createObjectURL).toHaveBeenCalledWith(fakeBlob);
+      const [source] = (useVideoPlayer as jest.Mock).mock.calls[(useVideoPlayer as jest.Mock).mock.calls.length - 1];
+      expect(source).toBe('blob:mock-object-url');
+    });
+
+    it('revokes the object URL on unmount', async () => {
+      (getToken as jest.Mock).mockResolvedValue('token-123');
+      global.fetch = jest.fn().mockResolvedValue({ blob: () => Promise.resolve({}) });
+      global.URL.createObjectURL = jest.fn().mockReturnValue('blob:mock-object-url');
+      global.URL.revokeObjectURL = jest.fn();
+      (useVideoPlayer as jest.Mock).mockReturnValue({ play: jest.fn(), pause: jest.fn(), playing: false });
+      (useEvent as jest.Mock).mockReturnValue({ isPlaying: false });
+
+      const result = await render(<ThemeProvider><VideoPlayer path="/api/v1/patients/p1/sample-parts/part-1/media" /></ThemeProvider>);
+      await waitFor(() => {
+        expect(screen.getByTestId('video-view')).toBeTruthy();
+      });
+
+      await result.unmount();
+
+      expect(global.URL.revokeObjectURL).toHaveBeenCalledWith('blob:mock-object-url');
+    });
   });
 });
