@@ -239,6 +239,7 @@ export class SpecialistReviewService {
   }
 
   async transferResponsibility(cycleId: string, dto: TransferReviewDto, actor: AuthenticatedUser): Promise<SpeechSample> {
+    await this.evaluateReviewDeadlines(cycleId);
     const cycle = await this.trainingCyclesService.findCycleForActor(cycleId, actor);
     const sample = await this.prisma.speechSample.findUnique({ where: { trainingCycleId: cycleId } });
     if (!sample) {
@@ -269,7 +270,7 @@ export class SpecialistReviewService {
           entity: 'SpeechSample',
           entityId: sample.id,
           before: { reservedByUserId: previousReviewerUserId },
-          after: { reservedByUserId: dto.toUserId },
+          after: { reservedByUserId: dto.toUserId, reason: dto.reason },
         },
       }),
       this.prisma.speechSample.update({ where: { id: sample.id }, data: { reservedByUserId: dto.toUserId } }),

@@ -274,7 +274,7 @@ describe('Treatment Engine — Specialist review queue (e2e)', () => {
     const auditEntries = await prisma.auditLog.findMany({ where: { action: 'REVIEW_RESPONSIBILITY_TRANSFERRED' } });
     expect(auditEntries).toHaveLength(1);
     expect(auditEntries[0].before).toEqual({ reservedByUserId: clinicianAUserId });
-    expect(auditEntries[0].after).toEqual({ reservedByUserId: clinicianBUserId });
+    expect(auditEntries[0].after).toEqual({ reservedByUserId: clinicianBUserId, reason: 'Clinician A is on leave' });
   });
 
   it('rejects a transfer request from a clinician (not a supervisor)', async () => {
