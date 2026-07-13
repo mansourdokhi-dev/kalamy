@@ -61,14 +61,18 @@ describe('Specialist Review v2 — Acceptance Criteria (e2e)', () => {
 
     await request(app.getHttpServer()).post(`/api/v1/specialist-review/cycles/${cycle.id}/reserve`).set('Authorization', `Bearer ${clinicianToken}`).expect(201);
 
-    // 47 hours: still reserved.
+    const secondClinicianToken = await registerAndLogin(app, prisma, '+9665000011', 'CLINICIAN');
+
+    // 47 hours: still within the 48h decision window. A second clinician's reserve attempt
+    // exercises the real evaluateReviewDeadlines()+reserve() code path (not just a re-read of a
+    // manually written row) and must be rejected, since the reservation is genuinely still active.
     await prisma.speechSample.update({ where: { id: sample.id }, data: { reservedAt: new Date(Date.now() - 47 * 60 * 60 * 1000), reviewDeadlineAt: new Date(Date.now() + 1 * 60 * 60 * 1000) } });
+    await request(app.getHttpServer()).post(`/api/v1/specialist-review/cycles/${cycle.id}/reserve`).set('Authorization', `Bearer ${secondClinicianToken}`).expect(409);
     let refreshed = await prisma.speechSample.findUniqueOrThrow({ where: { id: sample.id } });
-    expect(refreshed.reservedByUserId).not.toBeNull();
+    expect(refreshed.reservedByUserId).toBe(clinicianUserId);
 
     // 49 hours: released on next evaluation (triggered here by a second clinician's reserve attempt).
     await prisma.speechSample.update({ where: { id: sample.id }, data: { reservedAt: new Date(Date.now() - 49 * 60 * 60 * 1000), reviewDeadlineAt: new Date(Date.now() - 1 * 60 * 60 * 1000) } });
-    const secondClinicianToken = await registerAndLogin(app, prisma, '+9665000011', 'CLINICIAN');
     await request(app.getHttpServer()).post(`/api/v1/specialist-review/cycles/${cycle.id}/reserve`).set('Authorization', `Bearer ${secondClinicianToken}`).expect(201);
     refreshed = await prisma.speechSample.findUniqueOrThrow({ where: { id: sample.id } });
     expect(refreshed.reservedByUserId).not.toBe(clinicianUserId);
@@ -77,9 +81,16 @@ describe('Specialist Review v2 — Acceptance Criteria (e2e)', () => {
   it('AC-09: direct intervention pauses the review deadline, then a fresh 48h starts on completion', async () => {
     const clinicianToken = await registerAndLogin(app, prisma, '+9665000020', 'CLINICIAN');
     const clinicianUserId = (await prisma.user.findUniqueOrThrow({ where: { mobile: '+9665000020' } })).id;
-    const { cycle } = await fullSetup(app, prisma, '2', clinicianUserId);
+    const { cycle, sample } = await fullSetup(app, prisma, '2', clinicianUserId);
 
     await request(app.getHttpServer()).post(`/api/v1/specialist-review/cycles/${cycle.id}/reserve`).set('Authorization', `Bearer ${clinicianToken}`).expect(201);
+
+    // Backdate the original reservation time well before completion. If a regression computed the
+    // post-intervention deadline from this stale reservedAt instead of from the completion
+    // wall-clock time, the resulting deadline would land ~8h from now (40h backdate + 48h) instead
+    // of ~48h from now — the two hypotheses differ by ~40h, far outside the tolerance used below.
+    await prisma.speechSample.update({ where: { id: sample.id }, data: { reservedAt: new Date(Date.now() - 40 * 60 * 60 * 1000) } });
+
     const interventionRes = await request(app.getHttpServer())
       .post(`/api/v1/specialist-review/cycles/${cycle.id}/intervention`)
       .set('Authorization', `Bearer ${clinicianToken}`)
@@ -94,7 +105,9 @@ describe('Specialist Review v2 — Acceptance Criteria (e2e)', () => {
       .expect(201);
     const deadline = new Date(completeRes.body.reviewDeadlineAt).getTime();
     const expectedDeadline = Date.now() + 48 * 60 * 60 * 1000;
-    expect(Math.abs(deadline - expectedDeadline)).toBeLessThan(60 * 1000);
+    // 5-minute tolerance for test/DB latency, while staying far tighter than the ~40h gap that
+    // would appear if the deadline were (wrongly) anchored to the stale reservedAt instead.
+    expect(Math.abs(deadline - expectedDeadline)).toBeLessThan(5 * 60 * 1000);
   });
 
   it('AC-10: only one free consultation is ever available, video and voice draw from the same credit', async () => {
