@@ -1,4 +1,4 @@
-import { ConflictException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import { ConflictException, ForbiddenException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { Prisma, SpeechSample, TrainingCycle72h } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { AuthenticatedUser } from '../../common/auth/session.guard';
@@ -16,6 +16,8 @@ const REVIEW_DECISION_WINDOW_MS = 48 * 60 * 60 * 1000; // §9: auto-release if u
 
 @Injectable()
 export class SpecialistReviewService {
+  private readonly logger = new Logger(SpecialistReviewService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly trainingCyclesService: TrainingCyclesService,
@@ -133,12 +135,20 @@ export class SpecialistReviewService {
 
     const patientProfile = await this.prisma.patientProfile.findUniqueOrThrow({ where: { id: freshCycle.patientProfileId } });
     const { levelName } = await this.getNotificationContext(freshCycle);
-    await this.notificationsService.create(
-      patientProfile.userId,
-      'SPECIALIST_DECISION_ISSUED',
-      { decision: dto.decision, levelName },
-      { entity: 'SpeechSample', entityId: result.sample.id },
-    );
+    try {
+      await this.notificationsService.create(
+        patientProfile.userId,
+        'SPECIALIST_DECISION_ISSUED',
+        { decision: dto.decision, levelName },
+        { entity: 'SpeechSample', entityId: result.sample.id },
+      );
+    } catch (err) {
+      // The review decision has already been committed above — a notification failure
+      // must never mask that success or block the response to the clinician.
+      this.logger.error(
+        `Failed to send SPECIALIST_DECISION_ISSUED notification for sample ${result.sample.id} (cycle ${cycleId}, decision ${dto.decision}): ${err}`,
+      );
+    }
 
     return result.sample;
   }
@@ -170,12 +180,21 @@ export class SpecialistReviewService {
     ) {
       const updatedSample = await this.prisma.speechSample.update({ where: { id: sample.id }, data: { escalatedAt: new Date() } });
       const { patientName, levelName } = await this.getNotificationContext(cycle);
-      await this.notificationsService.notifyRole(
-        'SUPERVISOR',
-        'SAMPLE_ESCALATED_TO_SUPERVISOR',
-        { patientName, levelName },
-        { entity: 'SpeechSample', entityId: updatedSample.id },
-      );
+      try {
+        await this.notificationsService.notifyRole(
+          'SUPERVISOR',
+          'SAMPLE_ESCALATED_TO_SUPERVISOR',
+          { patientName, levelName },
+          { entity: 'SpeechSample', entityId: updatedSample.id },
+        );
+      } catch (err) {
+        // escalatedAt is already persisted above (and only ever set once per sample) — a
+        // notify failure here must not block or mask this SLA evaluation for callers such
+        // as listAvailableSamples, which runs this over every queued cycle in a Promise.all.
+        this.logger.error(
+          `Failed to notify SUPERVISOR role of SAMPLE_ESCALATED_TO_SUPERVISOR for sample ${updatedSample.id} (cycle ${cycleId}): ${err}`,
+        );
+      }
       return { cycle, sample: updatedSample };
     }
 
@@ -211,12 +230,21 @@ export class SpecialistReviewService {
     ) {
       const updatedSample = await this.prisma.speechSample.update({ where: { id: sample.id }, data: { escalatedAt: new Date() } });
       const { patientName, levelName } = await this.getNotificationContext(cycle);
-      await this.notificationsService.notifyRole(
-        'SUPERVISOR',
-        'INTERVENTION_TIMED_OUT',
-        { patientName, levelName },
-        { entity: 'SpeechSample', entityId: updatedSample.id },
-      );
+      try {
+        await this.notificationsService.notifyRole(
+          'SUPERVISOR',
+          'INTERVENTION_TIMED_OUT',
+          { patientName, levelName },
+          { entity: 'SpeechSample', entityId: updatedSample.id },
+        );
+      } catch (err) {
+        // escalatedAt is already persisted above (and only ever set once per sample) — a
+        // notify failure here must not block or mask this SLA evaluation for callers such
+        // as listAvailableSamples, which runs this over every queued cycle in a Promise.all.
+        this.logger.error(
+          `Failed to notify SUPERVISOR role of INTERVENTION_TIMED_OUT for sample ${updatedSample.id} (cycle ${cycleId}): ${err}`,
+        );
+      }
       return { cycle, sample: updatedSample };
     }
 

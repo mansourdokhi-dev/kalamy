@@ -3,15 +3,25 @@ import { Notification, NotificationType, Role } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { AuthenticatedUser } from '../../common/auth/session.guard';
 
+const DECISION_LABELS: Record<string, string> = {
+  TRANSITION: 'الانتقال إلى المستوى التالي',
+  LEVEL_REPEAT: 'إعادة المستوى الحالي',
+  TECHNICAL_RERECORD: 'طلب إعادة تسجيل بعض الأجزاء لأسباب تقنية',
+};
+
 const NOTIFICATION_TEMPLATES: Record<NotificationType, (ctx: Record<string, string>) => { title: string; body: string }> = {
   SAMPLE_ESCALATED_TO_SUPERVISOR: (ctx) => ({
     title: 'عينة متأخرة تحتاج متابعة',
     body: `لم يتم حجز عينة المريض ${ctx.patientName} في المستوى ${ctx.levelName} خلال 24 ساعة من رفعها.`,
   }),
-  SPECIALIST_DECISION_ISSUED: (ctx) => ({
-    title: 'قرار الأخصائي جاهز',
-    body: `صدر قرار الأخصائي (${ctx.decision}) بخصوص المستوى ${ctx.levelName}.`,
-  }),
+  SPECIALIST_DECISION_ISSUED: (ctx) => {
+    const decisionLabel = DECISION_LABELS[ctx.decision] ?? ctx.decision;
+    const isRerecord = ctx.decision === 'TECHNICAL_RERECORD';
+    return {
+      title: isRerecord ? 'مطلوب إعادة تسجيل جزء من العينة' : 'قرار الأخصائي جاهز',
+      body: `${isRerecord ? 'أفاد الأخصائي بوجود' : 'صدر قرار الأخصائي'} (${decisionLabel}) بخصوص المستوى ${ctx.levelName}.`,
+    };
+  },
   INTERVENTION_TIMED_OUT: (ctx) => ({
     title: 'تدخل متأخر يحتاج تصعيد',
     body: `لم يُنفَّذ التدخل المطلوب لعينة المريض ${ctx.patientName} في المستوى ${ctx.levelName} خلال 7 أيام.`,
