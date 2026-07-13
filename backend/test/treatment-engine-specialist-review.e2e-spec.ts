@@ -583,4 +583,56 @@ describe('Treatment Engine — Specialist review (e2e)', () => {
       .send({ decision: 'TRANSITION', clinicianOpinionScore: 8, reviewNotes: 'x' })
       .expect(201);
   });
+
+  it('notifies the patient when the specialist issues a decision', async () => {
+    const clinicianToken = await registerAndLogin(app, prisma, '+966500007000', 'CLINICIAN');
+    const patientToken = await registerAndLogin(app, prisma, '+966500007001', null);
+    const clinicianUserId = (await prisma.user.findUniqueOrThrow({ where: { mobile: '+966500007000' } })).id;
+    const patientUserId = (await prisma.user.findUniqueOrThrow({ where: { mobile: '+966500007001' } })).id;
+
+    const patientProfile = await prisma.patientProfile.create({
+      data: {
+        userId: patientUserId,
+        fullName: 'Notification Test Patient',
+        gender: 'MALE',
+        dateOfBirth: new Date('2000-01-01'),
+        nationalId: 'NOTIF-TEST-1',
+      },
+    });
+    const assessment = await prisma.assessment.create({
+      data: { patientProfileId: patientProfile.id, clinicianUserId, type: 'INITIAL', status: 'APPROVED' },
+    });
+    const plan = await prisma.treatmentPlan.create({
+      data: { patientProfileId: patientProfile.id, clinicianUserId, assessmentId: assessment.id, goals: 'g', reviewDate: new Date() },
+    });
+    const level1 = await prisma.level.create({ data: { name: 'Notif Level 1', order: 1 } });
+    const level1Version = await prisma.levelVersion.create({
+      data: { levelId: level1.id, versionNumber: 1, behavioralTechnique: 'x', trainingListJson: '[]', samplePartTemplateJson: '[]', publishedAt: new Date() },
+    });
+    const level2 = await prisma.level.create({ data: { name: 'Notif Level 2', order: 2 } });
+    await prisma.levelVersion.create({
+      data: { levelId: level2.id, versionNumber: 1, behavioralTechnique: 'x', trainingListJson: '[]', samplePartTemplateJson: '[]', publishedAt: new Date() },
+    });
+    const cycle = await prisma.trainingCycle72h.create({
+      data: { patientProfileId: patientProfile.id, treatmentPlanId: plan.id, levelId: level1.id, levelVersionId: level1Version.id, cycleNumber: 1, status: 'WAITING_FOR_SPECIALIST' },
+    });
+    await prisma.speechSample.create({ data: { trainingCycleId: cycle.id, submittedAt: new Date() } });
+
+    await request(app.getHttpServer())
+      .post(`/api/v1/specialist-review/cycles/${cycle.id}/reserve`)
+      .set('Authorization', `Bearer ${clinicianToken}`)
+      .expect(201);
+    await request(app.getHttpServer())
+      .post(`/api/v1/patients/${patientProfile.id}/cycles/current/review`)
+      .set('Authorization', `Bearer ${clinicianToken}`)
+      .send({ decision: 'TRANSITION', clinicianOpinionScore: 8, reviewNotes: 'أداء جيد' })
+      .expect(201);
+
+    const notificationsRes = await request(app.getHttpServer())
+      .get('/api/v1/notifications')
+      .set('Authorization', `Bearer ${patientToken}`)
+      .expect(200);
+
+    expect(notificationsRes.body.some((n: any) => n.type === 'SPECIALIST_DECISION_ISSUED')).toBe(true);
+  });
 });

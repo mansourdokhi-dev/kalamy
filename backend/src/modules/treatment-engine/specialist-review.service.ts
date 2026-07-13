@@ -130,6 +130,16 @@ export class SpecialistReviewService {
     if (result.alreadyReviewed) {
       throw new ConflictException(`Cannot review a cycle in status ${result.status}`);
     }
+
+    const patientProfile = await this.prisma.patientProfile.findUniqueOrThrow({ where: { id: freshCycle.patientProfileId } });
+    const { levelName } = await this.getNotificationContext(freshCycle);
+    await this.notificationsService.create(
+      patientProfile.userId,
+      'SPECIALIST_DECISION_ISSUED',
+      { decision: dto.decision, levelName },
+      { entity: 'SpeechSample', entityId: result.sample.id },
+    );
+
     return result.sample;
   }
 
