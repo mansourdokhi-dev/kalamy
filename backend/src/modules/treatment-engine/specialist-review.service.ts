@@ -210,6 +210,13 @@ export class SpecialistReviewService {
       Date.now() > sample.interventionDeadlineAt.getTime()
     ) {
       const updatedSample = await this.prisma.speechSample.update({ where: { id: sample.id }, data: { escalatedAt: new Date() } });
+      const { patientName, levelName } = await this.getNotificationContext(cycle);
+      await this.notificationsService.notifyRole(
+        'SUPERVISOR',
+        'INTERVENTION_TIMED_OUT',
+        { patientName, levelName },
+        { entity: 'SpeechSample', entityId: updatedSample.id },
+      );
       return { cycle, sample: updatedSample };
     }
 

@@ -317,4 +317,40 @@ describe('Treatment Engine — Specialist review queue (e2e)', () => {
 
     expect(notificationsRes.body.some((n: any) => n.type === 'SAMPLE_ESCALATED_TO_SUPERVISOR')).toBe(true);
   });
+
+  it('notifies every supervisor when an intervention times out after 7 days', async () => {
+    const clinicianToken = await registerAndLogin(app, prisma, '+966500005080', 'CLINICIAN');
+    const clinicianUserId = (await prisma.user.findUniqueOrThrow({ where: { mobile: '+966500005080' } })).id;
+    const supervisorToken = await registerAndLogin(app, prisma, '+966500005081', 'SUPERVISOR');
+    const { plan, patientProfile } = await setupPatientAndPlan(prisma, '+966500005082', clinicianUserId);
+    const { cycle, sample } = await createSubmittedSampleCycle(prisma, patientProfile.id, plan.id, clinicianUserId);
+
+    await request(app.getHttpServer())
+      .post(`/api/v1/specialist-review/cycles/${cycle.id}/reserve`)
+      .set('Authorization', `Bearer ${clinicianToken}`)
+      .expect(201);
+    await request(app.getHttpServer())
+      .post(`/api/v1/specialist-review/cycles/${cycle.id}/intervention`)
+      .set('Authorization', `Bearer ${clinicianToken}`)
+      .send({ interventionType: 'VIDEO_MEETING', reasonNote: 'x' })
+      .expect(201);
+
+    await prisma.speechSample.update({
+      where: { id: sample.id },
+      data: { interventionRequestedAt: new Date(Date.now() - 8 * 24 * 60 * 60 * 1000), interventionDeadlineAt: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000) },
+    });
+
+    await request(app.getHttpServer())
+      .post(`/api/v1/specialist-review/cycles/${cycle.id}/intervention/complete`)
+      .set('Authorization', `Bearer ${clinicianToken}`)
+      .send({ outcomeNotes: 'late but done' })
+      .expect(201);
+
+    const notificationsRes = await request(app.getHttpServer())
+      .get('/api/v1/notifications')
+      .set('Authorization', `Bearer ${supervisorToken}`)
+      .expect(200);
+
+    expect(notificationsRes.body.some((n: any) => n.type === 'INTERVENTION_TIMED_OUT')).toBe(true);
+  });
 });
