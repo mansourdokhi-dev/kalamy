@@ -57,6 +57,9 @@ export interface SampleSamplePart {
   label: string;
   order: number;
   recordingUrl: string | null;
+  mimeType: string | null;
+  fileSizeBytes: number | null;
+  durationSeconds: number | null;
   technicallyDamaged: boolean;
 }
 
@@ -174,6 +177,9 @@ export interface SampleAttempt {
   sampleSessionId: string;
   attemptNumber: number;
   recordingUrl: string;
+  mimeType: string;
+  fileSizeBytes: number;
+  durationSeconds: number | null;
   deletedAt: string | null;
   createdAt: string;
 }
@@ -184,11 +190,18 @@ export function listAttempts(patientProfileId: string): Promise<SampleAttempt[]>
   });
 }
 
-export function recordAttempt(patientProfileId: string, recordingUrl: string): Promise<SampleAttempt> {
+export interface RecordAttemptInput {
+  recordingUrl: string;
+  mimeType: string;
+  fileSizeBytes: number;
+  durationSeconds?: number;
+}
+
+export function recordAttempt(patientProfileId: string, input: RecordAttemptInput): Promise<SampleAttempt> {
   return apiRequest<SampleAttempt>(`/api/v1/patients/${patientProfileId}/cycles/current/sample-session/attempts`, {
     method: 'POST',
     auth: true,
-    body: { recordingUrl },
+    body: input,
   });
 }
 
@@ -225,6 +238,9 @@ export function submitSample(patientProfileId: string, dto: SubmitSampleInput): 
 export interface RerecordPartInput {
   id: string;
   recordingUrl: string;
+  mimeType: string;
+  fileSizeBytes: number;
+  durationSeconds?: number;
 }
 
 export function rerecordDamagedParts(patientProfileId: string, parts: RerecordPartInput[]): Promise<SpeechSample> {
@@ -235,15 +251,30 @@ export function rerecordDamagedParts(patientProfileId: string, parts: RerecordPa
   });
 }
 
-export function uploadRecording(patientProfileId: string, fileUri: string): Promise<{ url: string }> {
+function guessVideoMimeType(fileUri: string): string {
+  const extension = fileUri.split('.').pop()?.toLowerCase();
+  if (extension === 'mov') return 'video/quicktime';
+  if (extension === 'mp4') return 'video/mp4';
+  return 'video/mp4';
+}
+
+export interface UploadRecordingResult {
+  url: string;
+  mimeType: string;
+  fileSizeBytes: number;
+}
+
+export function uploadRecording(patientProfileId: string, fileUri: string): Promise<UploadRecordingResult> {
   const formData = new FormData();
-  const filename = fileUri.split('/').pop() ?? 'recording.m4a';
+  const mimeType = guessVideoMimeType(fileUri);
+  const extension = mimeType === 'video/quicktime' ? 'mov' : 'mp4';
+  const filename = fileUri.split('/').pop() ?? `recording.${extension}`;
   formData.append('audio', {
     uri: fileUri,
     name: filename,
-    type: 'audio/m4a',
+    type: mimeType,
   } as unknown as Blob);
-  return apiRequest<{ url: string }>(`/api/v1/patients/${patientProfileId}/cycles/current/sample-session/upload`, {
+  return apiRequest<UploadRecordingResult>(`/api/v1/patients/${patientProfileId}/cycles/current/sample-session/upload`, {
     method: 'POST',
     auth: true,
     formData,
