@@ -18,6 +18,7 @@ import { AdminUsersModule } from './modules/admin-users/admin-users.module';
 import { SupervisionModule } from './modules/supervision/supervision.module';
 import { TreatmentEngineModule } from './modules/treatment-engine/treatment-engine.module';
 import { ConsultationsModule } from './modules/consultations/consultations.module';
+import { NotificationsModule } from './modules/notifications/notifications.module';
 
 @Module({
   imports: [
@@ -35,6 +36,7 @@ import { ConsultationsModule } from './modules/consultations/consultations.modul
     SupervisionModule,
     TreatmentEngineModule,
     ConsultationsModule,
+    NotificationsModule,
   ],
   controllers: [AppController],
   providers: [
