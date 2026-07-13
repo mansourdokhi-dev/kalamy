@@ -134,25 +134,25 @@ model User {
   createdAt           DateTime   @default(now())
   updatedAt           DateTime   @updatedAt
 
-  otpCodes                OtpCode[]
-  sessions                Session[]
-  auditLogs               AuditLog[]
-  patientProfile          PatientProfile?   @relation("PatientProfileUser")
-  guardianLinksAsPatient  GuardianLink[]    @relation("GuardianLinkPatient")
-  guardianLinksAsGuardian GuardianLink[]    @relation("GuardianLinkGuardian")
-  assessments             Assessment[]
-  treatmentPlans          TreatmentPlan[]
-  phaseTransitions        PhaseTransition[]
-  exercisesCreated        Exercise[]
-  reviewedSpeechSamples   SpeechSample[] @relation("SpeechSampleReviewedBy")
-  reservedSpeechSamples        SpeechSample[] @relation("SpeechSampleReservedBy")
-  interventionsExecuted        SpeechSample[] @relation("SpeechSampleInterventionExecutedBy")
-  consultationsRequested       Consultation[] @relation("ConsultationRequestedBy")
-  consultationsAsSpecialist    Consultation[] @relation("ConsultationSpecialist")
-  complaintsSubmitted     Complaint[] @relation("ComplaintSubmitter")
-  complaintsAboutMe       Complaint[] @relation("ComplaintRelatedClinician")
-  supervisorUser        User?            @relation("ClinicianSupervisor", fields: [supervisorUserId], references: [id])
-  supervisedClinicians   User[]           @relation("ClinicianSupervisor")
+  otpCodes                  OtpCode[]
+  sessions                  Session[]
+  auditLogs                 AuditLog[]
+  patientProfile            PatientProfile?   @relation("PatientProfileUser")
+  guardianLinksAsPatient    GuardianLink[]    @relation("GuardianLinkPatient")
+  guardianLinksAsGuardian   GuardianLink[]    @relation("GuardianLinkGuardian")
+  assessments               Assessment[]
+  treatmentPlans            TreatmentPlan[]
+  phaseTransitions          PhaseTransition[]
+  exercisesCreated          Exercise[]
+  reviewedSpeechSamples     SpeechSample[]    @relation("SpeechSampleReviewedBy")
+  reservedSpeechSamples     SpeechSample[]    @relation("SpeechSampleReservedBy")
+  interventionsExecuted     SpeechSample[]    @relation("SpeechSampleInterventionExecutedBy")
+  consultationsRequested    Consultation[]    @relation("ConsultationRequestedBy")
+  consultationsAsSpecialist Consultation[]    @relation("ConsultationSpecialist")
+  complaintsSubmitted       Complaint[]       @relation("ComplaintSubmitter")
+  complaintsAboutMe         Complaint[]       @relation("ComplaintRelatedClinician")
+  supervisorUser            User?             @relation("ClinicianSupervisor", fields: [supervisorUserId], references: [id])
+  supervisedClinicians      User[]            @relation("ClinicianSupervisor")
 }
 
 model OtpCode {
@@ -206,11 +206,11 @@ model PatientProfile {
   createdAt      DateTime             @default(now())
   updatedAt      DateTime             @updatedAt
 
-  clinicalInfo    PatientClinicalInfo?
-  assessments     Assessment[]
-  treatmentPlans  TreatmentPlan[]
-  trainingCycles  TrainingCycle72h[]
-  consultations   Consultation[]
+  clinicalInfo   PatientClinicalInfo?
+  assessments    Assessment[]
+  treatmentPlans TreatmentPlan[]
+  trainingCycles TrainingCycle72h[]
+  consultations  Consultation[]
 }
 
 model PatientClinicalInfo {
@@ -361,22 +361,22 @@ model Level {
 }
 
 model LevelVersion {
-  id                     String    @id @default(uuid())
-  levelId                String
-  level                  Level     @relation(fields: [levelId], references: [id])
-  versionNumber          Int
-  cognitiveVideo1Url     String?
-  cognitiveVideo1Question String?
-  cognitiveVideo2Url     String?
-  cognitiveVideo2Question String?
-  behavioralTechnique    String
-  humanModelVideoUrl     String?
+  id                        String    @id @default(uuid())
+  levelId                   String
+  level                     Level     @relation(fields: [levelId], references: [id])
+  versionNumber             Int
+  cognitiveVideo1Url        String?
+  cognitiveVideo1Question   String?
+  cognitiveVideo2Url        String?
+  cognitiveVideo2Question   String?
+  behavioralTechnique       String
+  humanModelVideoUrl        String?
   humanModelDurationSeconds Int?
-  trainingListJson       String  // JSON array of training items, admin-editable
-  samplePartTemplateJson String  // JSON array of {partType, label, order, required}
-  publishedAt            DateTime?
-  createdAt              DateTime  @default(now())
-  updatedAt              DateTime  @updatedAt
+  trainingListJson          String // JSON array of training items, admin-editable
+  samplePartTemplateJson    String // JSON array of {partType, label, order, required}
+  publishedAt               DateTime?
+  createdAt                 DateTime  @default(now())
+  updatedAt                 DateTime  @updatedAt
 
   trainingCycles TrainingCycle72h[]
 
@@ -398,7 +398,7 @@ model TrainingCycle72h {
   level                Level            @relation(fields: [levelId], references: [id])
   levelVersionId       String
   levelVersion         LevelVersion     @relation(fields: [levelVersionId], references: [id])
-  cycleNumber          Int              // 1 for the first attempt at this level, 2+ for repeats
+  cycleNumber          Int // 1 for the first attempt at this level, 2+ for repeats
   status               LevelCycleStatus @default(ACTIVE_LEVEL_TRAINING)
   humanModelWatchedAt  DateTime?
   firstTrainingEventAt DateTime?
@@ -415,25 +415,25 @@ model TrainingCycle72h {
 }
 
 model TrainingEvent {
-  id               String           @id @default(uuid())
-  trainingCycleId  String
-  trainingCycle    TrainingCycle72h @relation(fields: [trainingCycleId], references: [id])
-  occurredAt       DateTime         @default(now())
-  durationSeconds  Int?
-  unitsCompleted   Int?
-  createdAt        DateTime         @default(now())
+  id              String           @id @default(uuid())
+  trainingCycleId String
+  trainingCycle   TrainingCycle72h @relation(fields: [trainingCycleId], references: [id])
+  occurredAt      DateTime         @default(now())
+  durationSeconds Int?
+  unitsCompleted  Int?
+  createdAt       DateTime         @default(now())
 
   @@index([trainingCycleId, occurredAt])
 }
 
 model SampleSession {
-  id               String              @id @default(uuid())
-  trainingCycleId  String              @unique
-  trainingCycle    TrainingCycle72h    @relation(fields: [trainingCycleId], references: [id])
-  attemptsUsed     Int                 @default(0)
-  status           SampleSessionStatus @default(OPEN)
-  createdAt        DateTime            @default(now())
-  updatedAt        DateTime            @updatedAt
+  id              String              @id @default(uuid())
+  trainingCycleId String              @unique
+  trainingCycle   TrainingCycle72h    @relation(fields: [trainingCycleId], references: [id])
+  attemptsUsed    Int                 @default(0)
+  status          SampleSessionStatus @default(OPEN)
+  createdAt       DateTime            @default(now())
+  updatedAt       DateTime            @updatedAt
 
   attempts SampleAttempt[]
 }
@@ -456,37 +456,37 @@ model SampleAttempt {
 }
 
 model SpeechSample {
-  id                          String             @id @default(uuid())
-  trainingCycleId             String             @unique
-  trainingCycle               TrainingCycle72h   @relation(fields: [trainingCycleId], references: [id])
+  id                          String              @id @default(uuid())
+  trainingCycleId             String              @unique
+  trainingCycle               TrainingCycle72h    @relation(fields: [trainingCycleId], references: [id])
   selfSeverityCurrent         Int?
   selfSeverityExpectedNext    Int?
   camperdownPerformanceRating Int?
   clientOpinionScore          Int?
   submittedAt                 DateTime?
   reviewedByUserId            String?
-  reviewedByUser              User?              @relation("SpeechSampleReviewedBy", fields: [reviewedByUserId], references: [id])
+  reviewedByUser              User?               @relation("SpeechSampleReviewedBy", fields: [reviewedByUserId], references: [id])
   clinicianOpinionScore       Int?
   reviewNotes                 String?
   reviewedAt                  DateTime?
   decision                    SpecialistDecision?
 
-  reservedByUserId             String?
-  reservedByUser                User?              @relation("SpeechSampleReservedBy", fields: [reservedByUserId], references: [id])
-  reservedAt                    DateTime?
-  reviewDeadlineAt              DateTime?
-  escalatedAt                   DateTime?
+  reservedByUserId String?
+  reservedByUser   User?     @relation("SpeechSampleReservedBy", fields: [reservedByUserId], references: [id])
+  reservedAt       DateTime?
+  reviewDeadlineAt DateTime?
+  escalatedAt      DateTime?
 
-  interventionType              InterventionType?
-  interventionRequestedAt       DateTime?
-  interventionDeadlineAt        DateTime?
-  interventionExecutedByUserId  String?
-  interventionExecutedByUser     User?              @relation("SpeechSampleInterventionExecutedBy", fields: [interventionExecutedByUserId], references: [id])
-  interventionCompletedAt       DateTime?
-  interventionOutcomeNotes      String?
+  interventionType             InterventionType?
+  interventionRequestedAt      DateTime?
+  interventionDeadlineAt       DateTime?
+  interventionExecutedByUserId String?
+  interventionExecutedByUser   User?             @relation("SpeechSampleInterventionExecutedBy", fields: [interventionExecutedByUserId], references: [id])
+  interventionCompletedAt      DateTime?
+  interventionOutcomeNotes     String?
 
-  createdAt                   DateTime           @default(now())
-  updatedAt                   DateTime           @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   parts SampleSamplePart[]
 }
