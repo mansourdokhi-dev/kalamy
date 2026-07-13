@@ -153,6 +153,7 @@ model User {
   complaintsAboutMe         Complaint[]       @relation("ComplaintRelatedClinician")
   supervisorUser            User?             @relation("ClinicianSupervisor", fields: [supervisorUserId], references: [id])
   supervisedClinicians      User[]            @relation("ClinicianSupervisor")
+  notifications             Notification[]
 }
 
 model OtpCode {
@@ -544,4 +545,25 @@ enum ConsultationStatus {
   SCHEDULED
   COMPLETED
   CANCELLED
+}
+
+model Notification {
+  id              String           @id @default(uuid())
+  recipientUserId String
+  recipient       User             @relation(fields: [recipientUserId], references: [id])
+  type            NotificationType
+  title           String
+  body            String
+  relatedEntity   String?
+  relatedEntityId String?
+  readAt          DateTime?
+  createdAt       DateTime         @default(now())
+
+  @@index([recipientUserId, createdAt])
+}
+
+enum NotificationType {
+  SAMPLE_ESCALATED_TO_SUPERVISOR
+  SPECIALIST_DECISION_ISSUED
+  INTERVENTION_TIMED_OUT
 }
