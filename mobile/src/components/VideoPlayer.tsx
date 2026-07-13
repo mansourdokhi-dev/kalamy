@@ -3,6 +3,7 @@ import { View, StyleSheet, Platform } from 'react-native';
 import { useVideoPlayer, VideoView } from 'expo-video';
 import { useEvent } from 'expo';
 import { Button } from './Button';
+import { ErrorBanner } from './ErrorBanner';
 import { ar } from '../copy/ar';
 import { getToken } from '../storage/session';
 import { API_BASE_URL } from '../api/client';
@@ -17,6 +18,7 @@ export function VideoPlayer({ path }: VideoPlayerProps) {
   // request headers, so the Authorization header used on native is fetched here instead and
   // exchanged for a same-origin blob: URL that useVideoPlayer can play without auth.
   const [webBlobUrl, setWebBlobUrl] = useState<string | null>(null);
+  const [webError, setWebError] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -34,12 +36,23 @@ export function VideoPlayer({ path }: VideoPlayerProps) {
     if (Platform.OS !== 'web' || !token) return;
     let cancelled = false;
     let objectUrl: string | null = null;
+    setWebError(null);
     fetch(`${API_BASE_URL}${path}`, { headers: { Authorization: `Bearer ${token}` } })
-      .then((res) => res.blob())
+      .then((res) => {
+        if (!res.ok) {
+          throw new Error(`Failed to fetch video (status ${res.status})`);
+        }
+        return res.blob();
+      })
       .then((blob) => {
         if (cancelled) return;
         objectUrl = URL.createObjectURL(blob);
         setWebBlobUrl(objectUrl);
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setWebError('حدث خطأ غير متوقع');
+        }
       });
     return () => {
       cancelled = true;
@@ -69,6 +82,10 @@ export function VideoPlayer({ path }: VideoPlayerProps) {
     } else {
       player.play();
     }
+  }
+
+  if (webError) {
+    return <ErrorBanner message={webError} />;
   }
 
   const ready = Platform.OS === 'web' ? !!webBlobUrl : !!token;

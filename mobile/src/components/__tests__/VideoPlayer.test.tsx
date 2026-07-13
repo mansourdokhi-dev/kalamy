@@ -104,7 +104,7 @@ describe('VideoPlayer', () => {
     it('fetches the video with the auth header and passes a blob object URL to useVideoPlayer, not a headers-based source', async () => {
       (getToken as jest.Mock).mockResolvedValue('token-123');
       const fakeBlob = { fake: 'blob' };
-      global.fetch = jest.fn().mockResolvedValue({ blob: () => Promise.resolve(fakeBlob) });
+      global.fetch = jest.fn().mockResolvedValue({ ok: true, blob: () => Promise.resolve(fakeBlob) });
       global.URL.createObjectURL = jest.fn().mockReturnValue('blob:mock-object-url');
       global.URL.revokeObjectURL = jest.fn();
       (useVideoPlayer as jest.Mock).mockReturnValue({ play: jest.fn(), pause: jest.fn(), playing: false });
@@ -126,7 +126,7 @@ describe('VideoPlayer', () => {
 
     it('revokes the object URL on unmount', async () => {
       (getToken as jest.Mock).mockResolvedValue('token-123');
-      global.fetch = jest.fn().mockResolvedValue({ blob: () => Promise.resolve({}) });
+      global.fetch = jest.fn().mockResolvedValue({ ok: true, blob: () => Promise.resolve({}) });
       global.URL.createObjectURL = jest.fn().mockReturnValue('blob:mock-object-url');
       global.URL.revokeObjectURL = jest.fn();
       (useVideoPlayer as jest.Mock).mockReturnValue({ play: jest.fn(), pause: jest.fn(), playing: false });
@@ -140,6 +140,36 @@ describe('VideoPlayer', () => {
       await result.unmount();
 
       expect(global.URL.revokeObjectURL).toHaveBeenCalledWith('blob:mock-object-url');
+    });
+
+    it('shows an ErrorBanner and does not create an object URL when the fetch responds with a non-ok status', async () => {
+      (getToken as jest.Mock).mockResolvedValue('token-123');
+      global.fetch = jest.fn().mockResolvedValue({ ok: false, status: 401, blob: () => Promise.resolve({}) });
+      global.URL.createObjectURL = jest.fn();
+      (useVideoPlayer as jest.Mock).mockReturnValue({ play: jest.fn(), pause: jest.fn(), playing: false });
+      (useEvent as jest.Mock).mockReturnValue({ isPlaying: false });
+
+      await render(<ThemeProvider><VideoPlayer path="/api/v1/patients/p1/sample-parts/part-1/media" /></ThemeProvider>);
+
+      await waitFor(() => {
+        expect(screen.getByText('حدث خطأ غير متوقع')).toBeTruthy();
+      });
+      expect(screen.queryByTestId('video-view')).toBeNull();
+      expect(global.URL.createObjectURL).not.toHaveBeenCalled();
+    });
+
+    it('shows an ErrorBanner when the fetch itself rejects', async () => {
+      (getToken as jest.Mock).mockResolvedValue('token-123');
+      global.fetch = jest.fn().mockRejectedValue(new Error('network down'));
+      (useVideoPlayer as jest.Mock).mockReturnValue({ play: jest.fn(), pause: jest.fn(), playing: false });
+      (useEvent as jest.Mock).mockReturnValue({ isPlaying: false });
+
+      await render(<ThemeProvider><VideoPlayer path="/api/v1/patients/p1/sample-parts/part-1/media" /></ThemeProvider>);
+
+      await waitFor(() => {
+        expect(screen.getByText('حدث خطأ غير متوقع')).toBeTruthy();
+      });
+      expect(screen.queryByTestId('video-view')).toBeNull();
     });
   });
 });
