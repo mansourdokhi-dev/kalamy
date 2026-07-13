@@ -49,7 +49,7 @@ enum InterventionType {
 }
 ```
 
-`submittedAt` is not a new field — `SpeechSample.createdAt` (set at submission time, per the existing `submitSample` flow) is the 24h-before-reservation clock's start, documented explicitly here since it's easy to miss.
+`SpeechSample` already has a `submittedAt: DateTime?` field (set by the existing `submitSample` flow) — that, not `createdAt`, is the 24h-before-reservation clock's start. No new field needed for this; documented here since it's easy to reach for `createdAt` by mistake.
 
 ### New model: `Consultation` (the one free consultation, §63–§71 minus payments)
 
