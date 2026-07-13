@@ -106,6 +106,13 @@ enum SpecialistDecision {
   TECHNICAL_RERECORD
 }
 
+enum InterventionType {
+  VIDEO_MEETING
+  VOICE_CONSULTATION
+  TARGETED_MESSAGE
+  CLINICAL_ACTION
+}
+
 enum SampleSessionStatus {
   OPEN
   CLOSED_SUBMITTED
@@ -137,7 +144,11 @@ model User {
   treatmentPlans          TreatmentPlan[]
   phaseTransitions        PhaseTransition[]
   exercisesCreated        Exercise[]
-  reviewedSpeechSamples   SpeechSample[]
+  reviewedSpeechSamples   SpeechSample[] @relation("SpeechSampleReviewedBy")
+  reservedSpeechSamples        SpeechSample[] @relation("SpeechSampleReservedBy")
+  interventionsExecuted        SpeechSample[] @relation("SpeechSampleInterventionExecutedBy")
+  consultationsRequested       Consultation[] @relation("ConsultationRequestedBy")
+  consultationsAsSpecialist    Consultation[] @relation("ConsultationSpecialist")
   complaintsSubmitted     Complaint[] @relation("ComplaintSubmitter")
   complaintsAboutMe       Complaint[] @relation("ComplaintRelatedClinician")
   supervisorUser        User?            @relation("ClinicianSupervisor", fields: [supervisorUserId], references: [id])
@@ -199,6 +210,7 @@ model PatientProfile {
   assessments     Assessment[]
   treatmentPlans  TreatmentPlan[]
   trainingCycles  TrainingCycle72h[]
+  consultations   Consultation[]
 }
 
 model PatientClinicalInfo {
@@ -453,11 +465,26 @@ model SpeechSample {
   clientOpinionScore          Int?
   submittedAt                 DateTime?
   reviewedByUserId            String?
-  reviewedByUser              User?              @relation(fields: [reviewedByUserId], references: [id])
+  reviewedByUser              User?              @relation("SpeechSampleReviewedBy", fields: [reviewedByUserId], references: [id])
   clinicianOpinionScore       Int?
   reviewNotes                 String?
   reviewedAt                  DateTime?
   decision                    SpecialistDecision?
+
+  reservedByUserId             String?
+  reservedByUser                User?              @relation("SpeechSampleReservedBy", fields: [reservedByUserId], references: [id])
+  reservedAt                    DateTime?
+  reviewDeadlineAt              DateTime?
+  escalatedAt                   DateTime?
+
+  interventionType              InterventionType?
+  interventionRequestedAt       DateTime?
+  interventionDeadlineAt        DateTime?
+  interventionExecutedByUserId  String?
+  interventionExecutedByUser     User?              @relation("SpeechSampleInterventionExecutedBy", fields: [interventionExecutedByUserId], references: [id])
+  interventionCompletedAt       DateTime?
+  interventionOutcomeNotes      String?
+
   createdAt                   DateTime           @default(now())
   updatedAt                   DateTime           @updatedAt
 
@@ -482,4 +509,39 @@ model SampleSamplePart {
   updatedAt          DateTime       @updatedAt
 
   @@index([speechSampleId, order])
+}
+
+model Consultation {
+  id                  String             @id @default(uuid())
+  patientProfileId    String
+  patientProfile      PatientProfile     @relation(fields: [patientProfileId], references: [id])
+  requestedByUserId   String
+  requestedByUser     User               @relation("ConsultationRequestedBy", fields: [requestedByUserId], references: [id])
+  type                ConsultationType
+  status              ConsultationStatus @default(REQUESTED)
+  reasonNote          String?
+  scheduledAt         DateTime?
+  externalMeetingLink String?
+  specialistUserId    String?
+  specialistUser      User?              @relation("ConsultationSpecialist", fields: [specialistUserId], references: [id])
+  outcomeNotes        String?
+  completedAt         DateTime?
+  cancelledAt         DateTime?
+  createdAt           DateTime           @default(now())
+  updatedAt           DateTime           @updatedAt
+
+  @@index([patientProfileId])
+}
+
+enum ConsultationType {
+  VIDEO
+  VOICE
+}
+
+enum ConsultationStatus {
+  REQUESTED
+  SCHEDULING
+  SCHEDULED
+  COMPLETED
+  CANCELLED
 }
