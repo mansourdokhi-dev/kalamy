@@ -131,4 +131,50 @@ describe('Consultations (e2e)', () => {
     expect(updated.body.status).toBe('SCHEDULED');
     expect(updated.body.externalMeetingLink).toBe('https://meet.example.com/abc');
   });
+
+  it('rejects a further update once the consultation has been completed', async () => {
+    const { token, profile } = await setupPatient('+966500006040');
+    const clinicianToken = await registerAndLogin(app, prisma, '+966500006041', 'CLINICIAN');
+
+    const created = await request(app.getHttpServer())
+      .post(`/api/v1/patients/${profile.id}/consultations`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({ type: 'VIDEO', reasonNote: 'x' })
+      .expect(201);
+
+    await request(app.getHttpServer())
+      .patch(`/api/v1/consultations/${created.body.id}`)
+      .set('Authorization', `Bearer ${clinicianToken}`)
+      .send({ status: 'COMPLETED', outcomeNotes: 'Discussed technique, patient understands now' })
+      .expect(200);
+
+    await request(app.getHttpServer())
+      .patch(`/api/v1/consultations/${created.body.id}`)
+      .set('Authorization', `Bearer ${clinicianToken}`)
+      .send({ status: 'SCHEDULED' })
+      .expect(409);
+  });
+
+  it('rejects a further update once the consultation has been cancelled', async () => {
+    const { token, profile } = await setupPatient('+966500006050');
+    const clinicianToken = await registerAndLogin(app, prisma, '+966500006051', 'CLINICIAN');
+
+    const created = await request(app.getHttpServer())
+      .post(`/api/v1/patients/${profile.id}/consultations`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({ type: 'VOICE', reasonNote: 'x' })
+      .expect(201);
+
+    await request(app.getHttpServer())
+      .patch(`/api/v1/consultations/${created.body.id}`)
+      .set('Authorization', `Bearer ${clinicianToken}`)
+      .send({ status: 'CANCELLED' })
+      .expect(200);
+
+    await request(app.getHttpServer())
+      .patch(`/api/v1/consultations/${created.body.id}`)
+      .set('Authorization', `Bearer ${clinicianToken}`)
+      .send({ status: 'SCHEDULED' })
+      .expect(409);
+  });
 });
