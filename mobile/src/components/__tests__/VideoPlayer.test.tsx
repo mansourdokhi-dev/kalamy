@@ -85,6 +85,22 @@ describe('VideoPlayer', () => {
     expect(player.pause).toHaveBeenCalled();
   });
 
+  it('shows an ErrorBanner when the player reports a status of error (native and web alike)', async () => {
+    (getToken as jest.Mock).mockResolvedValue('token-123');
+    const player = { play: jest.fn(), pause: jest.fn(), playing: false };
+    (useVideoPlayer as jest.Mock).mockReturnValue(player);
+    (useEvent as jest.Mock).mockImplementation((_player, eventName) =>
+      eventName === 'statusChange' ? { status: 'error' } : { isPlaying: false }
+    );
+
+    await render(<ThemeProvider><VideoPlayer path="/api/v1/patients/p1/sample-parts/part-1/media" /></ThemeProvider>);
+
+    await waitFor(() => {
+      expect(screen.getByText('حدث خطأ غير متوقع')).toBeTruthy();
+    });
+    expect(screen.queryByTestId('video-view')).toBeNull();
+  });
+
   describe('on web', () => {
     const originalFetch = global.fetch;
     const originalCreateObjectURL = global.URL.createObjectURL;

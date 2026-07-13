@@ -74,6 +74,10 @@ export function VideoPlayer({ path }: VideoPlayerProps) {
     }
   });
   const { isPlaying } = useEvent(player, 'playingChange', { isPlaying: player?.playing ?? false });
+  // statusChange is part of the shared VideoPlayer API (not platform-specific), so this covers
+  // native playback failures (network error, expired token, unsupported source) the same way
+  // the web-only fetch handling above covers failures before the player ever gets a source.
+  const { status } = useEvent(player, 'statusChange', { status: player?.status ?? 'idle' });
 
   function handlePress() {
     if (!player) return;
@@ -84,8 +88,8 @@ export function VideoPlayer({ path }: VideoPlayerProps) {
     }
   }
 
-  if (webError) {
-    return <ErrorBanner message={webError} />;
+  if (webError || status === 'error') {
+    return <ErrorBanner message={webError ?? 'حدث خطأ غير متوقع'} />;
   }
 
   const ready = Platform.OS === 'web' ? !!webBlobUrl : !!token;
