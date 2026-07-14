@@ -1,4 +1,4 @@
-import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import { ConflictException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { Level, LevelVersion, PatientProfile, Prisma, TrainingCycle72h } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { PatientAccessService } from '../../common/patient-access/patient-access.service';
@@ -6,6 +6,7 @@ import { AuthenticatedUser } from '../../common/auth/session.guard';
 import { LevelsService } from './levels.service';
 import { RecordTrainingEventDto } from './dto/record-training-event.dto';
 import { isCycleEligibleForSample } from './cycle-eligibility.util';
+import { NotificationsService } from '../notifications/notifications.service';
 
 const INACTIVITY_WINDOW_MS = 30 * 24 * 60 * 60 * 1000; // 1 month default, admin-configurable in a later pass
 const STATES_EXEMPT_FROM_INACTIVITY: readonly string[] = [
@@ -25,10 +26,13 @@ export type TrainingCycleWithSample = Prisma.TrainingCycle72hGetPayload<{
 
 @Injectable()
 export class TrainingCyclesService {
+  private readonly logger = new Logger(TrainingCyclesService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly patientAccessService: PatientAccessService,
     private readonly levelsService: LevelsService,
+    private readonly notificationsService: NotificationsService,
   ) {}
 
   async startFirstCycle(patientProfileId: string, treatmentPlanId: string, actor: AuthenticatedUser): Promise<TrainingCycle72h> {
@@ -148,13 +152,38 @@ export class TrainingCyclesService {
       events.map((e) => e.occurredAt),
     );
 
-    return this.prisma.trainingCycle72h.update({
+    const updatedCycle = await this.prisma.trainingCycle72h.update({
       where: { id: cycleId },
       data: {
         firstTrainingEventAt,
         status: eligible ? 'SAMPLE_ELIGIBLE' : 'ACTIVE_LEVEL_TRAINING',
       },
     });
+
+    if (eligible) {
+      // Fetched directly rather than via the shared getNotificationContext util:
+      // this call site needs patientProfile.userId (the recipient), which that
+      // util doesn't expose (it returns patientName/levelName only) — going
+      // through it here would mean fetching patientProfile twice for no reason.
+      const [patientProfile, level] = await Promise.all([
+        this.prisma.patientProfile.findUniqueOrThrow({ where: { id: updatedCycle.patientProfileId } }),
+        this.prisma.level.findUniqueOrThrow({ where: { id: updatedCycle.levelId } }),
+      ]);
+      try {
+        await this.notificationsService.create(
+          patientProfile.userId,
+          'SAMPLE_ELIGIBLE_FOR_RECORDING',
+          { levelName: level.name },
+          { entity: 'TrainingCycle72h', entityId: updatedCycle.id },
+        );
+      } catch (err) {
+        // The cycle's status has already been committed above — a notification
+        // failure must never mask that success or block the response to the patient.
+        this.logger.error(`Failed to send SAMPLE_ELIGIBLE_FOR_RECORDING notification for cycle ${updatedCycle.id}: ${err}`);
+      }
+    }
+
+    return updatedCycle;
   }
 
   async getCurrent(patientProfileId: string, actor: AuthenticatedUser): Promise<TrainingCycleWithSample> {

@@ -265,4 +265,58 @@ describe('Treatment Engine — Cycle lifecycle (e2e)', () => {
     expect(returnedClosedCycle.speechSample.decision).toBe('TRANSITION');
     expect(returnedClosedCycle.speechSample.reviewNotes).toBe('Great progress');
   });
+
+  it('notifies the patient when a cycle becomes SAMPLE_ELIGIBLE via real training events', async () => {
+    await registerAndLogin(app, prisma, '+966500001600', 'CLINICIAN');
+    const patientToken = await registerAndLogin(app, prisma, '+966500001601', null);
+    const clinicianUserId = (await prisma.user.findUniqueOrThrow({ where: { mobile: '+966500001600' } })).id;
+    const patientUser = await prisma.user.findUniqueOrThrow({ where: { mobile: '+966500001601' } });
+
+    const patientProfile = await prisma.patientProfile.create({
+      data: { userId: patientUser.id, fullName: 'Eligibility Notify Patient', gender: 'MALE', dateOfBirth: new Date('2000-01-01'), nationalId: 'ELIGIBLE-NOTIFY-1' },
+    });
+    const assessment = await prisma.assessment.create({
+      data: { patientProfileId: patientProfile.id, clinicianUserId, type: 'INITIAL', status: 'APPROVED' },
+    });
+    const plan = await prisma.treatmentPlan.create({
+      data: { patientProfileId: patientProfile.id, clinicianUserId, assessmentId: assessment.id, goals: 'g', reviewDate: new Date() },
+    });
+    const level = await prisma.level.create({ data: { name: 'Level 1', order: 1 } });
+    const version = await prisma.levelVersion.create({
+      data: { levelId: level.id, versionNumber: 1, behavioralTechnique: 'x', trainingListJson: '[]', samplePartTemplateJson: '[]', publishedAt: new Date() },
+    });
+
+    // firstTrainingEventAt is seeded 73 real hours in the past so that (a) "now" is
+    // genuinely >= firstTrainingEventAt + 72h (the eligibility function's own gate),
+    // and (b) the three seeded events below each land inside one of the three
+    // 24h periods relative to that same start — exactly what isCycleEligibleForSample
+    // requires. This drives the transition through the real recordTrainingEvent
+    // code path (not a direct status override), so the notification call site
+    // inside it actually runs.
+    const start = new Date(Date.now() - 73 * 60 * 60 * 1000);
+    const cycle = await prisma.trainingCycle72h.create({
+      data: {
+        patientProfileId: patientProfile.id, treatmentPlanId: plan.id, levelId: level.id, levelVersionId: version.id,
+        cycleNumber: 1, humanModelWatchedAt: new Date(), firstTrainingEventAt: start,
+      },
+    });
+    await prisma.trainingEvent.create({ data: { trainingCycleId: cycle.id, occurredAt: new Date(start.getTime() + 1 * 60 * 60 * 1000) } }); // period 0
+    await prisma.trainingEvent.create({ data: { trainingCycleId: cycle.id, occurredAt: new Date(start.getTime() + 25 * 60 * 60 * 1000) } }); // period 1
+    await prisma.trainingEvent.create({ data: { trainingCycleId: cycle.id, occurredAt: new Date(start.getTime() + 50 * 60 * 60 * 1000) } }); // period 2
+
+    const res = await request(app.getHttpServer())
+      .post(`/api/v1/patients/${patientProfile.id}/cycles/current/training-events`)
+      .set('Authorization', `Bearer ${patientToken}`)
+      .send({})
+      .expect(201);
+    expect(res.body.status).toBe('SAMPLE_ELIGIBLE');
+
+    const notifications = await request(app.getHttpServer())
+      .get('/api/v1/notifications')
+      .set('Authorization', `Bearer ${patientToken}`)
+      .expect(200);
+    const found = notifications.body.find((n: { type: string }) => n.type === 'SAMPLE_ELIGIBLE_FOR_RECORDING');
+    expect(found).toBeTruthy();
+    expect(found.body).toContain('Level 1');
+  });
 });
