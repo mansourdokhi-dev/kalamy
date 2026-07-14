@@ -86,7 +86,11 @@ export class TrainingSessionsService {
 
     const updatedCycle = await this.prisma.trainingCycle72h.update({
       where: { id: cycle.id },
-      data: { firstTrainingEventAt, status: eligible ? 'SAMPLE_ELIGIBLE' : 'ACTIVE_LEVEL_TRAINING' },
+      data: {
+        firstTrainingEventAt,
+        status: eligible ? 'SAMPLE_ELIGIBLE' : 'ACTIVE_LEVEL_TRAINING',
+        sampleEligibleAt: eligible ? new Date() : undefined,
+      },
     });
 
     if (eligible) {

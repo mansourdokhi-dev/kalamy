@@ -271,6 +271,52 @@ describe('Treatment Engine — Training Sessions (e2e)', () => {
     expect(notifications.body.find((n: { type: string }) => n.type === 'SAMPLE_ELIGIBLE_FOR_RECORDING')).toBeTruthy();
   });
 
+  it('sets sampleEligibleAt on the cycle when a completed session transitions it to SAMPLE_ELIGIBLE', async () => {
+    const clinicianToken = await registerAndLogin(app, prisma, '+966500008020', 'CLINICIAN');
+    const patientToken = await registerAndLogin(app, prisma, '+966500008021', null);
+    const clinicianUserId = (await prisma.user.findUniqueOrThrow({ where: { mobile: '+966500008020' } })).id;
+    const patientProfile = await prisma.patientProfile.create({
+      data: { userId: (await prisma.user.findUniqueOrThrow({ where: { mobile: '+966500008021' } })).id, fullName: 'SampleEligibleAt Session Patient', gender: 'MALE', dateOfBirth: new Date('2000-01-01'), nationalId: `SESSION-SAMPLEAT-${Date.now()}` },
+    });
+    const assessment = await prisma.assessment.create({
+      data: { patientProfileId: patientProfile.id, clinicianUserId, type: 'INITIAL', status: 'APPROVED' },
+    });
+    const plan = await prisma.treatmentPlan.create({
+      data: { patientProfileId: patientProfile.id, clinicianUserId, assessmentId: assessment.id, goals: 'g', reviewDate: new Date() },
+    });
+    const level = await prisma.level.create({ data: { name: 'Level 1', order: 1 } });
+    const version = await prisma.levelVersion.create({
+      data: { levelId: level.id, versionNumber: 1, behavioralTechnique: 'x', trainingListJson: '[]', samplePartTemplateJson: '[]', publishedAt: new Date() },
+    });
+
+    // Same 73-hours-in-the-past seeding technique as the eligibility test above: two raw
+    // TrainingEvent rows land in periods 0 and 1, so this test's session-completion (period 2)
+    // is the one real transition to SAMPLE_ELIGIBLE being exercised.
+    const start = new Date(Date.now() - 73 * 60 * 60 * 1000);
+    const cycle = await prisma.trainingCycle72h.create({
+      data: {
+        patientProfileId: patientProfile.id, treatmentPlanId: plan.id, levelId: level.id, levelVersionId: version.id,
+        cycleNumber: 1, humanModelWatchedAt: new Date(), firstTrainingEventAt: start,
+      },
+    });
+    await prisma.trainingEvent.create({ data: { trainingCycleId: cycle.id, occurredAt: new Date(start.getTime() + 1 * 60 * 60 * 1000) } });
+    await prisma.trainingEvent.create({ data: { trainingCycleId: cycle.id, occurredAt: new Date(start.getTime() + 25 * 60 * 60 * 1000) } });
+
+    await request(app.getHttpServer())
+      .post(`/api/v1/patients/${patientProfile.id}/cycles/current/training-sessions`)
+      .set('Authorization', `Bearer ${patientToken}`)
+      .expect(201);
+    await request(app.getHttpServer())
+      .patch(`/api/v1/patients/${patientProfile.id}/cycles/current/training-sessions/current/progress`)
+      .set('Authorization', `Bearer ${patientToken}`)
+      .send({ unitsCompleted: 100 })
+      .expect(200);
+
+    const updatedCycle = await prisma.trainingCycle72h.findUniqueOrThrow({ where: { id: cycle.id } });
+    expect(updatedCycle.status).toBe('SAMPLE_ELIGIBLE');
+    expect(updatedCycle.sampleEligibleAt).not.toBeNull();
+  });
+
   it('returns 404 when recording progress with no in-progress session', async () => {
     const { patientToken, patientProfile } = await setupActiveCycle('+966500008018', '+966500008019');
 
