@@ -26,6 +26,7 @@ export async function resetDatabase(prisma: PrismaService): Promise<void> {
     prisma.sampleSession.deleteMany(),
     prisma.speechSample.deleteMany(),
     prisma.trainingEvent.deleteMany(),
+    prisma.trainingSession.deleteMany(),
     prisma.trainingCycle72h.deleteMany(),
     prisma.levelVersion.deleteMany(),
     prisma.level.deleteMany(),
