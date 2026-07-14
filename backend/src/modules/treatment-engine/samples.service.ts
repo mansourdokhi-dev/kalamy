@@ -34,7 +34,7 @@ export class SamplesService {
       return existing;
     }
 
-    await this.prisma.trainingCycle72h.update({ where: { id: cycleId }, data: { status: 'SAMPLE_PREPARATION' } });
+    await this.prisma.trainingCycle72h.update({ where: { id: cycleId }, data: { status: 'SAMPLE_PREPARATION', sampleEligibleAt: null } });
     try {
       return await this.prisma.sampleSession.create({ data: { trainingCycleId: cycleId } });
     } catch (error) {
@@ -168,7 +168,7 @@ export class SamplesService {
       });
 
       await tx.sampleSession.update({ where: { id: session.id }, data: { status: 'CLOSED_SUBMITTED' } });
-      await tx.trainingCycle72h.update({ where: { id: cycleId }, data: { status: 'WAITING_FOR_SPECIALIST' } });
+      await tx.trainingCycle72h.update({ where: { id: cycleId }, data: { status: 'WAITING_FOR_SPECIALIST', sampleEligibleAt: null } });
 
       return { alreadyTransitioned: false as const, sample };
     });
