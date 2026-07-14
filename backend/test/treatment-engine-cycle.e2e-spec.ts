@@ -293,9 +293,9 @@ describe('Treatment Engine — Cycle lifecycle (e2e)', () => {
     // genuinely >= firstTrainingEventAt + 72h (the eligibility function's own gate),
     // and (b) the three seeded events below each land inside one of the three
     // 24h periods relative to that same start — exactly what isCycleEligibleForSample
-    // requires. This drives the transition through the real recordTrainingEvent
-    // code path (not a direct status override), so the notification call site
-    // inside it actually runs.
+    // requires. This drives the transition through the real training-session
+    // start+complete code path (not a direct status override), so the notification
+    // call site inside it actually runs.
     const start = new Date(Date.now() - 73 * 60 * 60 * 1000);
     const cycle = await prisma.trainingCycle72h.create({
       data: {
