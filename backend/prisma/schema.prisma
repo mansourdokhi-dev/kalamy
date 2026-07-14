@@ -120,6 +120,11 @@ enum SampleSessionStatus {
   CLOSED_EXHAUSTED
 }
 
+enum TrainingSessionStatus {
+  IN_PROGRESS
+  COMPLETED
+}
+
 model User {
   id                  String     @id @default(uuid())
   fullName            String
@@ -409,9 +414,10 @@ model TrainingCycle72h {
   createdAt            DateTime         @default(now())
   updatedAt            DateTime         @updatedAt
 
-  trainingEvents TrainingEvent[]
-  speechSample   SpeechSample?
-  sampleSession  SampleSession?
+  trainingEvents   TrainingEvent[]
+  trainingSessions TrainingSession[]
+  speechSample     SpeechSample?
+  sampleSession    SampleSession?
 
   @@index([patientProfileId, createdAt])
   @@index([treatmentPlanId, levelId])
@@ -427,6 +433,19 @@ model TrainingEvent {
   createdAt       DateTime         @default(now())
 
   @@index([trainingCycleId, occurredAt])
+}
+
+model TrainingSession {
+  id              String                @id @default(uuid())
+  trainingCycleId String
+  trainingCycle   TrainingCycle72h      @relation(fields: [trainingCycleId], references: [id])
+  status          TrainingSessionStatus @default(IN_PROGRESS)
+  unitsCompleted  Int                   @default(0)
+  startedAt       DateTime              @default(now())
+  completedAt     DateTime?
+
+  @@index([trainingCycleId, status])
+  @@index([trainingCycleId, completedAt])
 }
 
 model SampleSession {
