@@ -515,23 +515,25 @@ model SampleSamplePart {
 }
 
 model Consultation {
-  id                  String             @id @default(uuid())
-  patientProfileId    String
-  patientProfile      PatientProfile     @relation(fields: [patientProfileId], references: [id])
-  requestedByUserId   String
-  requestedByUser     User               @relation("ConsultationRequestedBy", fields: [requestedByUserId], references: [id])
-  type                ConsultationType
-  status              ConsultationStatus @default(REQUESTED)
-  reasonNote          String?
-  scheduledAt         DateTime?
-  externalMeetingLink String?
-  specialistUserId    String?
-  specialistUser      User?              @relation("ConsultationSpecialist", fields: [specialistUserId], references: [id])
-  outcomeNotes        String?
-  completedAt         DateTime?
-  cancelledAt         DateTime?
-  createdAt           DateTime           @default(now())
-  updatedAt           DateTime           @updatedAt
+  id                       String             @id @default(uuid())
+  patientProfileId         String
+  patientProfile           PatientProfile     @relation(fields: [patientProfileId], references: [id])
+  requestedByUserId        String
+  requestedByUser          User               @relation("ConsultationRequestedBy", fields: [requestedByUserId], references: [id])
+  type                     ConsultationType
+  status                   ConsultationStatus @default(REQUESTED)
+  reasonNote               String?
+  scheduledAt              DateTime?
+  dayBeforeReminderSentAt  DateTime?
+  hourBeforeReminderSentAt DateTime?
+  externalMeetingLink      String?
+  specialistUserId         String?
+  specialistUser           User?              @relation("ConsultationSpecialist", fields: [specialistUserId], references: [id])
+  outcomeNotes             String?
+  completedAt              DateTime?
+  cancelledAt              DateTime?
+  createdAt                DateTime           @default(now())
+  updatedAt                DateTime           @updatedAt
 
   @@index([patientProfileId])
 }
@@ -572,4 +574,5 @@ enum NotificationType {
   SAMPLE_AVAILABLE_FOR_REVIEW
   SAMPLE_SUBMISSION_REMINDER
   SAMPLE_SUBMISSION_DELAYED_TO_SUPERVISOR
+  CONSULTATION_REMINDER
 }

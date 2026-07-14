@@ -42,6 +42,15 @@ const NOTIFICATION_TEMPLATES: Record<NotificationType, (ctx: Record<string, stri
     title: 'تأخر في إرسال عينة مريض',
     body: `لم يرسل المريض ${ctx.patientName} عينته في المستوى ${ctx.levelName} خلال المهلة المحددة.`,
   }),
+  CONSULTATION_REMINDER: (ctx) => {
+    const isDayBefore = ctx.leadTime === 'DAY_BEFORE';
+    return {
+      title: isDayBefore ? 'تذكير: استشارتك غدًا' : 'تذكير: استشارتك خلال ساعة',
+      body: isDayBefore
+        ? 'لديك موعد استشارة غدًا. يرجى الاستعداد لحضورها في الوقت المحدد.'
+        : 'يبدأ موعد استشارتك خلال ساعة تقريبًا.',
+    };
+  },
 };
 
 @Injectable()

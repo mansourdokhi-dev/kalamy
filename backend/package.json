@@ -16,6 +16,7 @@
     "@nestjs/config": "^4.0.4",
     "@nestjs/core": "^11.1.27",
     "@nestjs/platform-express": "^11.1.27",
+    "@nestjs/schedule": "^6.1.3",
     "@nestjs/swagger": "^11.4.5",
     "@prisma/client": "6.19.3",
     "bcryptjs": "^3.0.3",
@@ -53,5 +54,11 @@
       "^.+\\.(t|j)s$": "ts-jest"
     },
     "testEnvironment": "node"
+  },
+  "allowScripts": {
+    "@prisma/client@6.19.3": true,
+    "@prisma/engines@6.19.3": true,
+    "@scarf/scarf@1.4.0": true,
+    "prisma@6.19.3": true
   }
 }
