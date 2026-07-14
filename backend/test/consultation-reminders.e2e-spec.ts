@@ -129,4 +129,26 @@ describe('Consultation Reminders sweep (e2e)', () => {
       .expect(200);
     expect(notifications.body.filter((n: { type: string }) => n.type === 'CONSULTATION_REMINDER')).toHaveLength(0);
   });
+
+  it('resets both reminder flags when a consultation is rescheduled to a new time', async () => {
+    const clinicianToken = await registerAndLogin(app, prisma, '+966500007005', 'CLINICIAN');
+    const { consultation } = await setupScheduledConsultation('+966500007006', new Date(Date.now() + 23 * 60 * 60 * 1000));
+
+    await prisma.consultation.update({
+      where: { id: consultation.id },
+      data: { dayBeforeReminderSentAt: new Date(), hourBeforeReminderSentAt: new Date() },
+    });
+
+    const newScheduledAt = new Date(Date.now() + 10 * 24 * 60 * 60 * 1000);
+    await request(app.getHttpServer())
+      .patch(`/api/v1/consultations/${consultation.id}`)
+      .set('Authorization', `Bearer ${clinicianToken}`)
+      .send({ scheduledAt: newScheduledAt.toISOString() })
+      .expect(200);
+
+    const updated = await prisma.consultation.findUniqueOrThrow({ where: { id: consultation.id } });
+    expect(updated.dayBeforeReminderSentAt).toBeNull();
+    expect(updated.hourBeforeReminderSentAt).toBeNull();
+    expect(updated.scheduledAt?.getTime()).toBe(newScheduledAt.getTime());
+  });
 });

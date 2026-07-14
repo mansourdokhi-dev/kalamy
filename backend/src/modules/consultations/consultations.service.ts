@@ -69,16 +69,24 @@ export class ConsultationsService {
         return { blocked: true as const, status: fresh.status };
       }
 
+      const newScheduledAt = dto.scheduledAt ? new Date(dto.scheduledAt) : undefined;
+      // A patient who reschedules must still get reminders for their new time — leaving
+      // stale "already sent" stamps from the old time would silently drop both reminders
+      // instead of re-arming them, since the sweep only ever looks at whether each stamp
+      // is still null.
+      const scheduledAtChanged = newScheduledAt !== undefined && newScheduledAt.getTime() !== fresh.scheduledAt?.getTime();
+
       const updated = await tx.consultation.update({
         where: { id: consultationId },
         data: {
           status: dto.status,
-          scheduledAt: dto.scheduledAt ? new Date(dto.scheduledAt) : undefined,
+          scheduledAt: newScheduledAt,
           externalMeetingLink: dto.externalMeetingLink,
           outcomeNotes: dto.outcomeNotes,
           specialistUserId: dto.status ? actor.id : undefined,
           completedAt: dto.status === 'COMPLETED' ? new Date() : undefined,
           cancelledAt: dto.status === 'CANCELLED' ? new Date() : undefined,
+          ...(scheduledAtChanged ? { dayBeforeReminderSentAt: null, hourBeforeReminderSentAt: null } : {}),
         },
       });
       return { blocked: false as const, consultation: updated };
