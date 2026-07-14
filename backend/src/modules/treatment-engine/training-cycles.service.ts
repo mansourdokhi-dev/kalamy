@@ -7,6 +7,7 @@ import { LevelsService } from './levels.service';
 import { RecordTrainingEventDto } from './dto/record-training-event.dto';
 import { isCycleEligibleForSample } from './cycle-eligibility.util';
 import { NotificationsService } from '../notifications/notifications.service';
+import { getNotificationContext } from '../notifications/notification-context.util';
 
 const INACTIVITY_WINDOW_MS = 30 * 24 * 60 * 60 * 1000; // 1 month default, admin-configurable in a later pass
 const STATES_EXEMPT_FROM_INACTIVITY: readonly string[] = [
@@ -19,6 +20,8 @@ const STATES_EXEMPT_FROM_INACTIVITY: readonly string[] = [
   'CLOSED_DUE_TO_INACTIVITY',
   'SUBSCRIPTION_EXPIRED_CLINICAL_FLOW_OPEN',
 ];
+const SAMPLE_SUBMISSION_GRACE_MS = 2 * 24 * 60 * 60 * 1000;
+const STATES_AWAITING_SAMPLE_SUBMISSION: readonly string[] = ['SAMPLE_ELIGIBLE', 'SAMPLE_PREPARATION'];
 
 export type TrainingCycleWithSample = Prisma.TrainingCycle72hGetPayload<{
   include: { speechSample: { include: { parts: true } } };
@@ -157,6 +160,7 @@ export class TrainingCyclesService {
       data: {
         firstTrainingEventAt,
         status: eligible ? 'SAMPLE_ELIGIBLE' : 'ACTIVE_LEVEL_TRAINING',
+        sampleEligibleAt: eligible ? new Date() : undefined,
       },
     });
 
@@ -195,6 +199,44 @@ export class TrainingCyclesService {
       orderBy: { createdAt: 'desc' },
       include: { speechSample: { include: { parts: true } } },
     });
+
+    if (
+      cycle &&
+      STATES_AWAITING_SAMPLE_SUBMISSION.includes(cycle.status) &&
+      cycle.sampleEligibleAt &&
+      Date.now() - cycle.sampleEligibleAt.getTime() > SAMPLE_SUBMISSION_GRACE_MS
+    ) {
+      cycle = await this.prisma.trainingCycle72h.update({
+        where: { id: cycle.id },
+        data: { status: 'SAMPLE_SUBMISSION_DELAYED' },
+        include: { speechSample: { include: { parts: true } } },
+      });
+
+      const [patientProfile, { patientName, levelName }] = await Promise.all([
+        this.prisma.patientProfile.findUniqueOrThrow({ where: { id: cycle.patientProfileId } }),
+        getNotificationContext(this.prisma, cycle),
+      ]);
+      try {
+        await this.notificationsService.create(
+          patientProfile.userId,
+          'SAMPLE_SUBMISSION_REMINDER',
+          { levelName },
+          { entity: 'TrainingCycle72h', entityId: cycle.id },
+        );
+      } catch (err) {
+        this.logger.error(`Failed to send SAMPLE_SUBMISSION_REMINDER notification for cycle ${cycle.id}: ${err}`);
+      }
+      try {
+        await this.notificationsService.notifyRole(
+          'SUPERVISOR',
+          'SAMPLE_SUBMISSION_DELAYED_TO_SUPERVISOR',
+          { patientName, levelName },
+          { entity: 'TrainingCycle72h', entityId: cycle.id },
+        );
+      } catch (err) {
+        this.logger.error(`Failed to notify SUPERVISOR role of SAMPLE_SUBMISSION_DELAYED_TO_SUPERVISOR for cycle ${cycle.id}: ${err}`);
+      }
+    }
 
     if (cycle && !STATES_EXEMPT_FROM_INACTIVITY.includes(cycle.status) && Date.now() - cycle.updatedAt.getTime() > INACTIVITY_WINDOW_MS) {
       cycle = await this.prisma.trainingCycle72h.update({

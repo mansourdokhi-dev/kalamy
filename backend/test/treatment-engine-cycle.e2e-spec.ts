@@ -319,4 +319,166 @@ describe('Treatment Engine — Cycle lifecycle (e2e)', () => {
     expect(found).toBeTruthy();
     expect(found.body).toContain('Level 1');
   });
+
+  it('flags a cycle SAMPLE_SUBMISSION_DELAYED and notifies patient + supervisors when 2 days pass without submission from SAMPLE_ELIGIBLE', async () => {
+    await registerAndLogin(app, prisma, '+966500001700', 'CLINICIAN');
+    const supervisorToken = await registerAndLogin(app, prisma, '+966500001701', 'SUPERVISOR');
+    const patientToken = await registerAndLogin(app, prisma, '+966500001702', null);
+    const clinicianUserId = (await prisma.user.findUniqueOrThrow({ where: { mobile: '+966500001700' } })).id;
+
+    const patientProfile = await prisma.patientProfile.create({
+      data: { userId: (await prisma.user.findUniqueOrThrow({ where: { mobile: '+966500001702' } })).id, fullName: 'Delay Test Patient', gender: 'MALE', dateOfBirth: new Date('2000-01-01'), nationalId: 'DELAY-TEST-1' },
+    });
+    const assessment = await prisma.assessment.create({
+      data: { patientProfileId: patientProfile.id, clinicianUserId, type: 'INITIAL', status: 'APPROVED' },
+    });
+    const plan = await prisma.treatmentPlan.create({
+      data: { patientProfileId: patientProfile.id, clinicianUserId, assessmentId: assessment.id, goals: 'g', reviewDate: new Date() },
+    });
+    const level = await prisma.level.create({ data: { name: 'Level 1', order: 1 } });
+    const version = await prisma.levelVersion.create({
+      data: { levelId: level.id, versionNumber: 1, behavioralTechnique: 'x', trainingListJson: '[]', samplePartTemplateJson: '[]', publishedAt: new Date() },
+    });
+
+    const sampleEligibleAt = new Date(Date.now() - 3 * 24 * 60 * 60 * 1000); // 3 days ago — past the 2-day grace period
+    await prisma.trainingCycle72h.create({
+      data: {
+        patientProfileId: patientProfile.id, treatmentPlanId: plan.id, levelId: level.id, levelVersionId: version.id,
+        cycleNumber: 1, status: 'SAMPLE_ELIGIBLE', sampleEligibleAt,
+      },
+    });
+
+    const res = await request(app.getHttpServer())
+      .get(`/api/v1/patients/${patientProfile.id}/cycles/current`)
+      .set('Authorization', `Bearer ${patientToken}`)
+      .expect(200);
+    expect(res.body.status).toBe('SAMPLE_SUBMISSION_DELAYED');
+
+    const patientNotifications = await request(app.getHttpServer())
+      .get('/api/v1/notifications')
+      .set('Authorization', `Bearer ${patientToken}`)
+      .expect(200);
+    expect(patientNotifications.body.find((n: { type: string }) => n.type === 'SAMPLE_SUBMISSION_REMINDER')).toBeTruthy();
+
+    const supervisorNotifications = await request(app.getHttpServer())
+      .get('/api/v1/notifications')
+      .set('Authorization', `Bearer ${supervisorToken}`)
+      .expect(200);
+    const found = supervisorNotifications.body.find((n: { type: string }) => n.type === 'SAMPLE_SUBMISSION_DELAYED_TO_SUPERVISOR');
+    expect(found).toBeTruthy();
+    expect(found.body).toContain('Level 1');
+  });
+
+  it('flags a cycle SAMPLE_SUBMISSION_DELAYED when 2 days pass from SAMPLE_PREPARATION (session opened but never submitted)', async () => {
+    await registerAndLogin(app, prisma, '+966500001703', 'CLINICIAN');
+    const patientToken = await registerAndLogin(app, prisma, '+966500001704', null);
+    const clinicianUserId = (await prisma.user.findUniqueOrThrow({ where: { mobile: '+966500001703' } })).id;
+
+    const patientProfile = await prisma.patientProfile.create({
+      data: { userId: (await prisma.user.findUniqueOrThrow({ where: { mobile: '+966500001704' } })).id, fullName: 'Delay Test Patient 2', gender: 'MALE', dateOfBirth: new Date('2000-01-01'), nationalId: 'DELAY-TEST-2' },
+    });
+    const assessment = await prisma.assessment.create({
+      data: { patientProfileId: patientProfile.id, clinicianUserId, type: 'INITIAL', status: 'APPROVED' },
+    });
+    const plan = await prisma.treatmentPlan.create({
+      data: { patientProfileId: patientProfile.id, clinicianUserId, assessmentId: assessment.id, goals: 'g', reviewDate: new Date() },
+    });
+    const level = await prisma.level.create({ data: { name: 'Level 1', order: 1 } });
+    const version = await prisma.levelVersion.create({
+      data: { levelId: level.id, versionNumber: 1, behavioralTechnique: 'x', trainingListJson: '[]', samplePartTemplateJson: '[]', publishedAt: new Date() },
+    });
+
+    const sampleEligibleAt = new Date(Date.now() - 3 * 24 * 60 * 60 * 1000);
+    await prisma.trainingCycle72h.create({
+      data: {
+        patientProfileId: patientProfile.id, treatmentPlanId: plan.id, levelId: level.id, levelVersionId: version.id,
+        cycleNumber: 1, status: 'SAMPLE_PREPARATION', sampleEligibleAt,
+      },
+    });
+
+    const res = await request(app.getHttpServer())
+      .get(`/api/v1/patients/${patientProfile.id}/cycles/current`)
+      .set('Authorization', `Bearer ${patientToken}`)
+      .expect(200);
+    expect(res.body.status).toBe('SAMPLE_SUBMISSION_DELAYED');
+  });
+
+  it('does not flag a cycle as delayed if sampleEligibleAt is less than 2 days old', async () => {
+    await registerAndLogin(app, prisma, '+966500001705', 'CLINICIAN');
+    const patientToken = await registerAndLogin(app, prisma, '+966500001706', null);
+    const clinicianUserId = (await prisma.user.findUniqueOrThrow({ where: { mobile: '+966500001705' } })).id;
+
+    const patientProfile = await prisma.patientProfile.create({
+      data: { userId: (await prisma.user.findUniqueOrThrow({ where: { mobile: '+966500001706' } })).id, fullName: 'Not Delayed Patient', gender: 'MALE', dateOfBirth: new Date('2000-01-01'), nationalId: 'DELAY-TEST-3' },
+    });
+    const assessment = await prisma.assessment.create({
+      data: { patientProfileId: patientProfile.id, clinicianUserId, type: 'INITIAL', status: 'APPROVED' },
+    });
+    const plan = await prisma.treatmentPlan.create({
+      data: { patientProfileId: patientProfile.id, clinicianUserId, assessmentId: assessment.id, goals: 'g', reviewDate: new Date() },
+    });
+    const level = await prisma.level.create({ data: { name: 'Level 1', order: 1 } });
+    const version = await prisma.levelVersion.create({
+      data: { levelId: level.id, versionNumber: 1, behavioralTechnique: 'x', trainingListJson: '[]', samplePartTemplateJson: '[]', publishedAt: new Date() },
+    });
+
+    const sampleEligibleAt = new Date(Date.now() - 1 * 24 * 60 * 60 * 1000); // only 1 day ago — inside the grace period
+    await prisma.trainingCycle72h.create({
+      data: {
+        patientProfileId: patientProfile.id, treatmentPlanId: plan.id, levelId: level.id, levelVersionId: version.id,
+        cycleNumber: 1, status: 'SAMPLE_ELIGIBLE', sampleEligibleAt,
+      },
+    });
+
+    const res = await request(app.getHttpServer())
+      .get(`/api/v1/patients/${patientProfile.id}/cycles/current`)
+      .set('Authorization', `Bearer ${patientToken}`)
+      .expect(200);
+    expect(res.body.status).toBe('SAMPLE_ELIGIBLE');
+  });
+
+  it('does not create duplicate notifications on a second read after already being flagged delayed', async () => {
+    await registerAndLogin(app, prisma, '+966500001707', 'CLINICIAN');
+    await registerAndLogin(app, prisma, '+966500001708', 'SUPERVISOR');
+    const patientToken = await registerAndLogin(app, prisma, '+966500001709', null);
+    const clinicianUserId = (await prisma.user.findUniqueOrThrow({ where: { mobile: '+966500001707' } })).id;
+
+    const patientProfile = await prisma.patientProfile.create({
+      data: { userId: (await prisma.user.findUniqueOrThrow({ where: { mobile: '+966500001709' } })).id, fullName: 'Idempotent Delay Patient', gender: 'MALE', dateOfBirth: new Date('2000-01-01'), nationalId: 'DELAY-TEST-4' },
+    });
+    const assessment = await prisma.assessment.create({
+      data: { patientProfileId: patientProfile.id, clinicianUserId, type: 'INITIAL', status: 'APPROVED' },
+    });
+    const plan = await prisma.treatmentPlan.create({
+      data: { patientProfileId: patientProfile.id, clinicianUserId, assessmentId: assessment.id, goals: 'g', reviewDate: new Date() },
+    });
+    const level = await prisma.level.create({ data: { name: 'Level 1', order: 1 } });
+    const version = await prisma.levelVersion.create({
+      data: { levelId: level.id, versionNumber: 1, behavioralTechnique: 'x', trainingListJson: '[]', samplePartTemplateJson: '[]', publishedAt: new Date() },
+    });
+
+    const sampleEligibleAt = new Date(Date.now() - 3 * 24 * 60 * 60 * 1000);
+    await prisma.trainingCycle72h.create({
+      data: {
+        patientProfileId: patientProfile.id, treatmentPlanId: plan.id, levelId: level.id, levelVersionId: version.id,
+        cycleNumber: 1, status: 'SAMPLE_ELIGIBLE', sampleEligibleAt,
+      },
+    });
+
+    await request(app.getHttpServer())
+      .get(`/api/v1/patients/${patientProfile.id}/cycles/current`)
+      .set('Authorization', `Bearer ${patientToken}`)
+      .expect(200);
+    await request(app.getHttpServer())
+      .get(`/api/v1/patients/${patientProfile.id}/cycles/current`)
+      .set('Authorization', `Bearer ${patientToken}`)
+      .expect(200);
+
+    const patientNotifications = await request(app.getHttpServer())
+      .get('/api/v1/notifications')
+      .set('Authorization', `Bearer ${patientToken}`)
+      .expect(200);
+    const reminders = patientNotifications.body.filter((n: { type: string }) => n.type === 'SAMPLE_SUBMISSION_REMINDER');
+    expect(reminders).toHaveLength(1);
+  });
 });
