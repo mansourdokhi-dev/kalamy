@@ -10,6 +10,7 @@ import { CompleteInterventionDto } from './dto/complete-intervention.dto';
 import { TransferReviewDto } from './dto/transfer-review.dto';
 import { hasPermission, Permission } from '../../common/rbac/permissions';
 import { NotificationsService } from '../notifications/notifications.service';
+import { getNotificationContext } from '../notifications/notification-context.util';
 
 const REVIEW_BOOKING_WINDOW_MS = 24 * 60 * 60 * 1000; // §9: escalate if unreserved 24h after submission
 const REVIEW_DECISION_WINDOW_MS = 48 * 60 * 60 * 1000; // §9: auto-release if undecided 48h after reservation
@@ -134,7 +135,7 @@ export class SpecialistReviewService {
     }
 
     const patientProfile = await this.prisma.patientProfile.findUniqueOrThrow({ where: { id: freshCycle.patientProfileId } });
-    const { levelName } = await this.getNotificationContext(freshCycle);
+    const { levelName } = await getNotificationContext(this.prisma, freshCycle);
     try {
       await this.notificationsService.create(
         patientProfile.userId,
@@ -179,7 +180,7 @@ export class SpecialistReviewService {
       Date.now() - sample.submittedAt.getTime() > REVIEW_BOOKING_WINDOW_MS
     ) {
       const updatedSample = await this.prisma.speechSample.update({ where: { id: sample.id }, data: { escalatedAt: new Date() } });
-      const { patientName, levelName } = await this.getNotificationContext(cycle);
+      const { patientName, levelName } = await getNotificationContext(this.prisma, cycle);
       try {
         await this.notificationsService.notifyRole(
           'SUPERVISOR',
@@ -229,7 +230,7 @@ export class SpecialistReviewService {
       Date.now() > sample.interventionDeadlineAt.getTime()
     ) {
       const updatedSample = await this.prisma.speechSample.update({ where: { id: sample.id }, data: { escalatedAt: new Date() } });
-      const { patientName, levelName } = await this.getNotificationContext(cycle);
+      const { patientName, levelName } = await getNotificationContext(this.prisma, cycle);
       try {
         await this.notificationsService.notifyRole(
           'SUPERVISOR',
@@ -407,13 +408,5 @@ export class SpecialistReviewService {
         cycleNumber: 1,
       },
     });
-  }
-
-  private async getNotificationContext(cycle: { patientProfileId: string; levelId: string }): Promise<{ patientName: string; levelName: string }> {
-    const [patientProfile, level] = await Promise.all([
-      this.prisma.patientProfile.findUniqueOrThrow({ where: { id: cycle.patientProfileId } }),
-      this.prisma.level.findUniqueOrThrow({ where: { id: cycle.levelId } }),
-    ]);
-    return { patientName: patientProfile.fullName, levelName: level.name };
   }
 }

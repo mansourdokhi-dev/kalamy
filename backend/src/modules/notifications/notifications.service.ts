@@ -26,6 +26,14 @@ const NOTIFICATION_TEMPLATES: Record<NotificationType, (ctx: Record<string, stri
     title: 'تدخل متأخر يحتاج تصعيد',
     body: `لم يُنفَّذ التدخل المطلوب لعينة المريض ${ctx.patientName} في المستوى ${ctx.levelName} خلال 7 أيام.`,
   }),
+  SAMPLE_ELIGIBLE_FOR_RECORDING: (ctx) => ({
+    title: 'حان وقت تسجيل العينة',
+    body: `أصبحت جاهزًا لتسجيل عينتك الصوتية في المستوى ${ctx.levelName}.`,
+  }),
+  SAMPLE_AVAILABLE_FOR_REVIEW: (ctx) => ({
+    title: 'عينة جديدة بانتظار المراجعة',
+    body: `عينة المريض ${ctx.patientName} في المستوى ${ctx.levelName} أصبحت متاحة للمراجعة.`,
+  }),
 };
 
 @Injectable()
