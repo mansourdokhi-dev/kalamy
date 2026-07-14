@@ -22,7 +22,7 @@ Rejected alternative: requiring a brand-new `TreatmentPlan`/re-assessment before
 
 New endpoint: `POST /api/v1/patients/:patientId/cycles/restart-after-inactivity`
 
-New permission `RESTART_CYCLE`, granted only to `CLINICIAN` (same tier as `CREATE_TREATMENT_PLAN`/`REVIEW_SAMPLE` — `SUPERVISOR` doesn't get it; supervisors don't take direct patient-treatment actions anywhere else in this codebase, only oversight/transfer ones).
+New permission `RESTART_CYCLE`, granted to `CLINICIAN` and `ADMIN` only (same tier as `CREATE_TREATMENT_PLAN`/`REVIEW_SAMPLE`, both of which are also ADMIN-held — `SUPERVISOR` doesn't get it; supervisors don't take direct patient-treatment actions anywhere else in this codebase, only oversight/transfer ones).
 
 `TrainingCyclesService.restartAfterInactivity(patientProfileId, actor)`:
 1. Load the patient's most recent cycle (`findFirst`, `orderBy: { createdAt: 'desc' }`). If none exists, or its status isn't `CLOSED_DUE_TO_INACTIVITY`, throw `ConflictException` ("Patient does not have a cycle closed due to inactivity").
@@ -42,6 +42,8 @@ This is a pure widening of what's returned; nothing about the inactivity-closure
 
 Side effect worth naming: `watchHumanModel`/`recordTrainingEvent` (both call `getCurrent` first) will now surface a `ConflictException` ("Cannot record training from status CLOSED_DUE_TO_INACTIVITY") instead of a `NotFoundException` if somehow called on a closed-out patient. This is arguably more correct (the patient profile and its history exist; the cycle is just closed) and is not reachable from the current mobile UI, which stops offering those actions once it sees the closed status.
 
+A second side effect, found during the final branch review: the fallback surfaces *any* terminal closed state with no open successor, not only `CLOSED_DUE_TO_INACTIVITY` — in practice the only other reachable case is program completion (`openNextLevelCycle` leaves the final cycle at `NEXT_LEVEL_APPROVED` with no next-level cycle created). Confirmed non-regressive: the mobile app's `genericWaiting` catch-all handles the unrecognized status, and `restartAfterInactivity` correctly rejects it (409, since the status isn't `CLOSED_DUE_TO_INACTIVITY`). Arguably an improvement over the prior dead "Start Program" button such a patient would have seen.
+
 ## Testing
 
 Same established e2e pattern as every prior module: real HTTP requests against a real Postgres, no mocks. Extends `backend/test/treatment-engine-inactivity.e2e-spec.ts`:
@@ -51,7 +53,7 @@ Same established e2e pattern as every prior module: real HTTP requests against a
 - `POST /cycles/restart-after-inactivity` as `CLINICIAN` on a patient whose latest cycle is `CLOSED_DUE_TO_INACTIVITY` creates a new cycle at the first active level, `cycleNumber: 1`, under the same active treatment plan; old cycle remains in `GET /cycles` history with its `CLOSED_DUE_TO_INACTIVITY` status intact.
 - `POST /cycles/restart-after-inactivity` as `PATIENT` is rejected (403 — no `RESTART_CYCLE` permission).
 - `POST /cycles/restart-after-inactivity` on a patient whose latest cycle is **not** closed for inactivity (e.g. `ACTIVE_LEVEL_TRAINING`) is rejected (409).
-- An `AuditLog` row is created recording the restart.
+- Two concurrent restart requests for the same patient resolve to exactly one success (201) and one conflict (409), with exactly one new cycle created — added during implementation once a task review flagged the endpoint's `TrainingCycle72h` insert lacked the same `P2002` race handling `startFirstCycle` already has for the same partial-unique-index constraint.
 
 ## Non-goals restated for clarity
 
