@@ -1,5 +1,5 @@
 import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
-import { PatientProfile, Prisma, TrainingCycle72h } from '@prisma/client';
+import { Level, LevelVersion, PatientProfile, Prisma, TrainingCycle72h } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { PatientAccessService } from '../../common/patient-access/patient-access.service';
 import { AuthenticatedUser } from '../../common/auth/session.guard';
@@ -40,12 +40,7 @@ export class TrainingCyclesService {
       throw new NotFoundException('Treatment plan not found for this patient');
     }
 
-    const levels = await this.levelsService.list();
-    const firstLevel = levels.find((l) => l.status === 'ACTIVE');
-    if (!firstLevel) {
-      throw new ConflictException('No active level is configured');
-    }
-    const activeVersion = await this.levelsService.getActiveVersion(firstLevel.id);
+    const { level: firstLevel, version: activeVersion } = await this.resolveFirstLevel();
 
     try {
       return await this.prisma.$transaction(async (tx) => {
@@ -70,6 +65,48 @@ export class TrainingCyclesService {
       }
       throw error;
     }
+  }
+
+  private async resolveFirstLevel(): Promise<{ level: Level; version: LevelVersion }> {
+    const levels = await this.levelsService.list();
+    const firstLevel = levels.find((l) => l.status === 'ACTIVE');
+    if (!firstLevel) {
+      throw new ConflictException('No active level is configured');
+    }
+    const activeVersion = await this.levelsService.getActiveVersion(firstLevel.id);
+    return { level: firstLevel, version: activeVersion };
+  }
+
+  async restartAfterInactivity(patientProfileId: string, actor: AuthenticatedUser): Promise<TrainingCycle72h> {
+    const profile = await this.findPatientProfileOrThrow(patientProfileId);
+    await this.patientAccessService.assertCanAccess(actor, profile);
+
+    const latestCycle = await this.prisma.trainingCycle72h.findFirst({
+      where: { patientProfileId },
+      orderBy: { createdAt: 'desc' },
+    });
+    if (!latestCycle || latestCycle.status !== 'CLOSED_DUE_TO_INACTIVITY') {
+      throw new ConflictException('Patient does not have a cycle closed due to inactivity');
+    }
+
+    const activePlan = await this.prisma.treatmentPlan.findFirst({
+      where: { patientProfileId, status: 'ACTIVE' },
+    });
+    if (!activePlan) {
+      throw new ConflictException('Patient has no active treatment plan');
+    }
+
+    const { level: firstLevel, version: activeVersion } = await this.resolveFirstLevel();
+
+    return this.prisma.trainingCycle72h.create({
+      data: {
+        patientProfileId,
+        treatmentPlanId: activePlan.id,
+        levelId: firstLevel.id,
+        levelVersionId: activeVersion.id,
+        cycleNumber: 1,
+      },
+    });
   }
 
   async watchHumanModel(cycleId: string, actor: AuthenticatedUser): Promise<TrainingCycle72h> {

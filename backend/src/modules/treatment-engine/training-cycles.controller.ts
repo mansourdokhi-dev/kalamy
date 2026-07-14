@@ -19,6 +19,12 @@ export class TrainingCyclesController {
     return this.trainingCyclesService.startFirstCycle(patientId, dto.treatmentPlanId, user);
   }
 
+  @Post('restart-after-inactivity')
+  @RequirePermission(Permission.RESTART_CYCLE)
+  restartAfterInactivity(@Param('patientId') patientId: string, @CurrentUser() user: AuthenticatedUser) {
+    return this.trainingCyclesService.restartAfterInactivity(patientId, user);
+  }
+
   @Get()
   @RequirePermission(Permission.VIEW_CYCLE)
   listHistory(@Param('patientId') patientId: string, @CurrentUser() user: AuthenticatedUser) {

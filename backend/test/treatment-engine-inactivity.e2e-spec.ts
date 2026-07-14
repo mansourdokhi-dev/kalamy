@@ -228,4 +228,142 @@ describe('Treatment Engine — Inactivity closure (e2e)', () => {
       .set('Authorization', `Bearer ${patientToken}`)
       .expect(404);
   });
+
+  it("allows a CLINICIAN to restart a patient after inactivity closure, at Level 1 under the patient's active plan", async () => {
+    const clinicianToken = await registerAndLogin(app, prisma, '+966500002010', 'CLINICIAN');
+    const patientToken = await registerAndLogin(app, prisma, '+966500002011', null);
+    const clinicianUserId = (await prisma.user.findUniqueOrThrow({ where: { mobile: '+966500002010' } })).id;
+
+    const patientProfile = await prisma.patientProfile.create({
+      data: {
+        userId: (await prisma.user.findUniqueOrThrow({ where: { mobile: '+966500002011' } })).id,
+        fullName: 'Restart Test Patient',
+        gender: 'MALE',
+        dateOfBirth: new Date('2000-01-01'),
+        nationalId: 'RESTART-TEST-1',
+      },
+    });
+    const assessment = await prisma.assessment.create({
+      data: { patientProfileId: patientProfile.id, clinicianUserId, type: 'INITIAL', status: 'APPROVED' },
+    });
+    const plan = await prisma.treatmentPlan.create({
+      data: { patientProfileId: patientProfile.id, clinicianUserId, assessmentId: assessment.id, goals: 'g', reviewDate: new Date() },
+    });
+    const level = await prisma.level.create({ data: { name: 'Level 1', order: 1 } });
+    const version = await prisma.levelVersion.create({
+      data: { levelId: level.id, versionNumber: 1, behavioralTechnique: 'x', trainingListJson: '[]', samplePartTemplateJson: '[]', publishedAt: new Date() },
+    });
+    const closedCycle = await prisma.trainingCycle72h.create({
+      data: {
+        patientProfileId: patientProfile.id,
+        treatmentPlanId: plan.id,
+        levelId: level.id,
+        levelVersionId: version.id,
+        cycleNumber: 1,
+        status: 'CLOSED_DUE_TO_INACTIVITY',
+        closedAt: new Date(),
+      },
+    });
+
+    const res = await request(app.getHttpServer())
+      .post(`/api/v1/patients/${patientProfile.id}/cycles/restart-after-inactivity`)
+      .set('Authorization', `Bearer ${clinicianToken}`)
+      .expect(201);
+
+    expect(res.body.status).toBe('ACTIVE_LEVEL_TRAINING');
+    expect(res.body.levelId).toBe(level.id);
+    expect(res.body.levelVersionId).toBe(version.id);
+    expect(res.body.treatmentPlanId).toBe(plan.id);
+    expect(res.body.cycleNumber).toBe(1);
+    expect(res.body.id).not.toBe(closedCycle.id);
+
+    const history = await request(app.getHttpServer())
+      .get(`/api/v1/patients/${patientProfile.id}/cycles`)
+      .set('Authorization', `Bearer ${patientToken}`)
+      .expect(200);
+    const oldInHistory = history.body.find((c: { id: string }) => c.id === closedCycle.id);
+    expect(oldInHistory.status).toBe('CLOSED_DUE_TO_INACTIVITY');
+    expect(history.body.map((c: { id: string }) => c.id)).toContain(res.body.id);
+  });
+
+  it('rejects restart-after-inactivity from a PATIENT', async () => {
+    const clinicianToken = await registerAndLogin(app, prisma, '+966500002012', 'CLINICIAN');
+    const patientToken = await registerAndLogin(app, prisma, '+966500002013', null);
+    const clinicianUserId = (await prisma.user.findUniqueOrThrow({ where: { mobile: '+966500002012' } })).id;
+    const patientProfile = await prisma.patientProfile.create({
+      data: {
+        userId: (await prisma.user.findUniqueOrThrow({ where: { mobile: '+966500002013' } })).id,
+        fullName: 'Restart Reject Patient',
+        gender: 'MALE',
+        dateOfBirth: new Date('2000-01-01'),
+        nationalId: 'RESTART-TEST-2',
+      },
+    });
+    const assessment = await prisma.assessment.create({
+      data: { patientProfileId: patientProfile.id, clinicianUserId, type: 'INITIAL', status: 'APPROVED' },
+    });
+    const plan = await prisma.treatmentPlan.create({
+      data: { patientProfileId: patientProfile.id, clinicianUserId, assessmentId: assessment.id, goals: 'g', reviewDate: new Date() },
+    });
+    const level = await prisma.level.create({ data: { name: 'Level 1', order: 1 } });
+    const version = await prisma.levelVersion.create({
+      data: { levelId: level.id, versionNumber: 1, behavioralTechnique: 'x', trainingListJson: '[]', samplePartTemplateJson: '[]', publishedAt: new Date() },
+    });
+    await prisma.trainingCycle72h.create({
+      data: {
+        patientProfileId: patientProfile.id,
+        treatmentPlanId: plan.id,
+        levelId: level.id,
+        levelVersionId: version.id,
+        cycleNumber: 1,
+        status: 'CLOSED_DUE_TO_INACTIVITY',
+        closedAt: new Date(),
+      },
+    });
+
+    await request(app.getHttpServer())
+      .post(`/api/v1/patients/${patientProfile.id}/cycles/restart-after-inactivity`)
+      .set('Authorization', `Bearer ${patientToken}`)
+      .expect(403);
+  });
+
+  it('rejects restart-after-inactivity when the latest cycle is not closed for inactivity', async () => {
+    const clinicianToken = await registerAndLogin(app, prisma, '+966500002014', 'CLINICIAN');
+    await registerAndLogin(app, prisma, '+966500002015', null);
+    const clinicianUserId = (await prisma.user.findUniqueOrThrow({ where: { mobile: '+966500002014' } })).id;
+    const patientProfile = await prisma.patientProfile.create({
+      data: {
+        userId: (await prisma.user.findUniqueOrThrow({ where: { mobile: '+966500002015' } })).id,
+        fullName: 'Restart Conflict Patient',
+        gender: 'MALE',
+        dateOfBirth: new Date('2000-01-01'),
+        nationalId: 'RESTART-TEST-3',
+      },
+    });
+    const assessment = await prisma.assessment.create({
+      data: { patientProfileId: patientProfile.id, clinicianUserId, type: 'INITIAL', status: 'APPROVED' },
+    });
+    const plan = await prisma.treatmentPlan.create({
+      data: { patientProfileId: patientProfile.id, clinicianUserId, assessmentId: assessment.id, goals: 'g', reviewDate: new Date() },
+    });
+    const level = await prisma.level.create({ data: { name: 'Level 1', order: 1 } });
+    const version = await prisma.levelVersion.create({
+      data: { levelId: level.id, versionNumber: 1, behavioralTechnique: 'x', trainingListJson: '[]', samplePartTemplateJson: '[]', publishedAt: new Date() },
+    });
+    await prisma.trainingCycle72h.create({
+      data: {
+        patientProfileId: patientProfile.id,
+        treatmentPlanId: plan.id,
+        levelId: level.id,
+        levelVersionId: version.id,
+        cycleNumber: 1,
+        status: 'ACTIVE_LEVEL_TRAINING',
+      },
+    });
+
+    await request(app.getHttpServer())
+      .post(`/api/v1/patients/${patientProfile.id}/cycles/restart-after-inactivity`)
+      .set('Authorization', `Bearer ${clinicianToken}`)
+      .expect(409);
+  });
 });
