@@ -98,15 +98,22 @@ export class TrainingCyclesService {
 
     const { level: firstLevel, version: activeVersion } = await this.resolveFirstLevel();
 
-    return this.prisma.trainingCycle72h.create({
-      data: {
-        patientProfileId,
-        treatmentPlanId: activePlan.id,
-        levelId: firstLevel.id,
-        levelVersionId: activeVersion.id,
-        cycleNumber: 1,
-      },
-    });
+    try {
+      return await this.prisma.trainingCycle72h.create({
+        data: {
+          patientProfileId,
+          treatmentPlanId: activePlan.id,
+          levelId: firstLevel.id,
+          levelVersionId: activeVersion.id,
+          cycleNumber: 1,
+        },
+      });
+    } catch (error) {
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
+        throw new ConflictException('Patient already has an open training cycle');
+      }
+      throw error;
+    }
   }
 
   async watchHumanModel(cycleId: string, actor: AuthenticatedUser): Promise<TrainingCycle72h> {
