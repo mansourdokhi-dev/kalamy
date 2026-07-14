@@ -148,4 +148,84 @@ describe('Treatment Engine — Inactivity closure (e2e)', () => {
     expect(res.body.id).toBe(waitingCycle.id);
     expect(res.body.status).toBe('WAITING_FOR_SPECIALIST'); // unaffected by how long the specialist takes
   });
+
+  it('returns the same closed cycle on a second read instead of 404ing', async () => {
+    const clinicianToken = await registerAndLogin(app, prisma, '+966500002004', 'CLINICIAN');
+    const patientToken = await registerAndLogin(app, prisma, '+966500002005', null);
+
+    const patientProfile = await prisma.patientProfile.create({
+      data: {
+        userId: (await prisma.user.findUniqueOrThrow({ where: { mobile: '+966500002005' } })).id,
+        fullName: 'Inactivity Test Patient 3',
+        gender: 'MALE',
+        dateOfBirth: new Date('2000-01-01'),
+        nationalId: 'INACTIVITY-TEST-3',
+      },
+    });
+    const assessment = await prisma.assessment.create({
+      data: {
+        patientProfileId: patientProfile.id,
+        clinicianUserId: (await prisma.user.findUniqueOrThrow({ where: { mobile: '+966500002004' } })).id,
+        type: 'INITIAL',
+        status: 'APPROVED',
+      },
+    });
+    const plan = await prisma.treatmentPlan.create({
+      data: { patientProfileId: patientProfile.id, clinicianUserId: assessment.clinicianUserId, assessmentId: assessment.id, goals: 'g', reviewDate: new Date() },
+    });
+    const level = await prisma.level.create({ data: { name: 'Level 1', order: 1 } });
+    const version = await prisma.levelVersion.create({
+      data: {
+        levelId: level.id,
+        versionNumber: 1,
+        behavioralTechnique: 'x',
+        trainingListJson: '[]',
+        samplePartTemplateJson: '[]',
+        publishedAt: new Date(),
+      },
+    });
+
+    const staleCycle = await prisma.trainingCycle72h.create({
+      data: { patientProfileId: patientProfile.id, treatmentPlanId: plan.id, levelId: level.id, levelVersionId: version.id, cycleNumber: 1 },
+    });
+    await prisma.trainingEvent.create({
+      data: { trainingCycleId: staleCycle.id, occurredAt: new Date(Date.now() - 40 * 24 * 60 * 60 * 1000) },
+    });
+    await prisma.trainingCycle72h.update({
+      where: { id: staleCycle.id },
+      data: { updatedAt: new Date(Date.now() - 40 * 24 * 60 * 60 * 1000) },
+    });
+
+    const firstRead = await request(app.getHttpServer())
+      .get(`/api/v1/patients/${patientProfile.id}/cycles/current`)
+      .set('Authorization', `Bearer ${patientToken}`)
+      .expect(200);
+    expect(firstRead.body.status).toBe('CLOSED_DUE_TO_INACTIVITY');
+
+    const secondRead = await request(app.getHttpServer())
+      .get(`/api/v1/patients/${patientProfile.id}/cycles/current`)
+      .set('Authorization', `Bearer ${patientToken}`)
+      .expect(200);
+    expect(secondRead.body.id).toBe(staleCycle.id);
+    expect(secondRead.body.status).toBe('CLOSED_DUE_TO_INACTIVITY');
+  });
+
+  it('returns 404 for a patient who has never had any training cycle', async () => {
+    await registerAndLogin(app, prisma, '+966500002006', 'CLINICIAN');
+    const patientToken = await registerAndLogin(app, prisma, '+966500002007', null);
+    const patientProfile = await prisma.patientProfile.create({
+      data: {
+        userId: (await prisma.user.findUniqueOrThrow({ where: { mobile: '+966500002007' } })).id,
+        fullName: 'Never Started Patient',
+        gender: 'MALE',
+        dateOfBirth: new Date('2000-01-01'),
+        nationalId: 'INACTIVITY-TEST-4',
+      },
+    });
+
+    await request(app.getHttpServer())
+      .get(`/api/v1/patients/${patientProfile.id}/cycles/current`)
+      .set('Authorization', `Bearer ${patientToken}`)
+      .expect(404);
+  });
 });

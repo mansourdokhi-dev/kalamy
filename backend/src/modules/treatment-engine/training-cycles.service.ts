@@ -122,16 +122,29 @@ export class TrainingCyclesService {
       orderBy: { createdAt: 'desc' },
       include: { speechSample: { include: { parts: true } } },
     });
-    if (!cycle) {
-      throw new NotFoundException('No active training cycle');
-    }
 
-    if (!STATES_EXEMPT_FROM_INACTIVITY.includes(cycle.status) && Date.now() - cycle.updatedAt.getTime() > INACTIVITY_WINDOW_MS) {
+    if (cycle && !STATES_EXEMPT_FROM_INACTIVITY.includes(cycle.status) && Date.now() - cycle.updatedAt.getTime() > INACTIVITY_WINDOW_MS) {
       cycle = await this.prisma.trainingCycle72h.update({
         where: { id: cycle.id },
         data: { status: 'CLOSED_DUE_TO_INACTIVITY', closedAt: new Date() },
         include: { speechSample: { include: { parts: true } } },
       });
+    }
+
+    if (!cycle) {
+      // No open cycle — fall back to the most recent cycle overall (e.g. one
+      // already closed for inactivity on a prior read) so callers can see its
+      // real terminal status instead of a blind 404. Only a patient who has
+      // never had any cycle at all still gets NotFoundException below.
+      cycle = await this.prisma.trainingCycle72h.findFirst({
+        where: { patientProfileId },
+        orderBy: { createdAt: 'desc' },
+        include: { speechSample: { include: { parts: true } } },
+      });
+    }
+
+    if (!cycle) {
+      throw new NotFoundException('No active training cycle');
     }
 
     return cycle;
