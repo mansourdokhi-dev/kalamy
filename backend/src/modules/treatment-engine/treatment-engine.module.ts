@@ -13,6 +13,8 @@ import { SampleMediaController } from './sample-media.controller';
 import { SpecialistReviewController } from './specialist-review.controller';
 import { SpecialistReviewQueueController } from './specialist-review-queue.controller';
 import { SpecialistReviewService } from './specialist-review.service';
+import { PatientLevelsController } from './patient-levels.controller';
+import { PatientLevelsService } from './patient-levels.service';
 import { AuthModule } from '../auth/auth.module';
 import { PatientAccessModule } from '../../common/patient-access/patient-access.module';
 import { MediaStorageModule } from './media-storage/media-storage.module';
@@ -56,8 +58,8 @@ import { NotificationsModule } from '../notifications/notifications.module';
       }),
     }),
   ],
-  controllers: [LevelsController, TrainingCyclesController, SamplesController, SampleMediaController, SpecialistReviewController, SpecialistReviewQueueController],
-  providers: [LevelsService, TrainingCyclesService, SamplesService, SpecialistReviewService],
-  exports: [LevelsService, TrainingCyclesService, SamplesService, SpecialistReviewService],
+  controllers: [LevelsController, TrainingCyclesController, SamplesController, SampleMediaController, SpecialistReviewController, SpecialistReviewQueueController, PatientLevelsController],
+  providers: [LevelsService, TrainingCyclesService, SamplesService, SpecialistReviewService, PatientLevelsService],
+  exports: [LevelsService, TrainingCyclesService, SamplesService, SpecialistReviewService, PatientLevelsService],
 })
 export class TreatmentEngineModule {}
