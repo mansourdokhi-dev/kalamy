@@ -123,4 +123,34 @@ export class TrainingSessionsService {
     const intervalActive = Date.now() < nextAvailableAt.getTime();
     return { intervalActive, nextAvailableAt: intervalActive ? nextAvailableAt : null };
   }
+
+  async getProgress(
+    cycleId: string,
+    actor: AuthenticatedUser,
+  ): Promise<{ completedToday: number; targetPerDay: number; intervalActive: boolean; nextAvailableAt: string | null; currentSessionId: string | null }> {
+    const cycle = await this.trainingCyclesService.findCycleForActor(cycleId, actor);
+    const { intervalActive, nextAvailableAt } = await this.resolveIntervalStatus(cycleId);
+
+    let completedToday = 0;
+    if (cycle.firstTrainingEventAt) {
+      const DAY_MS = 24 * 60 * 60 * 1000;
+      const startMs = cycle.firstTrainingEventAt.getTime();
+      const currentPeriodIndex = Math.floor((Date.now() - startMs) / DAY_MS);
+      const periodStart = new Date(startMs + currentPeriodIndex * DAY_MS);
+      const periodEnd = new Date(startMs + (currentPeriodIndex + 1) * DAY_MS);
+      completedToday = await this.prisma.trainingSession.count({
+        where: { trainingCycleId: cycleId, status: 'COMPLETED', completedAt: { gte: periodStart, lt: periodEnd } },
+      });
+    }
+
+    const inProgress = await this.prisma.trainingSession.findFirst({ where: { trainingCycleId: cycleId, status: 'IN_PROGRESS' } });
+
+    return {
+      completedToday,
+      targetPerDay: DAILY_TARGET_TRAININGS,
+      intervalActive,
+      nextAvailableAt: nextAvailableAt?.toISOString() ?? null,
+      currentSessionId: inProgress?.id ?? null,
+    };
+  }
 }

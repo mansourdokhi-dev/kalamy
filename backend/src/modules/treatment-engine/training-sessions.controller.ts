@@ -1,4 +1,4 @@
-import { Body, Controller, Patch, Post, Param, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Patch, Post, Param, UseGuards } from '@nestjs/common';
 import { TrainingSessionsService } from './training-sessions.service';
 import { TrainingCyclesService } from './training-cycles.service';
 import { SessionGuard, AuthenticatedUser } from '../../common/auth/session.guard';
@@ -28,5 +28,12 @@ export class TrainingSessionsController {
   async recordProgress(@Param('patientId') patientId: string, @Body() dto: RecordProgressDto, @CurrentUser() user: AuthenticatedUser) {
     const current = await this.trainingCyclesService.getCurrent(patientId, user);
     return this.trainingSessionsService.recordProgress(current.id, dto, user);
+  }
+
+  @Get('progress')
+  @RequirePermission(Permission.VIEW_CYCLE)
+  async getProgress(@Param('patientId') patientId: string, @CurrentUser() user: AuthenticatedUser) {
+    const current = await this.trainingCyclesService.getCurrent(patientId, user);
+    return this.trainingSessionsService.getProgress(current.id, user);
   }
 }

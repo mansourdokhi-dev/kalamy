@@ -326,4 +326,61 @@ describe('Treatment Engine — Training Sessions (e2e)', () => {
       .send({ unitsCompleted: 50 })
       .expect(404);
   });
+
+  it('counts only sessions completed within the current 24h period as completedToday', async () => {
+    const { patientToken, patientProfile, cycleId } = await setupActiveCycle('+966500008020', '+966500008021');
+    const start = new Date(Date.now() - 30 * 60 * 60 * 1000); // 30 hours ago — currently in period 1 (24h-48h)
+    await prisma.trainingCycle72h.update({ where: { id: cycleId }, data: { firstTrainingEventAt: start } });
+
+    // One session completed in period 0 (hours 0-24) — should NOT count as "today" (period 1).
+    await prisma.trainingSession.create({
+      data: { trainingCycleId: cycleId, status: 'COMPLETED', unitsCompleted: 100, completedAt: new Date(start.getTime() + 5 * 60 * 60 * 1000) },
+    });
+    // Two sessions completed in period 1 (24h-48h from start, i.e. the last 6 hours) — should count.
+    await prisma.trainingSession.create({
+      data: { trainingCycleId: cycleId, status: 'COMPLETED', unitsCompleted: 100, completedAt: new Date(start.getTime() + 26 * 60 * 60 * 1000) },
+    });
+    await prisma.trainingSession.create({
+      data: { trainingCycleId: cycleId, status: 'COMPLETED', unitsCompleted: 100, completedAt: new Date(Date.now() - 2 * 60 * 60 * 1000) },
+    });
+
+    const res = await request(app.getHttpServer())
+      .get(`/api/v1/patients/${patientProfile.id}/cycles/current/training-sessions/progress`)
+      .set('Authorization', `Bearer ${patientToken}`)
+      .expect(200);
+
+    expect(res.body.completedToday).toBe(2);
+    expect(res.body.targetPerDay).toBe(7);
+  });
+
+  it('reports intervalActive and nextAvailableAt consistently with the start-session gate', async () => {
+    const { patientToken, patientProfile, cycleId } = await setupActiveCycle('+966500008022', '+966500008023');
+    await prisma.trainingSession.create({
+      data: { trainingCycleId: cycleId, status: 'COMPLETED', unitsCompleted: 100, completedAt: new Date(Date.now() - 10 * 60 * 1000) },
+    });
+
+    const res = await request(app.getHttpServer())
+      .get(`/api/v1/patients/${patientProfile.id}/cycles/current/training-sessions/progress`)
+      .set('Authorization', `Bearer ${patientToken}`)
+      .expect(200);
+
+    expect(res.body.intervalActive).toBe(true);
+    expect(res.body.nextAvailableAt).not.toBeNull();
+    expect(res.body.currentSessionId).toBeNull();
+  });
+
+  it('reports the in-progress session id when one exists', async () => {
+    const { patientToken, patientProfile } = await setupActiveCycle('+966500008024', '+966500008025');
+    const started = await request(app.getHttpServer())
+      .post(`/api/v1/patients/${patientProfile.id}/cycles/current/training-sessions`)
+      .set('Authorization', `Bearer ${patientToken}`)
+      .expect(201);
+
+    const res = await request(app.getHttpServer())
+      .get(`/api/v1/patients/${patientProfile.id}/cycles/current/training-sessions/progress`)
+      .set('Authorization', `Bearer ${patientToken}`)
+      .expect(200);
+
+    expect(res.body.currentSessionId).toBe(started.body.id);
+  });
 });
