@@ -388,12 +388,35 @@ describe('Treatment Engine — Cycle lifecycle (e2e)', () => {
       data: { levelId: level.id, versionNumber: 1, behavioralTechnique: 'x', trainingListJson: '[]', samplePartTemplateJson: '[]', publishedAt: new Date() },
     });
 
-    const sampleEligibleAt = new Date(Date.now() - 3 * 24 * 60 * 60 * 1000);
-    await prisma.trainingCycle72h.create({
+    // Seed the cycle as SAMPLE_ELIGIBLE with a FRESH sampleEligibleAt (not yet stale) —
+    // opening a session immediately below must not trigger the lazy-evaluation flip
+    // via the controller's own getCurrent() precheck.
+    const cycle = await prisma.trainingCycle72h.create({
       data: {
         patientProfileId: patientProfile.id, treatmentPlanId: plan.id, levelId: level.id, levelVersionId: version.id,
-        cycleNumber: 1, status: 'SAMPLE_PREPARATION', sampleEligibleAt,
+        cycleNumber: 1, status: 'SAMPLE_ELIGIBLE', sampleEligibleAt: new Date(),
       },
+    });
+
+    // Open the session through the REAL endpoint (not seeded directly into
+    // SAMPLE_PREPARATION via prisma) — this exercises the actual openSession code
+    // path, which must preserve sampleEligibleAt when opening from SAMPLE_ELIGIBLE.
+    await request(app.getHttpServer())
+      .post(`/api/v1/patients/${patientProfile.id}/cycles/current/sample-session`)
+      .set('Authorization', `Bearer ${patientToken}`)
+      .expect(201);
+
+    const opened = await prisma.trainingCycle72h.findUniqueOrThrow({ where: { id: cycle.id } });
+    expect(opened.status).toBe('SAMPLE_PREPARATION');
+    expect(opened.sampleEligibleAt).not.toBeNull();
+
+    // Now simulate 2+ days passing since the (preserved) sampleEligibleAt timestamp —
+    // there's no way to literally wait 2 days in a test, so we backdate the clock the
+    // same way the other tests in this file do, but only AFTER driving the real
+    // SAMPLE_ELIGIBLE -> SAMPLE_PREPARATION transition through openSession.
+    await prisma.trainingCycle72h.update({
+      where: { id: cycle.id },
+      data: { sampleEligibleAt: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000) },
     });
 
     const res = await request(app.getHttpServer())

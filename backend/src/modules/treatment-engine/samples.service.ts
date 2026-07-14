@@ -34,7 +34,17 @@ export class SamplesService {
       return existing;
     }
 
-    await this.prisma.trainingCycle72h.update({ where: { id: cycleId }, data: { status: 'SAMPLE_PREPARATION', sampleEligibleAt: null } });
+    // Only clear sampleEligibleAt when opening from SAMPLE_SUBMISSION_DELAYED — that
+    // stale timestamp must be reset so the transient delayed flag doesn't immediately
+    // re-flip on the next read. Opening from the normal SAMPLE_ELIGIBLE state must NOT
+    // touch it: sampleEligibleAt is a dedicated field specifically so that opening a
+    // session doesn't reset the 2-day clock (see design doc) — the clock must keep
+    // running so an opened-but-abandoned session can still be flagged delayed.
+    const clearEligibleAt = cycle.status === 'SAMPLE_SUBMISSION_DELAYED';
+    await this.prisma.trainingCycle72h.update({
+      where: { id: cycleId },
+      data: { status: 'SAMPLE_PREPARATION', ...(clearEligibleAt ? { sampleEligibleAt: null } : {}) },
+    });
     try {
       return await this.prisma.sampleSession.create({ data: { trainingCycleId: cycleId } });
     } catch (error) {
