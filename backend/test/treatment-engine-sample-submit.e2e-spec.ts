@@ -242,4 +242,80 @@ describe('Treatment Engine — Sample submission (e2e)', () => {
     const sampleCount = await prisma.speechSample.count({ where: { trainingCycleId: startRes.body.id } });
     expect(sampleCount).toBe(1);
   });
+
+  it('notifies CLINICIAN role (not ADMIN) when a sample is submitted', async () => {
+    const clinicianToken = await registerAndLogin(app, prisma, '+966500003004', 'CLINICIAN');
+    const adminToken = await registerAndLogin(app, prisma, '+966500003005', 'ADMIN');
+    const patientToken = await registerAndLogin(app, prisma, '+966500003006', null);
+
+    const patientProfile = await prisma.patientProfile.create({
+      data: {
+        userId: (await prisma.user.findUniqueOrThrow({ where: { mobile: '+966500003006' } })).id,
+        fullName: 'Sample Notify Patient',
+        gender: 'MALE',
+        dateOfBirth: new Date('2000-01-01'),
+        nationalId: 'SAMPLE-SUBMIT-NOTIFY-1',
+      },
+    });
+    const assessment = await prisma.assessment.create({
+      data: {
+        patientProfileId: patientProfile.id,
+        clinicianUserId: (await prisma.user.findUniqueOrThrow({ where: { mobile: '+966500003004' } })).id,
+        type: 'INITIAL',
+        status: 'APPROVED',
+      },
+    });
+    const plan = await prisma.treatmentPlan.create({
+      data: { patientProfileId: patientProfile.id, clinicianUserId: assessment.clinicianUserId, assessmentId: assessment.id, goals: 'g', reviewDate: new Date() },
+    });
+    const level = await prisma.level.create({ data: { name: 'Level 1', order: 1 } });
+    await prisma.levelVersion.create({
+      data: { levelId: level.id, versionNumber: 1, behavioralTechnique: 'x', trainingListJson: '[]', samplePartTemplateJson: '[]', publishedAt: new Date() },
+    });
+
+    const startRes = await request(app.getHttpServer())
+      .post(`/api/v1/patients/${patientProfile.id}/cycles/start`)
+      .set('Authorization', `Bearer ${patientToken}`)
+      .send({ treatmentPlanId: plan.id })
+      .expect(201);
+
+    await prisma.trainingCycle72h.update({ where: { id: startRes.body.id }, data: { status: 'SAMPLE_ELIGIBLE' } });
+
+    await request(app.getHttpServer())
+      .post(`/api/v1/patients/${patientProfile.id}/cycles/current/sample-session`)
+      .set('Authorization', `Bearer ${patientToken}`)
+      .expect(201);
+
+    const attempt1 = await request(app.getHttpServer())
+      .post(`/api/v1/patients/${patientProfile.id}/cycles/current/sample-session/attempts`)
+      .set('Authorization', `Bearer ${patientToken}`)
+      .send({ recordingUrl: 'notify-attempt-1.mp4', mimeType: 'video/mp4', fileSizeBytes: 204800, durationSeconds: 12 })
+      .expect(201);
+
+    await request(app.getHttpServer())
+      .post(`/api/v1/patients/${patientProfile.id}/cycles/current/sample-session/submit`)
+      .set('Authorization', `Bearer ${patientToken}`)
+      .send({
+        parts: [{ partType: 'مقطع', label: 'مقطع 1', order: 1, sourceAttemptId: attempt1.body.id }],
+        selfSeverityCurrent: 5,
+        selfSeverityExpectedNext: 6,
+        camperdownPerformanceRating: 7,
+        clientOpinionScore: 6,
+      })
+      .expect(201);
+
+    const clinicianNotifications = await request(app.getHttpServer())
+      .get('/api/v1/notifications')
+      .set('Authorization', `Bearer ${clinicianToken}`)
+      .expect(200);
+    const clinicianFound = clinicianNotifications.body.find((n: { type: string }) => n.type === 'SAMPLE_AVAILABLE_FOR_REVIEW');
+    expect(clinicianFound).toBeTruthy();
+    expect(clinicianFound.body).toContain('Level 1');
+
+    const adminNotifications = await request(app.getHttpServer())
+      .get('/api/v1/notifications')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .expect(200);
+    expect(adminNotifications.body.find((n: { type: string }) => n.type === 'SAMPLE_AVAILABLE_FOR_REVIEW')).toBeUndefined();
+  });
 });

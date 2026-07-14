@@ -1,4 +1,4 @@
-import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import { ConflictException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { Prisma, SampleAttempt, SampleSession, SpeechSample, SampleSamplePart } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { AuthenticatedUser } from '../../common/auth/session.guard';
@@ -7,15 +7,20 @@ import { RecordAttemptDto } from './dto/record-attempt.dto';
 import { SubmitSampleDto } from './dto/submit-sample.dto';
 import { RerecordPartsDto } from './dto/rerecord-parts.dto';
 import { MediaStorageService } from './media-storage/media-storage.service';
+import { NotificationsService } from '../notifications/notifications.service';
+import { getNotificationContext } from '../notifications/notification-context.util';
 
 const MAX_ATTEMPTS = 10;
 
 @Injectable()
 export class SamplesService {
+  private readonly logger = new Logger(SamplesService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly trainingCyclesService: TrainingCyclesService,
     private readonly mediaStorageService: MediaStorageService,
+    private readonly notificationsService: NotificationsService,
   ) {}
 
   async openSession(cycleId: string, actor: AuthenticatedUser): Promise<SampleSession> {
@@ -171,6 +176,22 @@ export class SamplesService {
     if (result.alreadyTransitioned) {
       throw new ConflictException(`Cannot submit a sample from status ${result.status}`);
     }
+
+    const { patientName, levelName } = await getNotificationContext(this.prisma, cycle);
+    try {
+      await this.notificationsService.notifyRole(
+        'CLINICIAN',
+        'SAMPLE_AVAILABLE_FOR_REVIEW',
+        { patientName, levelName },
+        { entity: 'SpeechSample', entityId: result.sample.id },
+      );
+    } catch (err) {
+      // The sample has already been submitted and the cycle already moved to
+      // WAITING_FOR_SPECIALIST above — a notify failure must never mask that
+      // success or block the patient's response.
+      this.logger.error(`Failed to notify CLINICIAN role of SAMPLE_AVAILABLE_FOR_REVIEW for sample ${result.sample.id} (cycle ${cycleId}): ${err}`);
+    }
+
     return result.sample;
   }
 
