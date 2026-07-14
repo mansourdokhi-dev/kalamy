@@ -6,7 +6,6 @@ import { PermissionsGuard } from '../../common/rbac/permissions.guard';
 import { RequirePermission } from '../../common/rbac/require-permission.decorator';
 import { Permission } from '../../common/rbac/permissions';
 import { StartCycleDto } from './dto/start-cycle.dto';
-import { RecordTrainingEventDto } from './dto/record-training-event.dto';
 
 @Controller('api/v1/patients/:patientId/cycles')
 @UseGuards(SessionGuard, PermissionsGuard)
@@ -36,17 +35,6 @@ export class TrainingCyclesController {
   async watchHumanModel(@Param('patientId') patientId: string, @CurrentUser() user: AuthenticatedUser) {
     const current = await this.trainingCyclesService.getCurrent(patientId, user);
     return this.trainingCyclesService.watchHumanModel(current.id, user);
-  }
-
-  @Post('current/training-events')
-  @RequirePermission(Permission.RECORD_TRAINING_EVENT)
-  async recordTrainingEvent(
-    @Param('patientId') patientId: string,
-    @Body() dto: RecordTrainingEventDto,
-    @CurrentUser() user: AuthenticatedUser,
-  ) {
-    const current = await this.trainingCyclesService.getCurrent(patientId, user);
-    return this.trainingCyclesService.recordTrainingEvent(current.id, dto, user);
   }
 
   @Get('current')

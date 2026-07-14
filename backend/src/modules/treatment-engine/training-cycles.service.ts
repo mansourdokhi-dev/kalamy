@@ -4,8 +4,6 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { PatientAccessService } from '../../common/patient-access/patient-access.service';
 import { AuthenticatedUser } from '../../common/auth/session.guard';
 import { LevelsService } from './levels.service';
-import { RecordTrainingEventDto } from './dto/record-training-event.dto';
-import { isCycleEligibleForSample } from './cycle-eligibility.util';
 import { NotificationsService } from '../notifications/notifications.service';
 import { getNotificationContext } from '../notifications/notification-context.util';
 
@@ -134,61 +132,6 @@ export class TrainingCyclesService {
     return this.prisma.trainingCycle72h.update({ where: { id: cycleId }, data: { humanModelWatchedAt: new Date() } });
   }
 
-  async recordTrainingEvent(cycleId: string, dto: RecordTrainingEventDto, actor: AuthenticatedUser): Promise<TrainingCycle72h> {
-    const cycle = await this.findCycleForActor(cycleId, actor);
-    if (cycle.status !== 'ACTIVE_LEVEL_TRAINING') {
-      throw new ConflictException(`Cannot record training from status ${cycle.status}`);
-    }
-    if (!cycle.humanModelWatchedAt) {
-      throw new ConflictException('Must watch the human model before training');
-    }
-
-    const occurredAt = new Date();
-    await this.prisma.trainingEvent.create({
-      data: { trainingCycleId: cycleId, occurredAt, durationSeconds: dto.durationSeconds, unitsCompleted: dto.unitsCompleted },
-    });
-
-    const firstTrainingEventAt = cycle.firstTrainingEventAt ?? occurredAt;
-    const events = await this.prisma.trainingEvent.findMany({ where: { trainingCycleId: cycleId }, select: { occurredAt: true } });
-    const eligible = isCycleEligibleForSample(
-      firstTrainingEventAt,
-      events.map((e) => e.occurredAt),
-    );
-
-    const updatedCycle = await this.prisma.trainingCycle72h.update({
-      where: { id: cycleId },
-      data: {
-        firstTrainingEventAt,
-        status: eligible ? 'SAMPLE_ELIGIBLE' : 'ACTIVE_LEVEL_TRAINING',
-        sampleEligibleAt: eligible ? new Date() : undefined,
-      },
-    });
-
-    if (eligible) {
-      // Fetched directly rather than via the shared getNotificationContext util:
-      // this call site needs patientProfile.userId (the recipient), which that
-      // util doesn't expose (it returns patientName/levelName only) — going
-      // through it here would mean fetching patientProfile twice for no reason.
-      const [patientProfile, level] = await Promise.all([
-        this.prisma.patientProfile.findUniqueOrThrow({ where: { id: updatedCycle.patientProfileId } }),
-        this.prisma.level.findUniqueOrThrow({ where: { id: updatedCycle.levelId } }),
-      ]);
-      try {
-        await this.notificationsService.create(
-          patientProfile.userId,
-          'SAMPLE_ELIGIBLE_FOR_RECORDING',
-          { levelName: level.name },
-          { entity: 'TrainingCycle72h', entityId: updatedCycle.id },
-        );
-      } catch (err) {
-        // The cycle's status has already been committed above — a notification
-        // failure must never mask that success or block the response to the patient.
-        this.logger.error(`Failed to send SAMPLE_ELIGIBLE_FOR_RECORDING notification for cycle ${updatedCycle.id}: ${err}`);
-      }
-    }
-
-    return updatedCycle;
-  }
 
   async getCurrent(patientProfileId: string, actor: AuthenticatedUser): Promise<TrainingCycleWithSample> {
     const profile = await this.findPatientProfileOrThrow(patientProfileId);

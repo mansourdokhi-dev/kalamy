@@ -88,9 +88,8 @@ describe('Treatment Engine — Cycle lifecycle (e2e)', () => {
       .expect(409);
 
     await request(app.getHttpServer())
-      .post(`/api/v1/patients/${patientProfile.id}/cycles/current/training-events`)
+      .post(`/api/v1/patients/${patientProfile.id}/cycles/current/training-sessions`)
       .set('Authorization', `Bearer ${patientToken}`)
-      .send({})
       .expect(409);
 
     await request(app.getHttpServer())
@@ -99,16 +98,20 @@ describe('Treatment Engine — Cycle lifecycle (e2e)', () => {
       .expect(201);
 
     await request(app.getHttpServer())
-      .post(`/api/v1/patients/${patientProfile.id}/cycles/current/training-events`)
+      .post(`/api/v1/patients/${patientProfile.id}/cycles/current/training-sessions`)
       .set('Authorization', `Bearer ${patientToken}`)
-      .send({})
       .expect(201);
+    await request(app.getHttpServer())
+      .patch(`/api/v1/patients/${patientProfile.id}/cycles/current/training-sessions/current/progress`)
+      .set('Authorization', `Bearer ${patientToken}`)
+      .send({ unitsCompleted: 100 })
+      .expect(200);
 
     const currentRes = await request(app.getHttpServer())
       .get(`/api/v1/patients/${patientProfile.id}/cycles/current`)
       .set('Authorization', `Bearer ${patientToken}`)
       .expect(200);
-    expect(currentRes.body.status).toBe('ACTIVE_LEVEL_TRAINING'); // one event alone is not the full 72h gate
+    expect(currentRes.body.status).toBe('ACTIVE_LEVEL_TRAINING'); // one completed training alone is not the full 72h gate
   });
 
   it('rejects starting a cycle with a treatment plan that belongs to a different patient', async () => {
@@ -304,12 +307,21 @@ describe('Treatment Engine — Cycle lifecycle (e2e)', () => {
     await prisma.trainingEvent.create({ data: { trainingCycleId: cycle.id, occurredAt: new Date(start.getTime() + 25 * 60 * 60 * 1000) } }); // period 1
     await prisma.trainingEvent.create({ data: { trainingCycleId: cycle.id, occurredAt: new Date(start.getTime() + 50 * 60 * 60 * 1000) } }); // period 2
 
-    const res = await request(app.getHttpServer())
-      .post(`/api/v1/patients/${patientProfile.id}/cycles/current/training-events`)
+    await request(app.getHttpServer())
+      .post(`/api/v1/patients/${patientProfile.id}/cycles/current/training-sessions`)
       .set('Authorization', `Bearer ${patientToken}`)
-      .send({})
       .expect(201);
-    expect(res.body.status).toBe('SAMPLE_ELIGIBLE');
+    const res = await request(app.getHttpServer())
+      .patch(`/api/v1/patients/${patientProfile.id}/cycles/current/training-sessions/current/progress`)
+      .set('Authorization', `Bearer ${patientToken}`)
+      .send({ unitsCompleted: 100 })
+      .expect(200);
+
+    const cycleRes = await request(app.getHttpServer())
+      .get(`/api/v1/patients/${patientProfile.id}/cycles/current`)
+      .set('Authorization', `Bearer ${patientToken}`)
+      .expect(200);
+    expect(cycleRes.body.status).toBe('SAMPLE_ELIGIBLE');
 
     const notifications = await request(app.getHttpServer())
       .get('/api/v1/notifications')

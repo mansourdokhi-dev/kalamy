@@ -174,19 +174,17 @@ describe('Treatment Engine v2 — full acceptance criteria (AC-01 through AC-12)
 
     // still recordable while merely SAMPLE_ELIGIBLE (has not yet submitted)
     await request(app.getHttpServer())
-      .post(`/api/v1/patients/${profile.id}/cycles/current/training-events`)
+      .post(`/api/v1/patients/${profile.id}/cycles/current/training-sessions`)
       .set('Authorization', `Bearer ${patientToken}`)
-      .send({})
-      .expect(409); // recordTrainingEvent only accepts ACTIVE_LEVEL_TRAINING per Task 4 — SAMPLE_ELIGIBLE
+      .expect(409); // starting a training session only accepts ACTIVE_LEVEL_TRAINING — SAMPLE_ELIGIBLE
     // correctly rejects further training-event writes through this endpoint once past that state;
     // free/reinforcement training on previously-completed levels remains available via the
     // read-only history endpoint from Task 8 regardless of the current cycle's state.
 
     await prisma.trainingCycle72h.update({ where: { id: cycle.id }, data: { status: 'WAITING_FOR_SPECIALIST' } });
     await request(app.getHttpServer())
-      .post(`/api/v1/patients/${profile.id}/cycles/current/training-events`)
+      .post(`/api/v1/patients/${profile.id}/cycles/current/training-sessions`)
       .set('Authorization', `Bearer ${patientToken}`)
-      .send({})
       .expect(409);
     await request(app.getHttpServer())
       .get(`/api/v1/patients/${profile.id}/cycles`)
