@@ -150,4 +150,134 @@ describe('Treatment Engine — Training Sessions (e2e)', () => {
       .set('Authorization', `Bearer ${patientToken}`)
       .expect(201);
   });
+
+  it('persists progress below the threshold without completing the session', async () => {
+    const { patientToken, patientProfile } = await setupActiveCycle('+966500008010', '+966500008011');
+    await request(app.getHttpServer())
+      .post(`/api/v1/patients/${patientProfile.id}/cycles/current/training-sessions`)
+      .set('Authorization', `Bearer ${patientToken}`)
+      .expect(201);
+
+    const res = await request(app.getHttpServer())
+      .patch(`/api/v1/patients/${patientProfile.id}/cycles/current/training-sessions/current/progress`)
+      .set('Authorization', `Bearer ${patientToken}`)
+      .send({ unitsCompleted: 40 })
+      .expect(200);
+
+    expect(res.body.status).toBe('IN_PROGRESS');
+    expect(res.body.unitsCompleted).toBe(40);
+  });
+
+  it('does not let a smaller unitsCompleted decrease the stored value', async () => {
+    const { patientToken, patientProfile } = await setupActiveCycle('+966500008012', '+966500008013');
+    await request(app.getHttpServer())
+      .post(`/api/v1/patients/${patientProfile.id}/cycles/current/training-sessions`)
+      .set('Authorization', `Bearer ${patientToken}`)
+      .expect(201);
+    await request(app.getHttpServer())
+      .patch(`/api/v1/patients/${patientProfile.id}/cycles/current/training-sessions/current/progress`)
+      .set('Authorization', `Bearer ${patientToken}`)
+      .send({ unitsCompleted: 60 })
+      .expect(200);
+
+    const res = await request(app.getHttpServer())
+      .patch(`/api/v1/patients/${patientProfile.id}/cycles/current/training-sessions/current/progress`)
+      .set('Authorization', `Bearer ${patientToken}`)
+      .send({ unitsCompleted: 20 })
+      .expect(200);
+
+    expect(res.body.unitsCompleted).toBe(60);
+  });
+
+  it('completes the session and creates a TrainingEvent once the threshold is reached, without making the cycle eligible on a single session', async () => {
+    const { patientToken, patientProfile, cycleId } = await setupActiveCycle('+966500008014', '+966500008015');
+    await request(app.getHttpServer())
+      .post(`/api/v1/patients/${patientProfile.id}/cycles/current/training-sessions`)
+      .set('Authorization', `Bearer ${patientToken}`)
+      .expect(201);
+
+    const res = await request(app.getHttpServer())
+      .patch(`/api/v1/patients/${patientProfile.id}/cycles/current/training-sessions/current/progress`)
+      .set('Authorization', `Bearer ${patientToken}`)
+      .send({ unitsCompleted: 100 })
+      .expect(200);
+
+    expect(res.body.status).toBe('COMPLETED');
+    expect(res.body.completedAt).not.toBeNull();
+
+    const events = await prisma.trainingEvent.findMany({ where: { trainingCycleId: cycleId } });
+    expect(events).toHaveLength(1);
+    expect(events[0].unitsCompleted).toBe(100);
+
+    const cycleRes = await request(app.getHttpServer())
+      .get(`/api/v1/patients/${patientProfile.id}/cycles/current`)
+      .set('Authorization', `Bearer ${patientToken}`)
+      .expect(200);
+    expect(cycleRes.body.status).toBe('ACTIVE_LEVEL_TRAINING'); // one completed session alone is not the full 72h gate
+  });
+
+  it('fires SAMPLE_ELIGIBLE_FOR_RECORDING once a completed session satisfies all three 24h periods', async () => {
+    const clinicianToken = await registerAndLogin(app, prisma, '+966500008016', 'CLINICIAN');
+    const patientToken = await registerAndLogin(app, prisma, '+966500008017', null);
+    const clinicianUserId = (await prisma.user.findUniqueOrThrow({ where: { mobile: '+966500008016' } })).id;
+    const patientProfile = await prisma.patientProfile.create({
+      data: { userId: (await prisma.user.findUniqueOrThrow({ where: { mobile: '+966500008017' } })).id, fullName: 'Eligibility Session Patient', gender: 'MALE', dateOfBirth: new Date('2000-01-01'), nationalId: `SESSION-ELIGIBLE-${Date.now()}` },
+    });
+    const assessment = await prisma.assessment.create({
+      data: { patientProfileId: patientProfile.id, clinicianUserId, type: 'INITIAL', status: 'APPROVED' },
+    });
+    const plan = await prisma.treatmentPlan.create({
+      data: { patientProfileId: patientProfile.id, clinicianUserId, assessmentId: assessment.id, goals: 'g', reviewDate: new Date() },
+    });
+    const level = await prisma.level.create({ data: { name: 'Level 1', order: 1 } });
+    const version = await prisma.levelVersion.create({
+      data: { levelId: level.id, versionNumber: 1, behavioralTechnique: 'x', trainingListJson: '[]', samplePartTemplateJson: '[]', publishedAt: new Date() },
+    });
+
+    // Same technique already proven in the §101 notification test: seed firstTrainingEventAt
+    // 73 real hours in the past, plus two raw TrainingEvent rows landing in periods 0 and 1, so
+    // this test's own session-completion (period 2) is the one real transition being exercised.
+    const start = new Date(Date.now() - 73 * 60 * 60 * 1000);
+    const cycle = await prisma.trainingCycle72h.create({
+      data: {
+        patientProfileId: patientProfile.id, treatmentPlanId: plan.id, levelId: level.id, levelVersionId: version.id,
+        cycleNumber: 1, humanModelWatchedAt: new Date(), firstTrainingEventAt: start,
+      },
+    });
+    await prisma.trainingEvent.create({ data: { trainingCycleId: cycle.id, occurredAt: new Date(start.getTime() + 1 * 60 * 60 * 1000) } });
+    await prisma.trainingEvent.create({ data: { trainingCycleId: cycle.id, occurredAt: new Date(start.getTime() + 25 * 60 * 60 * 1000) } });
+
+    await request(app.getHttpServer())
+      .post(`/api/v1/patients/${patientProfile.id}/cycles/current/training-sessions`)
+      .set('Authorization', `Bearer ${patientToken}`)
+      .expect(201);
+    const res = await request(app.getHttpServer())
+      .patch(`/api/v1/patients/${patientProfile.id}/cycles/current/training-sessions/current/progress`)
+      .set('Authorization', `Bearer ${patientToken}`)
+      .send({ unitsCompleted: 100 })
+      .expect(200);
+    expect(res.body.status).toBe('COMPLETED');
+
+    const cycleRes = await request(app.getHttpServer())
+      .get(`/api/v1/patients/${patientProfile.id}/cycles/current`)
+      .set('Authorization', `Bearer ${patientToken}`)
+      .expect(200);
+    expect(cycleRes.body.status).toBe('SAMPLE_ELIGIBLE');
+
+    const notifications = await request(app.getHttpServer())
+      .get('/api/v1/notifications')
+      .set('Authorization', `Bearer ${patientToken}`)
+      .expect(200);
+    expect(notifications.body.find((n: { type: string }) => n.type === 'SAMPLE_ELIGIBLE_FOR_RECORDING')).toBeTruthy();
+  });
+
+  it('returns 404 when recording progress with no in-progress session', async () => {
+    const { patientToken, patientProfile } = await setupActiveCycle('+966500008018', '+966500008019');
+
+    await request(app.getHttpServer())
+      .patch(`/api/v1/patients/${patientProfile.id}/cycles/current/training-sessions/current/progress`)
+      .set('Authorization', `Bearer ${patientToken}`)
+      .send({ unitsCompleted: 50 })
+      .expect(404);
+  });
 });
