@@ -184,6 +184,7 @@ export class ReportsService {
           'ACTIVE_LEVEL_TRAINING',
           'SAMPLE_ELIGIBLE',
           'SAMPLE_PREPARATION',
+          'SAMPLE_SUBMISSION_DELAYED',
           'SAMPLE_SUBMITTED',
           'WAITING_FOR_SPECIALIST',
           'UNDER_REVIEW',

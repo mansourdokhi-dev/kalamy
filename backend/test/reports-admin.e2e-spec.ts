@@ -59,6 +59,17 @@ describe('Reports: operational status and registered users', () => {
     expect(response.body.trainingCyclesByStatus.WAITING_FOR_SPECIALIST).toBe(0);
   });
 
+  it('zero-fills SAMPLE_SUBMISSION_DELAYED in the operational status report when no cycle has that status', async () => {
+    const { token: adminToken } = await createUserToken('+966500001107', 'password123', 'ADMIN');
+
+    const response = await request(app.getHttpServer())
+      .get('/api/v1/reports/operational-status')
+      .set('Authorization', `Bearer ${adminToken}`);
+
+    expect(response.status).toBe(200);
+    expect(response.body.trainingCyclesByStatus.SAMPLE_SUBMISSION_DELAYED).toBe(0);
+  });
+
   it('rejects a CLINICIAN viewing the operational status report', async () => {
     const { token } = await createUserToken('+966500001103', 'password123', 'CLINICIAN');
 

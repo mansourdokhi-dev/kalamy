@@ -88,6 +88,7 @@ enum LevelCycleStatus {
   ACTIVE_LEVEL_TRAINING
   SAMPLE_ELIGIBLE
   SAMPLE_PREPARATION
+  SAMPLE_SUBMISSION_DELAYED
   SAMPLE_SUBMITTED
   WAITING_FOR_SPECIALIST
   UNDER_REVIEW
@@ -403,6 +404,7 @@ model TrainingCycle72h {
   status               LevelCycleStatus @default(ACTIVE_LEVEL_TRAINING)
   humanModelWatchedAt  DateTime?
   firstTrainingEventAt DateTime?
+  sampleEligibleAt     DateTime?
   closedAt             DateTime?
   createdAt            DateTime         @default(now())
   updatedAt            DateTime         @updatedAt
@@ -568,4 +570,6 @@ enum NotificationType {
   INTERVENTION_TIMED_OUT
   SAMPLE_ELIGIBLE_FOR_RECORDING
   SAMPLE_AVAILABLE_FOR_REVIEW
+  SAMPLE_SUBMISSION_REMINDER
+  SAMPLE_SUBMISSION_DELAYED_TO_SUPERVISOR
 }

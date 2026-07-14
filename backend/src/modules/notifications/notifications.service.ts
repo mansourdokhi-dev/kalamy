@@ -34,6 +34,14 @@ const NOTIFICATION_TEMPLATES: Record<NotificationType, (ctx: Record<string, stri
     title: 'عينة جديدة بانتظار المراجعة',
     body: `عينة المريض ${ctx.patientName} في المستوى ${ctx.levelName} أصبحت متاحة للمراجعة.`,
   }),
+  SAMPLE_SUBMISSION_REMINDER: (ctx) => ({
+    title: 'تذكير بإرسال العينة',
+    body: `لم ترسل عينتك الصوتية بعد في المستوى ${ctx.levelName}. يمكنك إرسالها الآن.`,
+  }),
+  SAMPLE_SUBMISSION_DELAYED_TO_SUPERVISOR: (ctx) => ({
+    title: 'تأخر في إرسال عينة مريض',
+    body: `لم يرسل المريض ${ctx.patientName} عينته في المستوى ${ctx.levelName} خلال المهلة المحددة.`,
+  }),
 };
 
 @Injectable()
