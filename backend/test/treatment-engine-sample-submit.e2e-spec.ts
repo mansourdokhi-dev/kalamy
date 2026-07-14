@@ -318,4 +318,123 @@ describe('Treatment Engine — Sample submission (e2e)', () => {
       .expect(200);
     expect(adminNotifications.body.find((n: { type: string }) => n.type === 'SAMPLE_AVAILABLE_FOR_REVIEW')).toBeUndefined();
   });
+
+  it('allows opening a sample session from SAMPLE_SUBMISSION_DELAYED (never opened one before being flagged)', async () => {
+    const clinicianToken = await registerAndLogin(app, prisma, '+966500003007', 'CLINICIAN');
+    const patientToken = await registerAndLogin(app, prisma, '+966500003008', null);
+
+    const patientProfile = await prisma.patientProfile.create({
+      data: {
+        userId: (await prisma.user.findUniqueOrThrow({ where: { mobile: '+966500003008' } })).id,
+        fullName: 'Delayed Open Session Patient',
+        gender: 'MALE',
+        dateOfBirth: new Date('2000-01-01'),
+        nationalId: 'DELAYED-OPEN-1',
+      },
+    });
+    const assessment = await prisma.assessment.create({
+      data: {
+        patientProfileId: patientProfile.id,
+        clinicianUserId: (await prisma.user.findUniqueOrThrow({ where: { mobile: '+966500003007' } })).id,
+        type: 'INITIAL',
+        status: 'APPROVED',
+      },
+    });
+    const plan = await prisma.treatmentPlan.create({
+      data: { patientProfileId: patientProfile.id, clinicianUserId: assessment.clinicianUserId, assessmentId: assessment.id, goals: 'g', reviewDate: new Date() },
+    });
+    const level = await prisma.level.create({ data: { name: 'Level 1', order: 1 } });
+    await prisma.levelVersion.create({
+      data: { levelId: level.id, versionNumber: 1, behavioralTechnique: 'x', trainingListJson: '[]', samplePartTemplateJson: '[]', publishedAt: new Date() },
+    });
+
+    const startRes = await request(app.getHttpServer())
+      .post(`/api/v1/patients/${patientProfile.id}/cycles/start`)
+      .set('Authorization', `Bearer ${patientToken}`)
+      .send({ treatmentPlanId: plan.id })
+      .expect(201);
+
+    await prisma.trainingCycle72h.update({ where: { id: startRes.body.id }, data: { status: 'SAMPLE_SUBMISSION_DELAYED' } });
+
+    await request(app.getHttpServer())
+      .post(`/api/v1/patients/${patientProfile.id}/cycles/current/sample-session`)
+      .set('Authorization', `Bearer ${patientToken}`)
+      .expect(201);
+
+    const cycleRes = await request(app.getHttpServer())
+      .get(`/api/v1/patients/${patientProfile.id}/cycles/current`)
+      .set('Authorization', `Bearer ${patientToken}`)
+      .expect(200);
+    expect(cycleRes.body.status).toBe('SAMPLE_PREPARATION');
+  });
+
+  it('allows submitting a sample from SAMPLE_SUBMISSION_DELAYED (session was already open before being flagged)', async () => {
+    const clinicianToken = await registerAndLogin(app, prisma, '+966500003009', 'CLINICIAN');
+    const patientToken = await registerAndLogin(app, prisma, '+966500003010', null);
+
+    const patientProfile = await prisma.patientProfile.create({
+      data: {
+        userId: (await prisma.user.findUniqueOrThrow({ where: { mobile: '+966500003010' } })).id,
+        fullName: 'Delayed Submit Patient',
+        gender: 'MALE',
+        dateOfBirth: new Date('2000-01-01'),
+        nationalId: 'DELAYED-SUBMIT-1',
+      },
+    });
+    const assessment = await prisma.assessment.create({
+      data: {
+        patientProfileId: patientProfile.id,
+        clinicianUserId: (await prisma.user.findUniqueOrThrow({ where: { mobile: '+966500003009' } })).id,
+        type: 'INITIAL',
+        status: 'APPROVED',
+      },
+    });
+    const plan = await prisma.treatmentPlan.create({
+      data: { patientProfileId: patientProfile.id, clinicianUserId: assessment.clinicianUserId, assessmentId: assessment.id, goals: 'g', reviewDate: new Date() },
+    });
+    const level = await prisma.level.create({ data: { name: 'Level 1', order: 1 } });
+    await prisma.levelVersion.create({
+      data: { levelId: level.id, versionNumber: 1, behavioralTechnique: 'x', trainingListJson: '[]', samplePartTemplateJson: '[]', publishedAt: new Date() },
+    });
+
+    const startRes = await request(app.getHttpServer())
+      .post(`/api/v1/patients/${patientProfile.id}/cycles/start`)
+      .set('Authorization', `Bearer ${patientToken}`)
+      .send({ treatmentPlanId: plan.id })
+      .expect(201);
+
+    await prisma.trainingCycle72h.update({ where: { id: startRes.body.id }, data: { status: 'SAMPLE_ELIGIBLE' } });
+
+    await request(app.getHttpServer())
+      .post(`/api/v1/patients/${patientProfile.id}/cycles/current/sample-session`)
+      .set('Authorization', `Bearer ${patientToken}`)
+      .expect(201);
+
+    const attempt1 = await request(app.getHttpServer())
+      .post(`/api/v1/patients/${patientProfile.id}/cycles/current/sample-session/attempts`)
+      .set('Authorization', `Bearer ${patientToken}`)
+      .send({ recordingUrl: 'delayed-attempt-1.mp4', mimeType: 'video/mp4', fileSizeBytes: 204800, durationSeconds: 12 })
+      .expect(201);
+
+    // Session is open (SAMPLE_PREPARATION); simulate the lazy-evaluation flag having fired.
+    await prisma.trainingCycle72h.update({ where: { id: startRes.body.id }, data: { status: 'SAMPLE_SUBMISSION_DELAYED' } });
+
+    await request(app.getHttpServer())
+      .post(`/api/v1/patients/${patientProfile.id}/cycles/current/sample-session/submit`)
+      .set('Authorization', `Bearer ${patientToken}`)
+      .send({
+        parts: [{ partType: 'مقطع', label: 'مقطع 1', order: 1, sourceAttemptId: attempt1.body.id }],
+        selfSeverityCurrent: 5,
+        selfSeverityExpectedNext: 6,
+        camperdownPerformanceRating: 7,
+        clientOpinionScore: 6,
+      })
+      .expect(201);
+
+    const cycleRes = await request(app.getHttpServer())
+      .get(`/api/v1/patients/${patientProfile.id}/cycles/current`)
+      .set('Authorization', `Bearer ${patientToken}`)
+      .expect(200);
+    expect(cycleRes.body.status).toBe('WAITING_FOR_SPECIALIST');
+  });
 });

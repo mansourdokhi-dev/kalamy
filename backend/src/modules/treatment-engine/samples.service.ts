@@ -25,7 +25,7 @@ export class SamplesService {
 
   async openSession(cycleId: string, actor: AuthenticatedUser): Promise<SampleSession> {
     const cycle = await this.trainingCyclesService.findCycleForActor(cycleId, actor);
-    if (cycle.status !== 'SAMPLE_ELIGIBLE') {
+    if (cycle.status !== 'SAMPLE_ELIGIBLE' && cycle.status !== 'SAMPLE_SUBMISSION_DELAYED') {
       throw new ConflictException(`Cannot open a sample session from status ${cycle.status}`);
     }
 
@@ -114,7 +114,7 @@ export class SamplesService {
 
   async submitSample(cycleId: string, dto: SubmitSampleDto, actor: AuthenticatedUser): Promise<SpeechSample & { parts: SampleSamplePart[] }> {
     const cycle = await this.trainingCyclesService.findCycleForActor(cycleId, actor);
-    if (cycle.status !== 'SAMPLE_PREPARATION') {
+    if (cycle.status !== 'SAMPLE_PREPARATION' && cycle.status !== 'SAMPLE_SUBMISSION_DELAYED') {
       throw new ConflictException(`Cannot submit a sample from status ${cycle.status}`);
     }
     const session = await this.findSessionOrThrow(cycleId);
@@ -136,7 +136,7 @@ export class SamplesService {
       await tx.$queryRaw`SELECT id FROM "TrainingCycle72h" WHERE id = ${cycleId} FOR UPDATE`;
 
       const freshCycle = await tx.trainingCycle72h.findUniqueOrThrow({ where: { id: cycleId } });
-      if (freshCycle.status !== 'SAMPLE_PREPARATION') {
+      if (freshCycle.status !== 'SAMPLE_PREPARATION' && freshCycle.status !== 'SAMPLE_SUBMISSION_DELAYED') {
         return { alreadyTransitioned: true as const, status: freshCycle.status };
       }
 
