@@ -1,5 +1,5 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
-import { PatientProfile } from '@prisma/client';
+import { LevelVersion, PatientProfile } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { PatientAccessService } from '../../common/patient-access/patient-access.service';
 import { AuthenticatedUser } from '../../common/auth/session.guard';
@@ -39,6 +39,21 @@ export class PatientLevelsService {
         passedAt: cycle.closedAt,
       }))
       .sort((a, b) => a.order - b.order);
+  }
+
+  async reviewLevel(patientProfileId: string, levelId: string, actor: AuthenticatedUser): Promise<LevelVersion> {
+    const profile = await this.findPatientProfileOrThrow(patientProfileId);
+    await this.patientAccessService.assertCanAccess(actor, profile);
+
+    const cycle = await this.prisma.trainingCycle72h.findFirst({
+      where: { patientProfileId, levelId, status: 'NEXT_LEVEL_APPROVED' },
+      orderBy: { closedAt: 'desc' },
+    });
+    if (!cycle) {
+      throw new NotFoundException('Patient has not passed this level');
+    }
+
+    return this.prisma.levelVersion.findUniqueOrThrow({ where: { id: cycle.levelVersionId } });
   }
 
   private async findPatientProfileOrThrow(patientProfileId: string): Promise<PatientProfile> {

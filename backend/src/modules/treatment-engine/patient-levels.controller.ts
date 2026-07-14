@@ -16,4 +16,10 @@ export class PatientLevelsController {
   listPassed(@Param('patientId') patientId: string, @CurrentUser() user: AuthenticatedUser) {
     return this.patientLevelsService.listPassed(patientId, user);
   }
+
+  @Get(':levelId/review')
+  @RequirePermission(Permission.VIEW_LEVELS)
+  reviewLevel(@Param('patientId') patientId: string, @Param('levelId') levelId: string, @CurrentUser() user: AuthenticatedUser) {
+    return this.patientLevelsService.reviewLevel(patientId, levelId, user);
+  }
 }

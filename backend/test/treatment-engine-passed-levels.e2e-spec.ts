@@ -180,4 +180,115 @@ describe('Treatment Engine — Review Previous Levels (e2e)', () => {
       .set('Authorization', `Bearer ${patientAToken}`)
       .expect(403);
   });
+
+  it("returns the exact LevelVersion the patient's own passed cycle used, not the level's current active version", async () => {
+    const clinicianToken = await registerAndLogin(app, prisma, '+966500003007', 'CLINICIAN');
+    const patientToken = await registerAndLogin(app, prisma, '+966500003008', null);
+    const clinicianUserId = (await prisma.user.findUniqueOrThrow({ where: { mobile: '+966500003007' } })).id;
+
+    const patientProfile = await prisma.patientProfile.create({
+      data: {
+        userId: (await prisma.user.findUniqueOrThrow({ where: { mobile: '+966500003008' } })).id,
+        fullName: 'Review Content Patient',
+        gender: 'MALE',
+        dateOfBirth: new Date('2000-01-01'),
+        nationalId: 'PASSED-LEVELS-4',
+      },
+    });
+    const assessment = await prisma.assessment.create({
+      data: { patientProfileId: patientProfile.id, clinicianUserId, type: 'INITIAL', status: 'APPROVED' },
+    });
+    const plan = await prisma.treatmentPlan.create({
+      data: { patientProfileId: patientProfile.id, clinicianUserId, assessmentId: assessment.id, goals: 'g', reviewDate: new Date() },
+    });
+
+    const level1 = await prisma.level.create({ data: { name: 'Level 1', order: 1 } });
+    const trainedVersion = await prisma.levelVersion.create({
+      data: { levelId: level1.id, versionNumber: 1, behavioralTechnique: 'technique-patient-trained-on', trainingListJson: '["item-a"]', samplePartTemplateJson: '[]', publishedAt: new Date('2026-01-01') },
+    });
+    // A newer, currently-active version was published after this patient passed the level.
+    await prisma.levelVersion.create({
+      data: { levelId: level1.id, versionNumber: 2, behavioralTechnique: 'technique-updated-later', trainingListJson: '["item-b"]', samplePartTemplateJson: '[]', publishedAt: new Date('2026-02-01') },
+    });
+
+    await prisma.trainingCycle72h.create({
+      data: {
+        patientProfileId: patientProfile.id, treatmentPlanId: plan.id, levelId: level1.id, levelVersionId: trainedVersion.id,
+        cycleNumber: 1, status: 'NEXT_LEVEL_APPROVED', closedAt: new Date('2026-01-15'),
+      },
+    });
+
+    const res = await request(app.getHttpServer())
+      .get(`/api/v1/patients/${patientProfile.id}/levels/${level1.id}/review`)
+      .set('Authorization', `Bearer ${patientToken}`)
+      .expect(200);
+
+    expect(res.body.id).toBe(trainedVersion.id);
+    expect(res.body.behavioralTechnique).toBe('technique-patient-trained-on');
+  });
+
+  it('returns 404 when reviewing a level the patient has not passed', async () => {
+    const clinicianToken = await registerAndLogin(app, prisma, '+966500003009', 'CLINICIAN');
+    const patientToken = await registerAndLogin(app, prisma, '+966500003010', null);
+    const clinicianUserId = (await prisma.user.findUniqueOrThrow({ where: { mobile: '+966500003009' } })).id;
+
+    const patientProfile = await prisma.patientProfile.create({
+      data: {
+        userId: (await prisma.user.findUniqueOrThrow({ where: { mobile: '+966500003010' } })).id,
+        fullName: 'Never Passed Patient',
+        gender: 'MALE',
+        dateOfBirth: new Date('2000-01-01'),
+        nationalId: 'PASSED-LEVELS-5',
+      },
+    });
+    const assessment = await prisma.assessment.create({
+      data: { patientProfileId: patientProfile.id, clinicianUserId, type: 'INITIAL', status: 'APPROVED' },
+    });
+    await prisma.treatmentPlan.create({
+      data: { patientProfileId: patientProfile.id, clinicianUserId, assessmentId: assessment.id, goals: 'g', reviewDate: new Date() },
+    });
+    const level1 = await prisma.level.create({ data: { name: 'Level 1', order: 1 } });
+
+    await request(app.getHttpServer())
+      .get(`/api/v1/patients/${patientProfile.id}/levels/${level1.id}/review`)
+      .set('Authorization', `Bearer ${patientToken}`)
+      .expect(404);
+  });
+
+  it("allows a CLINICIAN to review any patient's passed level", async () => {
+    const clinicianToken = await registerAndLogin(app, prisma, '+966500003011', 'CLINICIAN');
+    const clinicianUserId = (await prisma.user.findUniqueOrThrow({ where: { mobile: '+966500003011' } })).id;
+    await registerAndLogin(app, prisma, '+966500003012', null);
+
+    const patientProfile = await prisma.patientProfile.create({
+      data: {
+        userId: (await prisma.user.findUniqueOrThrow({ where: { mobile: '+966500003012' } })).id,
+        fullName: 'Staff View Patient',
+        gender: 'MALE',
+        dateOfBirth: new Date('2000-01-01'),
+        nationalId: 'PASSED-LEVELS-6',
+      },
+    });
+    const assessment = await prisma.assessment.create({
+      data: { patientProfileId: patientProfile.id, clinicianUserId, type: 'INITIAL', status: 'APPROVED' },
+    });
+    const plan = await prisma.treatmentPlan.create({
+      data: { patientProfileId: patientProfile.id, clinicianUserId, assessmentId: assessment.id, goals: 'g', reviewDate: new Date() },
+    });
+    const level1 = await prisma.level.create({ data: { name: 'Level 1', order: 1 } });
+    const version = await prisma.levelVersion.create({
+      data: { levelId: level1.id, versionNumber: 1, behavioralTechnique: 'x', trainingListJson: '[]', samplePartTemplateJson: '[]', publishedAt: new Date() },
+    });
+    await prisma.trainingCycle72h.create({
+      data: {
+        patientProfileId: patientProfile.id, treatmentPlanId: plan.id, levelId: level1.id, levelVersionId: version.id,
+        cycleNumber: 1, status: 'NEXT_LEVEL_APPROVED', closedAt: new Date(),
+      },
+    });
+
+    await request(app.getHttpServer())
+      .get(`/api/v1/patients/${patientProfile.id}/levels/${level1.id}/review`)
+      .set('Authorization', `Bearer ${clinicianToken}`)
+      .expect(200);
+  });
 });
