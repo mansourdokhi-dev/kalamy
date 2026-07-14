@@ -149,4 +149,12 @@ describe('hasPermission — treatment engine v2', () => {
     expect(hasPermission('CLINICIAN', Permission.REVIEW_SAMPLE)).toBe(true);
     expect(hasPermission('PATIENT', Permission.REVIEW_SAMPLE)).toBe(false);
   });
+
+  it('grants RESTART_CYCLE to CLINICIAN and ADMIN only', () => {
+    expect(hasPermission('CLINICIAN', Permission.RESTART_CYCLE)).toBe(true);
+    expect(hasPermission('ADMIN', Permission.RESTART_CYCLE)).toBe(true);
+    expect(hasPermission('SUPERVISOR', Permission.RESTART_CYCLE)).toBe(false);
+    expect(hasPermission('PATIENT', Permission.RESTART_CYCLE)).toBe(false);
+    expect(hasPermission('CAREGIVER', Permission.RESTART_CYCLE)).toBe(false);
+  });
 });
