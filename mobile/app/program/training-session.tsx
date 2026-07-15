@@ -100,7 +100,7 @@ export default function TrainingSessionScreen() {
       const cumulative = session.unitsCompleted + PROGRESS_STEP;
       const result = await recordTrainingProgress(patientProfileId, cumulative);
       setSession(result);
-      if (result.status === 'COMPLETED' && patientProfileId) {
+      if (result.status === 'COMPLETED') {
         const refreshedProgress = await getTrainingProgress(patientProfileId);
         setProgress(refreshedProgress);
       }
@@ -119,6 +119,17 @@ export default function TrainingSessionScreen() {
     );
   }
 
+  if (session?.status === 'COMPLETED') {
+    return (
+      <View style={[styles.container, { backgroundColor: tokens.colors.background }]}>
+        <Text style={[styles.title, { color: tokens.colors.text }]}>{ar.trainingSession.completedTitle}</Text>
+        <View style={{ marginTop: 24 }}>
+          <Button title={ar.trainingSession.backToHome} onPress={() => router.push('/home')} />
+        </View>
+      </View>
+    );
+  }
+
   if (error || !cycle || !progress) {
     return (
       <View style={[styles.container, { backgroundColor: tokens.colors.background }]}>
@@ -130,17 +141,6 @@ export default function TrainingSessionScreen() {
   const levelName = levels.find((l) => l.id === cycle.levelId)?.name ?? '';
   const hoursRemaining = hoursRemainingUntilSampleEligibility(cycle.firstTrainingEventAt);
   const trainingList: string[] = levelVersion ? JSON.parse(levelVersion.trainingListJson) : [];
-
-  if (session?.status === 'COMPLETED') {
-    return (
-      <View style={[styles.container, { backgroundColor: tokens.colors.background }]}>
-        <Text style={[styles.title, { color: tokens.colors.text }]}>{ar.trainingSession.completedTitle}</Text>
-        <View style={{ marginTop: 24 }}>
-          <Button title={ar.trainingSession.backToHome} onPress={() => router.push('/home')} />
-        </View>
-      </View>
-    );
-  }
 
   return (
     <ScrollView style={{ backgroundColor: tokens.colors.background }} contentContainerStyle={styles.scrollContent}>
@@ -181,8 +181,6 @@ export default function TrainingSessionScreen() {
           <Button title={ar.trainingSession.startOrResume} onPress={handleStartOrResume} loading={submitting} />
         </View>
       )}
-
-      {!progress.intervalActive && !session ? null : null}
 
       <Text style={[styles.sectionTitle, { color: tokens.colors.text }]}>{ar.trainingSession.trainingListTitle}</Text>
       {trainingList.map((item, index) => (
