@@ -197,7 +197,7 @@ export const ar = {
   },
   trainingSession: {
     title: 'تدريب اليوم',
-    hoursRemainingLabel: 'ساعة متبقية حتى فتح مرحلة العينة',
+    hoursRemainingLabel: 'ساعة متبقية كحد أدنى قبل مرحلة العينة',
     dailyTargetLabel: 'هدف اليوم',
     intervalActiveLabel: 'التدريب التالي متاح الساعة',
     startOrResume: 'ابدأ / استكمل التدريب',
