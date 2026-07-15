@@ -68,6 +68,7 @@ export const ar = {
     viewLevelContent: 'محتوى المستوى',
     viewReports: 'التقارير',
     viewComplaints: 'الشكاوى',
+    viewNotifications: 'الإشعارات',
     logout: 'تسجيل الخروج',
   },
   levelContent: {
@@ -189,5 +190,9 @@ export const ar = {
     descriptionLabel: 'الوصف',
     submitButtonLabel: 'إرسال',
     noComplaintsYet: 'لا توجد شكاوى بعد',
+  },
+  notifications: {
+    title: 'الإشعارات',
+    empty: 'لا توجد إشعارات بعد',
   },
 };
