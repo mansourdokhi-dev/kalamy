@@ -1,4 +1,4 @@
-import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { Notification, NotificationType, Role } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { AuthenticatedUser } from '../../common/auth/session.guard';
@@ -8,6 +8,8 @@ const DECISION_LABELS: Record<string, string> = {
   LEVEL_REPEAT: 'إعادة المستوى الحالي',
   TECHNICAL_RERECORD: 'طلب إعادة تسجيل بعض الأجزاء لأسباب تقنية',
 };
+
+export const GATEABLE_NOTIFICATION_TYPES: NotificationType[] = ['DAILY_TRAINING_REMINDER'];
 
 const NOTIFICATION_TEMPLATES: Record<NotificationType, (ctx: Record<string, string>) => { title: string; body: string }> = {
   SAMPLE_ESCALATED_TO_SUPERVISOR: (ctx) => ({
@@ -75,7 +77,15 @@ export class NotificationsService {
     type: NotificationType,
     context: Record<string, string>,
     related?: { entity: string; entityId: string },
-  ): Promise<Notification> {
+  ): Promise<Notification | null> {
+    if (GATEABLE_NOTIFICATION_TYPES.includes(type)) {
+      const preference = await this.prisma.notificationPreference.findUnique({
+        where: { userId_type: { userId: recipientUserId, type } },
+      });
+      if (preference && !preference.enabled) {
+        return null;
+      }
+    }
     const { title, body } = NOTIFICATION_TEMPLATES[type](context);
     return this.prisma.notification.create({
       data: { recipientUserId, type, title, body, relatedEntity: related?.entity, relatedEntityId: related?.entityId },
@@ -87,7 +97,7 @@ export class NotificationsService {
     type: NotificationType,
     context: Record<string, string>,
     related?: { entity: string; entityId: string },
-  ): Promise<Notification[]> {
+  ): Promise<(Notification | null)[]> {
     const recipients = await this.prisma.user.findMany({ where: { role }, select: { id: true } });
     return Promise.all(recipients.map((r) => this.create(r.id, type, context, related)));
   }

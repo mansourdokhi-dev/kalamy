@@ -143,23 +143,24 @@ model User {
   otpCodes                  OtpCode[]
   sessions                  Session[]
   auditLogs                 AuditLog[]
-  patientProfile            PatientProfile?   @relation("PatientProfileUser")
-  guardianLinksAsPatient    GuardianLink[]    @relation("GuardianLinkPatient")
-  guardianLinksAsGuardian   GuardianLink[]    @relation("GuardianLinkGuardian")
+  patientProfile            PatientProfile?          @relation("PatientProfileUser")
+  guardianLinksAsPatient    GuardianLink[]           @relation("GuardianLinkPatient")
+  guardianLinksAsGuardian   GuardianLink[]           @relation("GuardianLinkGuardian")
   assessments               Assessment[]
   treatmentPlans            TreatmentPlan[]
   phaseTransitions          PhaseTransition[]
   exercisesCreated          Exercise[]
-  reviewedSpeechSamples     SpeechSample[]    @relation("SpeechSampleReviewedBy")
-  reservedSpeechSamples     SpeechSample[]    @relation("SpeechSampleReservedBy")
-  interventionsExecuted     SpeechSample[]    @relation("SpeechSampleInterventionExecutedBy")
-  consultationsRequested    Consultation[]    @relation("ConsultationRequestedBy")
-  consultationsAsSpecialist Consultation[]    @relation("ConsultationSpecialist")
-  complaintsSubmitted       Complaint[]       @relation("ComplaintSubmitter")
-  complaintsAboutMe         Complaint[]       @relation("ComplaintRelatedClinician")
-  supervisorUser            User?             @relation("ClinicianSupervisor", fields: [supervisorUserId], references: [id])
-  supervisedClinicians      User[]            @relation("ClinicianSupervisor")
+  reviewedSpeechSamples     SpeechSample[]           @relation("SpeechSampleReviewedBy")
+  reservedSpeechSamples     SpeechSample[]           @relation("SpeechSampleReservedBy")
+  interventionsExecuted     SpeechSample[]           @relation("SpeechSampleInterventionExecutedBy")
+  consultationsRequested    Consultation[]           @relation("ConsultationRequestedBy")
+  consultationsAsSpecialist Consultation[]           @relation("ConsultationSpecialist")
+  complaintsSubmitted       Complaint[]              @relation("ComplaintSubmitter")
+  complaintsAboutMe         Complaint[]              @relation("ComplaintRelatedClinician")
+  supervisorUser            User?                    @relation("ClinicianSupervisor", fields: [supervisorUserId], references: [id])
+  supervisedClinicians      User[]                   @relation("ClinicianSupervisor")
   notifications             Notification[]
+  notificationPreferences   NotificationPreference[]
 }
 
 model OtpCode {
@@ -586,6 +587,18 @@ model Notification {
   createdAt       DateTime         @default(now())
 
   @@index([recipientUserId, createdAt])
+}
+
+model NotificationPreference {
+  id        String           @id @default(uuid())
+  userId    String
+  user      User             @relation(fields: [userId], references: [id])
+  type      NotificationType
+  enabled   Boolean
+  createdAt DateTime         @default(now())
+  updatedAt DateTime         @updatedAt
+
+  @@unique([userId, type])
 }
 
 enum NotificationType {
