@@ -288,6 +288,7 @@ export class SpecialistReviewService {
           reservedAt: new Date(),
           reviewDeadlineAt: new Date(Date.now() + REVIEW_DECISION_WINDOW_MS),
           escalatedAt: null,
+          deadlineReminderSentAt: null,
         },
       });
     });
@@ -328,7 +329,7 @@ export class SpecialistReviewService {
           after: { reservedByUserId: dto.toUserId, reason: dto.reason },
         },
       }),
-      this.prisma.speechSample.update({ where: { id: sample.id }, data: { reservedByUserId: dto.toUserId } }),
+      this.prisma.speechSample.update({ where: { id: sample.id }, data: { reservedByUserId: dto.toUserId, deadlineReminderSentAt: null } }),
     ]);
     return updatedSample;
   }
@@ -358,6 +359,7 @@ export class SpecialistReviewService {
         // §11: the first review deadline is paused, not extended — a fresh 48h starts only once
         // the intervention is documented complete (see completeIntervention below).
         reviewDeadlineAt: null,
+        deadlineReminderSentAt: null,
       },
     });
   }
@@ -384,6 +386,7 @@ export class SpecialistReviewService {
         interventionCompletedAt: new Date(),
         interventionOutcomeNotes: dto.outcomeNotes,
         reviewDeadlineAt: new Date(Date.now() + REVIEW_DECISION_WINDOW_MS),
+        deadlineReminderSentAt: null,
       },
     });
   }

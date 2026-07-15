@@ -353,4 +353,97 @@ describe('Treatment Engine — Specialist review queue (e2e)', () => {
 
     expect(notificationsRes.body.some((n: any) => n.type === 'INTERVENTION_TIMED_OUT')).toBe(true);
   });
+
+  it('reserve() clears a stale deadlineReminderSentAt from a previous reservation cycle', async () => {
+    const clinicianToken = await registerAndLogin(app, prisma, '+966500005090', 'CLINICIAN');
+    const clinicianUserId = (await prisma.user.findUniqueOrThrow({ where: { mobile: '+966500005090' } })).id;
+    const { plan, patientProfile } = await setupPatientAndPlan(prisma, '+966500005091', clinicianUserId);
+    const { cycle, sample } = await createSubmittedSampleCycle(prisma, patientProfile.id, plan.id, clinicianUserId);
+    // Simulate a stale reminder stamp left over from a prior reservation that was auto-released
+    // (evaluateReviewDeadlines's 48h auto-release clears reservedByUserId/reviewDeadlineAt but not this field).
+    await prisma.speechSample.update({ where: { id: sample.id }, data: { deadlineReminderSentAt: new Date(Date.now() - 60 * 60 * 1000) } });
+
+    await request(app.getHttpServer())
+      .post(`/api/v1/specialist-review/cycles/${cycle.id}/reserve`)
+      .set('Authorization', `Bearer ${clinicianToken}`)
+      .expect(201);
+
+    const updated = await prisma.speechSample.findUniqueOrThrow({ where: { id: sample.id } });
+    expect(updated.deadlineReminderSentAt).toBeNull();
+  });
+
+  it('requestIntervention() clears a reminder stamp left over from the review-decision window', async () => {
+    const clinicianToken = await registerAndLogin(app, prisma, '+966500005092', 'CLINICIAN');
+    const clinicianUserId = (await prisma.user.findUniqueOrThrow({ where: { mobile: '+966500005092' } })).id;
+    const { plan, patientProfile } = await setupPatientAndPlan(prisma, '+966500005093', clinicianUserId);
+    const { cycle, sample } = await createSubmittedSampleCycle(prisma, patientProfile.id, plan.id, clinicianUserId);
+    await request(app.getHttpServer())
+      .post(`/api/v1/specialist-review/cycles/${cycle.id}/reserve`)
+      .set('Authorization', `Bearer ${clinicianToken}`)
+      .expect(201);
+    // Simulate a reminder having already fired during the review-decision window.
+    await prisma.speechSample.update({ where: { id: sample.id }, data: { deadlineReminderSentAt: new Date() } });
+
+    await request(app.getHttpServer())
+      .post(`/api/v1/specialist-review/cycles/${cycle.id}/intervention`)
+      .set('Authorization', `Bearer ${clinicianToken}`)
+      .send({ interventionType: 'VIDEO_MEETING', reasonNote: 'Need to observe the patient directly' })
+      .expect(201);
+
+    const updated = await prisma.speechSample.findUniqueOrThrow({ where: { id: sample.id } });
+    expect(updated.deadlineReminderSentAt).toBeNull();
+  });
+
+  it('completeIntervention() clears a reminder stamp left over from the intervention window', async () => {
+    const clinicianToken = await registerAndLogin(app, prisma, '+966500005094', 'CLINICIAN');
+    const clinicianUserId = (await prisma.user.findUniqueOrThrow({ where: { mobile: '+966500005094' } })).id;
+    const { plan, patientProfile } = await setupPatientAndPlan(prisma, '+966500005095', clinicianUserId);
+    const { cycle, sample } = await createSubmittedSampleCycle(prisma, patientProfile.id, plan.id, clinicianUserId);
+    await request(app.getHttpServer())
+      .post(`/api/v1/specialist-review/cycles/${cycle.id}/reserve`)
+      .set('Authorization', `Bearer ${clinicianToken}`)
+      .expect(201);
+    await request(app.getHttpServer())
+      .post(`/api/v1/specialist-review/cycles/${cycle.id}/intervention`)
+      .set('Authorization', `Bearer ${clinicianToken}`)
+      .send({ interventionType: 'VIDEO_MEETING', reasonNote: 'Need to observe the patient directly' })
+      .expect(201);
+    // Simulate a reminder having already fired during the intervention window.
+    await prisma.speechSample.update({ where: { id: sample.id }, data: { deadlineReminderSentAt: new Date() } });
+
+    await request(app.getHttpServer())
+      .post(`/api/v1/specialist-review/cycles/${cycle.id}/intervention/complete`)
+      .set('Authorization', `Bearer ${clinicianToken}`)
+      .send({ outcomeNotes: 'Observed session, patient is progressing well' })
+      .expect(201);
+
+    const updated = await prisma.speechSample.findUniqueOrThrow({ where: { id: sample.id } });
+    expect(updated.deadlineReminderSentAt).toBeNull();
+  });
+
+  it('transferResponsibility() clears a reminder stamp so the new specialist gets their own reminder', async () => {
+    const clinicianAToken = await registerAndLogin(app, prisma, '+966500005096', 'CLINICIAN');
+    await registerAndLogin(app, prisma, '+966500005097', 'CLINICIAN');
+    const supervisorToken = await registerAndLogin(app, prisma, '+966500005098', 'SUPERVISOR');
+    const clinicianAUserId = (await prisma.user.findUniqueOrThrow({ where: { mobile: '+966500005096' } })).id;
+    const clinicianBUserId = (await prisma.user.findUniqueOrThrow({ where: { mobile: '+966500005097' } })).id;
+    const { plan, patientProfile } = await setupPatientAndPlan(prisma, '+966500005099', clinicianAUserId);
+    const { cycle, sample } = await createSubmittedSampleCycle(prisma, patientProfile.id, plan.id, clinicianAUserId);
+    await request(app.getHttpServer())
+      .post(`/api/v1/specialist-review/cycles/${cycle.id}/reserve`)
+      .set('Authorization', `Bearer ${clinicianAToken}`)
+      .expect(201);
+    // Simulate clinician A having already been reminded about this deadline.
+    await prisma.speechSample.update({ where: { id: sample.id }, data: { deadlineReminderSentAt: new Date() } });
+
+    await request(app.getHttpServer())
+      .post(`/api/v1/specialist-review/cycles/${cycle.id}/transfer`)
+      .set('Authorization', `Bearer ${supervisorToken}`)
+      .send({ toUserId: clinicianBUserId, reason: 'Clinician A is on leave' })
+      .expect(201);
+
+    const updated = await prisma.speechSample.findUniqueOrThrow({ where: { id: sample.id } });
+    expect(updated.deadlineReminderSentAt).toBeNull();
+    expect(updated.reservedByUserId).toBe(clinicianBUserId);
+  });
 });
