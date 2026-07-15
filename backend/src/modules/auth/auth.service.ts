@@ -89,15 +89,23 @@ export class AuthService {
 
     const passwordMatches = await this.passwordService.compare(dto.password, user.passwordHash);
     if (!passwordMatches) {
-      const attempts = user.failedLoginAttempts + 1;
-      const shouldLock = attempts >= LOGIN_MAX_ATTEMPTS;
-      await this.prisma.user.update({
-        where: { id: user.id },
-        data: {
-          failedLoginAttempts: shouldLock ? 0 : attempts,
-          lockedUntil: shouldLock ? new Date(Date.now() + LOGIN_LOCKOUT_MINUTES * 60_000) : user.lockedUntil,
-        },
-      });
+      // Single atomic UPDATE (Postgres row lock) instead of read-then-write, so
+      // concurrent failed attempts on the same account can't under-count and
+      // slip past the 5-attempt lockout threshold.
+      const lockUntil = new Date(Date.now() + LOGIN_LOCKOUT_MINUTES * 60_000);
+      await this.prisma.$executeRaw`
+        UPDATE "User"
+        SET
+          "failedLoginAttempts" = CASE
+            WHEN "failedLoginAttempts" + 1 >= ${LOGIN_MAX_ATTEMPTS} THEN 0
+            ELSE "failedLoginAttempts" + 1
+          END,
+          "lockedUntil" = CASE
+            WHEN "failedLoginAttempts" + 1 >= ${LOGIN_MAX_ATTEMPTS} THEN ${lockUntil}
+            ELSE NULL
+          END
+        WHERE "id" = ${user.id}
+      `;
       throw new UnauthorizedException('Invalid credentials');
     }
 
