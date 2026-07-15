@@ -119,6 +119,20 @@ describe('SampleReviewSection', () => {
     expect(screen.queryByText('إرسال القرار')).toBeNull();
   });
 
+  it('shows the not-yet-reserved label when nobody holds the reservation', async () => {
+    (getCurrentCycle as ReturnType<typeof vi.fn>).mockResolvedValue({
+      ...baseCycle,
+      status: 'WAITING_FOR_SPECIALIST',
+      speechSample: { ...baseCycle.speechSample, reservedByUserId: null },
+    });
+    renderSection();
+    await waitFor(() => {
+      expect(screen.getByText('لم تُحجز بعد للمراجعة')).toBeTruthy();
+    });
+    expect(screen.queryByText('محجوزة لأخصائي آخر')).toBeNull();
+    expect(screen.queryByText('إرسال القرار')).toBeNull();
+  });
+
   it('submits a TRANSITION decision with the entered score', async () => {
     (getCurrentCycle as ReturnType<typeof vi.fn>).mockResolvedValue(baseCycle);
     (reviewSample as ReturnType<typeof vi.fn>).mockResolvedValue({ ...baseCycle.speechSample, decision: 'TRANSITION' });

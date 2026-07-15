@@ -133,6 +133,7 @@ export const ar = {
   sampleReview: {
     title: 'مراجعة العينة',
     reservedByOtherLabel: 'محجوزة لأخصائي آخر',
+    notYetReservedLabel: 'لم تُحجز بعد للمراجعة',
     selfReportTitle: 'التقييم الذاتي للمستفيد',
     selfSeverityCurrentLabel: 'شدة التلعثم الحالية',
     selfSeverityExpectedNextLabel: 'الشدة المتوقعة للمستوى التالي',

@@ -92,9 +92,7 @@ export function SampleReviewSection() {
         <Text>{ar.sampleReview.clientOpinionLabel}: {sample.clientOpinionScore ?? '—'}</Text>
       </Stack>
 
-      {!isReservationHolder ? (
-        <Alert color="yellow">{ar.sampleReview.reservedByOtherLabel}</Alert>
-      ) : (
+      {isReservationHolder ? (
         <Stack gap="md">
           {submitError ? <Alert color="red">{submitError}</Alert> : null}
           {DECISION_SUBMITTABLE_STATUSES.has(cycle.status) ? (
@@ -137,6 +135,10 @@ export function SampleReviewSection() {
             </>
           ) : null}
         </Stack>
+      ) : sample.reservedByUserId ? (
+        <Alert color="yellow">{ar.sampleReview.reservedByOtherLabel}</Alert>
+      ) : (
+        <Alert color="gray">{ar.sampleReview.notYetReservedLabel}</Alert>
       )}
     </Card>
   );
