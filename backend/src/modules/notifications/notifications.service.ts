@@ -55,6 +55,15 @@ const NOTIFICATION_TEMPLATES: Record<NotificationType, (ctx: Record<string, stri
     title: 'تذكير بالتدريب اليومي',
     body: `أكملت ${ctx.completedToday} من ${ctx.targetPerDay} تدريبات اليوم. أكمل جرعتك اليومية للاستمرار في تقدمك.`,
   }),
+  SPECIALIST_WORKLOAD_REMINDER: (ctx) => {
+    const isIntervention = ctx.kind === 'INTERVENTION_OUTCOME';
+    return {
+      title: isIntervention ? 'تذكير: تدخل مباشر متأخر' : 'تذكير: مراجعة عينة متأخرة',
+      body: isIntervention
+        ? `لديك تدخل مباشر قيد التنفيذ لعينة المريض ${ctx.patientName} في المستوى ${ctx.levelName} ينتظر توثيق النتيجة. يرجى استكماله قبل انتهاء المهلة المحددة.`
+        : `لديك عينة المريض ${ctx.patientName} في المستوى ${ctx.levelName} قيد المراجعة تنتظر قرارك. يرجى استكمال المراجعة قبل انتهاء المهلة المحددة.`,
+    };
+  },
 };
 
 @Injectable()

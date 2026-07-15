@@ -508,6 +508,8 @@ model SpeechSample {
   interventionCompletedAt      DateTime?
   interventionOutcomeNotes     String?
 
+  deadlineReminderSentAt DateTime? // §104: reminder for whichever deadline (review or intervention) is currently active
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -596,4 +598,5 @@ enum NotificationType {
   SAMPLE_SUBMISSION_DELAYED_TO_SUPERVISOR
   CONSULTATION_REMINDER
   DAILY_TRAINING_REMINDER
+  SPECIALIST_WORKLOAD_REMINDER
 }
