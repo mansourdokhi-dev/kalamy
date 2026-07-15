@@ -143,6 +143,18 @@ export const ar = {
     playButton: 'تشغيل',
     loadingMedia: 'جارٍ تحميل التسجيل...',
     mediaError: 'تعذر تحميل التسجيل',
+    interventionTitle: 'التدخل المباشر',
+    interventionTypeLabel: 'نوع التدخل',
+    interventionTypes: {
+      VIDEO_MEETING: 'لقاء مرئي',
+      VOICE_CONSULTATION: 'استشارة صوتية',
+      TARGETED_MESSAGE: 'رسالة موجهة',
+      CLINICAL_ACTION: 'إجراء سريري',
+    } as Record<string, string>,
+    interventionReasonLabel: 'سبب التدخل',
+    requestInterventionButton: 'طلب تدخل مباشر',
+    interventionOutcomeLabel: 'نتيجة التدخل',
+    completeInterventionButton: 'إنهاء التدخل',
     decisionTitle: 'قرار المراجعة',
     decisionLabel: 'القرار',
     decisions: {

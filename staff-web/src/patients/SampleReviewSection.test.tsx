@@ -5,15 +5,17 @@ import { PatientDetailProvider } from './PatientDetailContext';
 import { AuthProvider } from '../auth/AuthProvider';
 import { getPatient } from '../api/patients';
 import { getCurrentCycle } from '../api/cycles';
-import { reviewSample } from '../api/specialist-review';
+import { reviewSample, requestIntervention, completeIntervention } from '../api/specialist-review';
 import { getMe } from '../api/auth';
 import { getToken } from '../storage/session';
+import { fetchSampleMediaBlob } from '../api/sample-media';
 
 vi.mock('../api/patients');
 vi.mock('../api/cycles');
 vi.mock('../api/specialist-review');
 vi.mock('../api/auth');
 vi.mock('../storage/session');
+vi.mock('../api/sample-media');
 
 const baseCycle = {
   id: 'cycle-1',
@@ -144,6 +146,56 @@ describe('SampleReviewSection', () => {
 
     await waitFor(() => {
       expect(reviewSample).toHaveBeenCalledWith('patient-1', { decision: 'TRANSITION', clinicianOpinionScore: 8, reviewNotes: '' });
+    });
+  });
+
+  it('plays a sample part by fetching an authenticated blob URL', async () => {
+    (getCurrentCycle as ReturnType<typeof vi.fn>).mockResolvedValue(baseCycle);
+    (fetchSampleMediaBlob as ReturnType<typeof vi.fn>).mockResolvedValue('blob:mock-url');
+    renderSection();
+
+    await waitFor(() => expect(screen.getByText('قراءة نص')).toBeTruthy());
+    fireEvent.click(screen.getAllByText('تشغيل')[0]);
+
+    await waitFor(() => {
+      expect(fetchSampleMediaBlob).toHaveBeenCalledWith('patient-1', 'part-1');
+    });
+  });
+
+  it('requests an intervention with the entered type and reason', async () => {
+    (getCurrentCycle as ReturnType<typeof vi.fn>).mockResolvedValue(baseCycle);
+    (requestIntervention as ReturnType<typeof vi.fn>).mockResolvedValue({ ...baseCycle.speechSample, interventionType: 'VIDEO_MEETING' });
+    renderSection();
+
+    await waitFor(() => expect(screen.getByText('طلب تدخل مباشر')).toBeTruthy());
+    fireEvent.change(screen.getByLabelText('سبب التدخل'), { target: { value: 'يحتاج ملاحظة مباشرة' } });
+    fireEvent.click(screen.getByText('طلب تدخل مباشر'));
+
+    await waitFor(() => {
+      expect(requestIntervention).toHaveBeenCalledWith('cycle-1', { interventionType: 'VIDEO_MEETING', reasonNote: 'يحتاج ملاحظة مباشرة' });
+    });
+  });
+
+  it('completes an intervention with the entered outcome notes', async () => {
+    (getCurrentCycle as ReturnType<typeof vi.fn>).mockResolvedValue({
+      ...baseCycle,
+      status: 'DIRECT_INTERVENTION_REQUIRED',
+      speechSample: {
+        ...baseCycle.speechSample,
+        interventionType: 'VIDEO_MEETING',
+        interventionRequestedAt: '2026-07-14T02:00:00.000Z',
+        interventionDeadlineAt: '2026-07-21T02:00:00.000Z',
+      },
+    });
+    (completeIntervention as ReturnType<typeof vi.fn>).mockResolvedValue({ ...baseCycle.speechSample, interventionCompletedAt: '2026-07-14T03:00:00.000Z' });
+    renderSection();
+
+    await waitFor(() => expect(screen.getByLabelText('نتيجة التدخل')).toBeTruthy());
+    fireEvent.change(screen.getByLabelText('نتيجة التدخل'), { target: { value: 'تحسّن ملحوظ' } });
+    fireEvent.click(screen.getByText('إنهاء التدخل'));
+
+    await waitFor(() => {
+      expect(completeIntervention).toHaveBeenCalledWith('cycle-1', { outcomeNotes: 'تحسّن ملحوظ' });
     });
   });
 });

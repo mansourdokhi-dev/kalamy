@@ -5,8 +5,9 @@ import { usePatientDetail } from './PatientDetailContext';
 import { useAuth } from '../auth/AuthProvider';
 import { canReviewSample } from '../auth/permissions';
 import { getCurrentCycle } from '../api/cycles';
-import type { TrainingCycle, SpecialistDecision } from '../api/cycles';
-import { reviewSample } from '../api/specialist-review';
+import type { TrainingCycle, SpecialistDecision, InterventionType } from '../api/cycles';
+import { reviewSample, requestIntervention, completeIntervention } from '../api/specialist-review';
+import { fetchSampleMediaBlob } from '../api/sample-media';
 import { ApiError } from '../api/client';
 
 const REVIEW_RELEVANT_STATUSES = new Set([
@@ -40,6 +41,17 @@ export function SampleReviewSection() {
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
 
+  const [mediaUrls, setMediaUrls] = useState<Record<string, string>>({});
+  const [mediaError, setMediaError] = useState<string | null>(null);
+  const [loadingPartId, setLoadingPartId] = useState<string | null>(null);
+
+  const [interventionType, setInterventionType] = useState<InterventionType>('VIDEO_MEETING');
+  const [reasonNote, setReasonNote] = useState('');
+  const [requestingIntervention, setRequestingIntervention] = useState(false);
+  const [outcomeNotes, setOutcomeNotes] = useState('');
+  const [completingIntervention, setCompletingIntervention] = useState(false);
+  const [interventionError, setInterventionError] = useState<string | null>(null);
+
   useEffect(() => {
     if (!patient) return;
     getCurrentCycle(patient.id)
@@ -56,6 +68,7 @@ export function SampleReviewSection() {
   }
 
   const sample = cycle.speechSample;
+  const cycleId = cycle.id;
   const isReservationHolder = sample.reservedByUserId === user.id;
 
   async function handleSubmitDecision() {
@@ -79,6 +92,44 @@ export function SampleReviewSection() {
     }
   }
 
+  async function handlePlayPart(partId: string) {
+    if (!patient) return;
+    setLoadingPartId(partId);
+    setMediaError(null);
+    try {
+      const url = await fetchSampleMediaBlob(patient.id, partId);
+      setMediaUrls((prev) => ({ ...prev, [partId]: url }));
+    } catch (err) {
+      setMediaError(err instanceof ApiError ? err.message : ar.sampleReview.mediaError);
+    } finally {
+      setLoadingPartId(null);
+    }
+  }
+
+  async function handleRequestIntervention() {
+    setRequestingIntervention(true);
+    setInterventionError(null);
+    try {
+      await requestIntervention(cycleId, { interventionType, reasonNote });
+    } catch (err) {
+      setInterventionError(err instanceof ApiError ? err.message : ar.errors.unexpected);
+    } finally {
+      setRequestingIntervention(false);
+    }
+  }
+
+  async function handleCompleteIntervention() {
+    setCompletingIntervention(true);
+    setInterventionError(null);
+    try {
+      await completeIntervention(cycleId, { outcomeNotes });
+    } catch (err) {
+      setInterventionError(err instanceof ApiError ? err.message : ar.errors.unexpected);
+    } finally {
+      setCompletingIntervention(false);
+    }
+  }
+
   return (
     <Card withBorder>
       <Title order={3} mb="sm">{ar.sampleReview.title}</Title>
@@ -90,6 +141,32 @@ export function SampleReviewSection() {
         <Text>{ar.sampleReview.selfSeverityExpectedNextLabel}: {sample.selfSeverityExpectedNext ?? '—'}</Text>
         <Text>{ar.sampleReview.camperdownPerformanceLabel}: {sample.camperdownPerformanceRating ?? '—'}</Text>
         <Text>{ar.sampleReview.clientOpinionLabel}: {sample.clientOpinionScore ?? '—'}</Text>
+      </Stack>
+
+      <Stack gap="xs" mb="md">
+        <Text fw={600}>{ar.sampleReview.partsTitle}</Text>
+        {mediaError ? <Alert color="red">{mediaError}</Alert> : null}
+        {sample.parts.map((part) => (
+          <Group key={part.id}>
+            <Text>{part.label}</Text>
+            {mediaUrls[part.id] ? (
+              part.mimeType?.startsWith('audio/') ? (
+                <audio controls src={mediaUrls[part.id]} />
+              ) : (
+                <video controls width={240} src={mediaUrls[part.id]} />
+              )
+            ) : (
+              <Button
+                variant="light"
+                size="xs"
+                loading={loadingPartId === part.id}
+                onClick={() => handlePlayPart(part.id)}
+              >
+                {ar.sampleReview.playButton}
+              </Button>
+            )}
+          </Group>
+        ))}
       </Stack>
 
       {isReservationHolder ? (
@@ -133,6 +210,47 @@ export function SampleReviewSection() {
                 <Button onClick={handleSubmitDecision} loading={submitting}>{ar.sampleReview.submitDecisionButton}</Button>
               </Group>
             </>
+          ) : null}
+          {interventionError ? <Alert color="red">{interventionError}</Alert> : null}
+          {cycle.status === 'UNDER_REVIEW' ? (
+            <Stack gap="xs">
+              <Text fw={600}>{ar.sampleReview.interventionTitle}</Text>
+              <Select
+                label={ar.sampleReview.interventionTypeLabel}
+                data={[
+                  { value: 'VIDEO_MEETING', label: ar.sampleReview.interventionTypes.VIDEO_MEETING },
+                  { value: 'VOICE_CONSULTATION', label: ar.sampleReview.interventionTypes.VOICE_CONSULTATION },
+                  { value: 'TARGETED_MESSAGE', label: ar.sampleReview.interventionTypes.TARGETED_MESSAGE },
+                  { value: 'CLINICAL_ACTION', label: ar.sampleReview.interventionTypes.CLINICAL_ACTION },
+                ]}
+                value={interventionType}
+                onChange={(value) => setInterventionType((value as InterventionType) ?? 'VIDEO_MEETING')}
+              />
+              <Textarea
+                label={ar.sampleReview.interventionReasonLabel}
+                value={reasonNote}
+                onChange={(e) => setReasonNote(e.currentTarget.value)}
+              />
+              <Group>
+                <Button variant="light" onClick={handleRequestIntervention} loading={requestingIntervention}>
+                  {ar.sampleReview.requestInterventionButton}
+                </Button>
+              </Group>
+            </Stack>
+          ) : null}
+          {cycle.status === 'DIRECT_INTERVENTION_REQUIRED' ? (
+            <Stack gap="xs">
+              <Textarea
+                label={ar.sampleReview.interventionOutcomeLabel}
+                value={outcomeNotes}
+                onChange={(e) => setOutcomeNotes(e.currentTarget.value)}
+              />
+              <Group>
+                <Button variant="light" onClick={handleCompleteIntervention} loading={completingIntervention}>
+                  {ar.sampleReview.completeInterventionButton}
+                </Button>
+              </Group>
+            </Stack>
           ) : null}
         </Stack>
       ) : sample.reservedByUserId ? (
