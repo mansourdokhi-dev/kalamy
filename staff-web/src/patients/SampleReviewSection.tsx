@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Card, Title, Text, Stack, Group, Select, NumberInput, Textarea, Button, Alert, MultiSelect } from '@mantine/core';
 import { ar } from '../copy/ar';
 import { usePatientDetail } from './PatientDetailContext';
@@ -52,11 +52,23 @@ export function SampleReviewSection() {
   const [completingIntervention, setCompletingIntervention] = useState(false);
   const [interventionError, setInterventionError] = useState<string | null>(null);
 
+  const mediaUrlsRef = useRef<Record<string, string>>({});
+  useEffect(() => {
+    mediaUrlsRef.current = mediaUrls;
+  }, [mediaUrls]);
+
   useEffect(() => {
     if (!patient) return;
     getCurrentCycle(patient.id)
       .then(setCycle)
       .catch((err) => setLoadError(err instanceof ApiError ? err.message : ar.errors.unexpected));
+    // Revoke any blob URLs created for the previous patient/part set, both when
+    // switching patients and on unmount, per the design doc's "on unmount/part-change" rule.
+    return () => {
+      Object.values(mediaUrlsRef.current).forEach((url) => URL.revokeObjectURL(url));
+      mediaUrlsRef.current = {};
+      setMediaUrls({});
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [patient?.id]);
 
@@ -85,6 +97,11 @@ export function SampleReviewSection() {
           reviewNotes,
         });
       }
+      const fresh = await getCurrentCycle(patient.id);
+      setCycle(fresh);
+      setReviewNotes('');
+      setDamagedPartIds([]);
+      setClinicianOpinionScore('');
     } catch (err) {
       setSubmitError(err instanceof ApiError ? err.message : ar.errors.unexpected);
     } finally {
@@ -107,10 +124,13 @@ export function SampleReviewSection() {
   }
 
   async function handleRequestIntervention() {
+    if (!patient) return;
     setRequestingIntervention(true);
     setInterventionError(null);
     try {
       await requestIntervention(cycleId, { interventionType, reasonNote });
+      const fresh = await getCurrentCycle(patient.id);
+      setCycle(fresh);
     } catch (err) {
       setInterventionError(err instanceof ApiError ? err.message : ar.errors.unexpected);
     } finally {
@@ -119,10 +139,13 @@ export function SampleReviewSection() {
   }
 
   async function handleCompleteIntervention() {
+    if (!patient) return;
     setCompletingIntervention(true);
     setInterventionError(null);
     try {
       await completeIntervention(cycleId, { outcomeNotes });
+      const fresh = await getCurrentCycle(patient.id);
+      setCycle(fresh);
     } catch (err) {
       setInterventionError(err instanceof ApiError ? err.message : ar.errors.unexpected);
     } finally {

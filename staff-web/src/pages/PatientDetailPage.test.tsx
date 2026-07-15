@@ -6,10 +6,14 @@ import { AuthProvider } from '../auth/AuthProvider';
 import { getPatient } from '../api/patients';
 import { getMe } from '../api/auth';
 import { getToken } from '../storage/session';
+import { getCurrentCycle } from '../api/cycles';
+import { getProgressDashboard, getPassedLevels } from '../api/progress';
 
 vi.mock('../api/patients');
 vi.mock('../api/auth');
 vi.mock('../storage/session');
+vi.mock('../api/cycles');
+vi.mock('../api/progress');
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -21,6 +25,19 @@ beforeEach(() => {
     role: 'CLINICIAN',
     mustChangePassword: false,
   });
+  // SampleReviewSection chains `.then()` directly on getCurrentCycle's return value
+  // (not awaited), so the default auto-mock (a vi.fn() returning `undefined`) would
+  // throw synchronously ("Cannot read properties of undefined (reading 'then')") and
+  // crash the whole page render. Give it a rejected promise so the component's own
+  // `.catch()` handles it gracefully (the section just renders nothing, which is fine
+  // since this test file doesn't assert on SampleReviewSection's content).
+  (getCurrentCycle as ReturnType<typeof vi.fn>).mockRejectedValue(new Error('not mocked in this test'));
+  // ProgressSection destructures the Promise.all result straight into state (no
+  // `undefined` guard beyond a `=== null` check), so the default auto-mock
+  // (`undefined`) makes `passedLevels.length` throw during render. Reject both so
+  // the section's own `.catch()` handles it and renders its error alert instead.
+  (getProgressDashboard as ReturnType<typeof vi.fn>).mockRejectedValue(new Error('not mocked in this test'));
+  (getPassedLevels as ReturnType<typeof vi.fn>).mockRejectedValue(new Error('not mocked in this test'));
 });
 
 function renderPage() {
