@@ -51,6 +51,10 @@ const NOTIFICATION_TEMPLATES: Record<NotificationType, (ctx: Record<string, stri
         : 'يبدأ موعد استشارتك خلال ساعة تقريبًا.',
     };
   },
+  DAILY_TRAINING_REMINDER: (ctx) => ({
+    title: 'تذكير بالتدريب اليومي',
+    body: `أكملت ${ctx.completedToday} من ${ctx.targetPerDay} تدريبات اليوم. أكمل جرعتك اليومية للاستمرار في تقدمك.`,
+  }),
 };
 
 @Injectable()

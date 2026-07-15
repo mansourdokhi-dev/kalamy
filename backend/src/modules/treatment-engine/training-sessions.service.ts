@@ -124,24 +124,34 @@ export class TrainingSessionsService {
     return { intervalActive, nextAvailableAt: intervalActive ? nextAvailableAt : null };
   }
 
+  async computeDailyStatus(
+    cycleId: string,
+    firstTrainingEventAt: Date | null,
+    cycleCreatedAt: Date,
+  ): Promise<{ completedToday: number; periodStart: Date }> {
+    const DAY_MS = 24 * 60 * 60 * 1000;
+    const anchorMs = (firstTrainingEventAt ?? cycleCreatedAt).getTime();
+    const currentPeriodIndex = Math.floor((Date.now() - anchorMs) / DAY_MS);
+    const periodStart = new Date(anchorMs + currentPeriodIndex * DAY_MS);
+    const periodEnd = new Date(anchorMs + (currentPeriodIndex + 1) * DAY_MS);
+
+    let completedToday = 0;
+    if (firstTrainingEventAt) {
+      completedToday = await this.prisma.trainingSession.count({
+        where: { trainingCycleId: cycleId, status: 'COMPLETED', completedAt: { gte: periodStart, lt: periodEnd } },
+      });
+    }
+
+    return { completedToday, periodStart };
+  }
+
   async getProgress(
     cycleId: string,
     actor: AuthenticatedUser,
   ): Promise<{ completedToday: number; targetPerDay: number; intervalActive: boolean; nextAvailableAt: string | null; currentSessionId: string | null }> {
     const cycle = await this.trainingCyclesService.findCycleForActor(cycleId, actor);
     const { intervalActive, nextAvailableAt } = await this.resolveIntervalStatus(cycleId);
-
-    let completedToday = 0;
-    if (cycle.firstTrainingEventAt) {
-      const DAY_MS = 24 * 60 * 60 * 1000;
-      const startMs = cycle.firstTrainingEventAt.getTime();
-      const currentPeriodIndex = Math.floor((Date.now() - startMs) / DAY_MS);
-      const periodStart = new Date(startMs + currentPeriodIndex * DAY_MS);
-      const periodEnd = new Date(startMs + (currentPeriodIndex + 1) * DAY_MS);
-      completedToday = await this.prisma.trainingSession.count({
-        where: { trainingCycleId: cycleId, status: 'COMPLETED', completedAt: { gte: periodStart, lt: periodEnd } },
-      });
-    }
+    const { completedToday } = await this.computeDailyStatus(cycleId, cycle.firstTrainingEventAt, cycle.createdAt);
 
     const inProgress = await this.prisma.trainingSession.findFirst({ where: { trainingCycleId: cycleId, status: 'IN_PROGRESS' } });
 

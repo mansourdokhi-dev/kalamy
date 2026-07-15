@@ -17,6 +17,7 @@ import { PatientLevelsController } from './patient-levels.controller';
 import { PatientLevelsService } from './patient-levels.service';
 import { TrainingSessionsController } from './training-sessions.controller';
 import { TrainingSessionsService } from './training-sessions.service';
+import { TrainingReminderSweepService } from './training-reminder-sweep.service';
 import { AuthModule } from '../auth/auth.module';
 import { PatientAccessModule } from '../../common/patient-access/patient-access.module';
 import { MediaStorageModule } from './media-storage/media-storage.module';
@@ -61,7 +62,7 @@ import { NotificationsModule } from '../notifications/notifications.module';
     }),
   ],
   controllers: [LevelsController, TrainingCyclesController, SamplesController, SampleMediaController, SpecialistReviewController, SpecialistReviewQueueController, PatientLevelsController, TrainingSessionsController],
-  providers: [LevelsService, TrainingCyclesService, SamplesService, SpecialistReviewService, PatientLevelsService, TrainingSessionsService],
-  exports: [LevelsService, TrainingCyclesService, SamplesService, SpecialistReviewService, PatientLevelsService, TrainingSessionsService],
+  providers: [LevelsService, TrainingCyclesService, SamplesService, SpecialistReviewService, PatientLevelsService, TrainingSessionsService, TrainingReminderSweepService],
+  exports: [LevelsService, TrainingCyclesService, SamplesService, SpecialistReviewService, PatientLevelsService, TrainingSessionsService, TrainingReminderSweepService],
 })
 export class TreatmentEngineModule {}
