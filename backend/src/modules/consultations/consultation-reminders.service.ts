@@ -2,9 +2,8 @@ import { Injectable, Logger } from '@nestjs/common';
 import { Interval } from '@nestjs/schedule';
 import { PrismaService } from '../../prisma/prisma.service';
 import { NotificationsService } from '../notifications/notifications.service';
+import { NotificationSettingsService } from '../notifications/notification-settings.service';
 
-const DAY_BEFORE_WINDOW_MS = 24 * 60 * 60 * 1000;
-const HOUR_BEFORE_WINDOW_MS = 60 * 60 * 1000;
 const SWEEP_INTERVAL_MS = 5 * 60 * 1000;
 
 type ReminderStampField = 'dayBeforeReminderSentAt' | 'hourBeforeReminderSentAt';
@@ -16,17 +15,22 @@ export class ConsultationRemindersService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly notificationsService: NotificationsService,
+    private readonly notificationSettingsService: NotificationSettingsService,
   ) {}
 
   @Interval(SWEEP_INTERVAL_MS)
   async runSweep(): Promise<void> {
     const now = new Date();
+    const dayBeforeWindowMs = await this.notificationSettingsService.getValueMs('CONSULTATION_REMINDER_DAY_BEFORE_MS');
+    const hourBeforeWindowMs = await this.notificationSettingsService.getValueMs('CONSULTATION_REMINDER_HOUR_BEFORE_MS');
     // The day-before window's lower bound is pinned to the hour-before window's
     // upper bound so the two windows never overlap: a consultation scheduled
     // within the next hour is only ever eligible for the hour-before reminder,
-    // even on a single sweep that has never run against it before.
-    await this.sendDueReminders(now, HOUR_BEFORE_WINDOW_MS, DAY_BEFORE_WINDOW_MS, 'dayBeforeReminderSentAt', 'DAY_BEFORE');
-    await this.sendDueReminders(now, 0, HOUR_BEFORE_WINDOW_MS, 'hourBeforeReminderSentAt', 'HOUR_BEFORE');
+    // even on a single sweep that has never run against it before. This ordering
+    // is enforced by NotificationSettingsService.updateValue whenever either
+    // setting changes, so hourBeforeWindowMs < dayBeforeWindowMs always holds here.
+    await this.sendDueReminders(now, hourBeforeWindowMs, dayBeforeWindowMs, 'dayBeforeReminderSentAt', 'DAY_BEFORE');
+    await this.sendDueReminders(now, 0, hourBeforeWindowMs, 'hourBeforeReminderSentAt', 'HOUR_BEFORE');
   }
 
   private async sendDueReminders(

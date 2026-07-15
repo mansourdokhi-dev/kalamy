@@ -151,4 +151,31 @@ describe('Consultation Reminders sweep (e2e)', () => {
     expect(updated.hourBeforeReminderSentAt).toBeNull();
     expect(updated.scheduledAt?.getTime()).toBe(newScheduledAt.getTime());
   });
+
+  it('uses an admin-configured day-before window instead of the hardcoded default', async () => {
+    // Scheduled 30 hours from now — outside the hardcoded 24h default day-before window (1h, 24h],
+    // so with defaults this sends nothing yet.
+    const { patientToken } = await setupScheduledConsultation('+966500007010', new Date(Date.now() + 30 * 60 * 60 * 1000));
+
+    await remindersService.runSweep();
+    const beforeRes = await request(app.getHttpServer())
+      .get('/api/v1/notifications')
+      .set('Authorization', `Bearer ${patientToken}`)
+      .expect(200);
+    expect(beforeRes.body.filter((n: { type: string }) => n.type === 'CONSULTATION_REMINDER')).toHaveLength(0);
+
+    const adminToken = await registerAndLogin(app, prisma, '+966500007011', 'ADMIN');
+    await request(app.getHttpServer())
+      .patch('/api/v1/admin/notification-settings/CONSULTATION_REMINDER_DAY_BEFORE_MS')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ valueMs: 48 * 60 * 60 * 1000 })
+      .expect(200);
+
+    await remindersService.runSweep();
+    const afterRes = await request(app.getHttpServer())
+      .get('/api/v1/notifications')
+      .set('Authorization', `Bearer ${patientToken}`)
+      .expect(200);
+    expect(afterRes.body.filter((n: { type: string }) => n.type === 'CONSULTATION_REMINDER')).toHaveLength(1);
+  });
 });
