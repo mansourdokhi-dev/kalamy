@@ -110,11 +110,43 @@ export function startCycle(patientProfileId: string, treatmentPlanId: string): P
   });
 }
 
-export function logTrainingEvent(patientProfileId: string): Promise<TrainingCycle> {
-  return apiRequest<TrainingCycle>(`/api/v1/patients/${patientProfileId}/cycles/current/training-events`, {
+export type TrainingSessionStatus = 'IN_PROGRESS' | 'COMPLETED';
+
+export interface TrainingSession {
+  id: string;
+  trainingCycleId: string;
+  status: TrainingSessionStatus;
+  unitsCompleted: number;
+  startedAt: string;
+  completedAt: string | null;
+}
+
+export function startOrResumeTrainingSession(patientProfileId: string): Promise<TrainingSession> {
+  return apiRequest<TrainingSession>(`/api/v1/patients/${patientProfileId}/cycles/current/training-sessions`, {
     method: 'POST',
     auth: true,
-    body: {},
+  });
+}
+
+export function recordTrainingProgress(patientProfileId: string, unitsCompleted: number): Promise<TrainingSession> {
+  return apiRequest<TrainingSession>(`/api/v1/patients/${patientProfileId}/cycles/current/training-sessions/current/progress`, {
+    method: 'PATCH',
+    auth: true,
+    body: { unitsCompleted },
+  });
+}
+
+export interface TrainingProgressSummary {
+  completedToday: number;
+  targetPerDay: number;
+  intervalActive: boolean;
+  nextAvailableAt: string | null;
+  currentSessionId: string | null;
+}
+
+export function getTrainingProgress(patientProfileId: string): Promise<TrainingProgressSummary> {
+  return apiRequest<TrainingProgressSummary>(`/api/v1/patients/${patientProfileId}/cycles/current/training-sessions/progress`, {
+    auth: true,
   });
 }
 

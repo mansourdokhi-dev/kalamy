@@ -195,4 +195,17 @@ export const ar = {
     title: 'الإشعارات',
     empty: 'لا توجد إشعارات بعد',
   },
+  trainingSession: {
+    title: 'تدريب اليوم',
+    hoursRemainingLabel: 'ساعة متبقية حتى فتح مرحلة العينة',
+    dailyTargetLabel: 'هدف اليوم',
+    intervalActiveLabel: 'التدريب التالي متاح الساعة',
+    startOrResume: 'ابدأ / استكمل التدريب',
+    addUnits: '+10 وحدة',
+    unitsProgressLabel: 'وحدة',
+    completedTitle: 'أحسنت! أكملت تدريب اليوم',
+    backToHome: 'العودة للرئيسية',
+    viewLevelContent: 'مشاهدة محتوى المستوى',
+    trainingListTitle: 'قائمة التدريب',
+  },
 };
