@@ -3,16 +3,17 @@ import { ThemeProvider } from '../../src/theme/ThemeContext';
 import HomeScreen from '../home';
 import { useAuth } from '../../src/auth/AuthProvider';
 import { usePatientProfile } from '../../src/patient/PatientProfileProvider';
-import { getProgress, getCurrentCycle, getCycleHistory, getActiveTreatmentPlan, startCycle, logTrainingEvent } from '../../src/api/treatmentEngine';
+import { getProgress, getCurrentCycle, getCycleHistory, getActiveTreatmentPlan, startCycle } from '../../src/api/treatmentEngine';
 import { ApiError } from '../../src/api/client';
 
 jest.mock('../../src/auth/AuthProvider');
 jest.mock('../../src/patient/PatientProfileProvider');
 jest.mock('../../src/api/treatmentEngine');
+const mockPush = jest.fn();
 jest.mock('expo-router', () => {
   const actualReact = jest.requireActual('react');
   return {
-    useRouter: () => ({ push: jest.fn(), replace: jest.fn() }),
+    useRouter: () => ({ push: mockPush, replace: jest.fn() }),
     useFocusEffect: (cb: () => void) => actualReact.useEffect(cb, []),
   };
 });
@@ -86,7 +87,7 @@ describe('HomeScreen (My Program)', () => {
     });
   });
 
-  it('shows an inline "log training" button once the model is watched, and calls the endpoint', async () => {
+  it('navigates to the training-session screen once the model is watched', async () => {
     (getProgress as jest.Mock).mockResolvedValue(baseProgress);
     mockNoDecisionHistory();
     (getCurrentCycle as jest.Mock).mockResolvedValue({
@@ -95,7 +96,6 @@ describe('HomeScreen (My Program)', () => {
       status: 'ACTIVE_LEVEL_TRAINING',
       humanModelWatchedAt: '2026-07-01T00:00:00.000Z',
     });
-    (logTrainingEvent as jest.Mock).mockResolvedValue({ id: 'cycle-1', status: 'ACTIVE_LEVEL_TRAINING' });
 
     render(<ThemeProvider><HomeScreen /></ThemeProvider>);
 
@@ -105,7 +105,7 @@ describe('HomeScreen (My Program)', () => {
     fireEvent.press(screen.getByText('سجّل تدريب اليوم'));
 
     await waitFor(() => {
-      expect(logTrainingEvent).toHaveBeenCalledWith('profile-1');
+      expect(mockPush).toHaveBeenCalledWith('/program/training-session');
     });
   });
 

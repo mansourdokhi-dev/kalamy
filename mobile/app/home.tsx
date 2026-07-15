@@ -14,7 +14,6 @@ import {
   getCycleHistory,
   getActiveTreatmentPlan,
   startCycle,
-  logTrainingEvent,
   ProgressDashboard,
   TrainingCycle,
   TrainingCycleWithSample,
@@ -111,19 +110,6 @@ export default function HomeScreen() {
     }
   }
 
-  async function handleLogTraining() {
-    if (!patientProfileId) return;
-    setSubmitting(true);
-    try {
-      await logTrainingEvent(patientProfileId);
-      await load(patientProfileId);
-    } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'حدث خطأ غير متوقع');
-    } finally {
-      setSubmitting(false);
-    }
-  }
-
   async function handleLogout() {
     await logout();
     router.replace('/');
@@ -146,7 +132,7 @@ export default function HomeScreen() {
       if (!cycle.humanModelWatchedAt) {
         return <Button title={ar.program.watchLevelContent} onPress={() => router.push('/program/level-content')} />;
       }
-      return <Button title={ar.program.logTraining} onPress={handleLogTraining} loading={submitting} />;
+      return <Button title={ar.program.logTraining} onPress={() => router.push('/program/training-session')} />;
     }
     if (STATES_NEEDING_SAMPLE_RECORDING.has(cycle.status)) {
       return <Button title={ar.program.recordSample} onPress={() => router.push('/program/sample-recording')} />;
