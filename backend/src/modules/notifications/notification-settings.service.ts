@@ -27,7 +27,7 @@ export class NotificationSettingsService {
   }
 
   async updateValue(key: string, valueMs: number): Promise<{ key: string; valueMs: number }> {
-    if (!(key in NOTIFICATION_SETTING_DEFAULTS_MS)) {
+    if (!Object.prototype.hasOwnProperty.call(NOTIFICATION_SETTING_DEFAULTS_MS, key)) {
       throw new BadRequestException(`${key} is not a configurable notification setting`);
     }
     if (!Number.isInteger(valueMs) || valueMs <= 0) {
