@@ -47,6 +47,7 @@ export interface SpeechSample {
   reservedByUserId: string | null;
   reservedAt: string | null;
   reviewDeadlineAt: string | null;
+  escalatedAt: string | null;
   interventionType: InterventionType | null;
   interventionRequestedAt: string | null;
   interventionDeadlineAt: string | null;

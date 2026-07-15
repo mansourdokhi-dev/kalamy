@@ -26,6 +26,7 @@ export const ar = {
   },
   shell: {
     patientsLink: 'المرضى',
+    reviewQueueLink: 'قائمة المراجعة',
     logoutButton: 'تسجيل الخروج',
     roles: {
       CLINICIAN: 'أخصائي',
@@ -46,6 +47,14 @@ export const ar = {
     statuses: { ACTIVE: 'نشط', DISABLED: 'معطل' } as Record<string, string>,
     noResults: 'لا توجد نتائج',
     emptyState: 'ابحث عن مريض بالاسم أو رقم الهوية',
+  },
+  reviewQueue: {
+    title: 'قائمة المراجعة',
+    emptyState: 'لا توجد عينات بانتظار المراجعة',
+    patientNameLabel: 'المريض',
+    submittedAtLabel: 'تاريخ الإرسال',
+    escalatedLabel: 'مصعّدة',
+    reserveButton: 'حجز للمراجعة',
   },
   patientDetail: {
     loadError: 'تعذر تحميل بيانات المريض',

@@ -8,6 +8,7 @@ import { ResetPasswordPage } from './pages/ResetPasswordPage';
 import { ChangePasswordPage } from './pages/ChangePasswordPage';
 import { PatientsPage } from './pages/PatientsPage';
 import { PatientDetailPage } from './pages/PatientDetailPage';
+import { ReviewQueuePage } from './pages/ReviewQueuePage';
 
 export default function App() {
   return (
@@ -42,6 +43,16 @@ export default function App() {
               <RequireAuth>
                 <AppShell>
                   <PatientDetailPage />
+                </AppShell>
+              </RequireAuth>
+            }
+          />
+          <Route
+            path="/review-queue"
+            element={
+              <RequireAuth>
+                <AppShell>
+                  <ReviewQueuePage />
                 </AppShell>
               </RequireAuth>
             }
