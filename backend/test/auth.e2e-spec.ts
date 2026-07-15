@@ -172,6 +172,32 @@ describe('Auth: login', () => {
     expect(response.body.message).toMatch(/locked/i);
   });
 
+  it('locks the account after 5 concurrent failed attempts without under-counting', async () => {
+    await registerAndActivate('+966500000025', 'password123');
+
+    // Fire the failed attempts truly in parallel (not sequentially) so a
+    // read-then-write implementation would race on the same
+    // failedLoginAttempts value and could under-count instead of locking.
+    await Promise.all(
+      Array.from({ length: 5 }, () =>
+        request(app.getHttpServer())
+          .post('/api/v1/auth/login')
+          .send({ mobile: '+966500000025', password: 'wrong-password' }),
+      ),
+    );
+
+    const user = await prisma.user.findUnique({ where: { mobile: '+966500000025' } });
+    expect(user?.lockedUntil).not.toBeNull();
+    expect(user!.lockedUntil!.getTime()).toBeGreaterThan(Date.now());
+
+    const response = await request(app.getHttpServer())
+      .post('/api/v1/auth/login')
+      .send({ mobile: '+966500000025', password: 'password123' });
+
+    expect(response.status).toBe(429);
+    expect(response.body.message).toMatch(/locked/i);
+  });
+
   it('rejects login for a user who has not verified OTP yet', async () => {
     await request(app.getHttpServer()).post('/api/v1/auth/register').send({
       fullName: 'Unverified User',
