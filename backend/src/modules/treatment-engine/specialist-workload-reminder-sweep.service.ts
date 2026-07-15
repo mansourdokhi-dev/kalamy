@@ -2,11 +2,10 @@ import { Injectable, Logger } from '@nestjs/common';
 import { Interval } from '@nestjs/schedule';
 import { PrismaService } from '../../prisma/prisma.service';
 import { NotificationsService } from '../notifications/notifications.service';
+import { NotificationSettingsService } from '../notifications/notification-settings.service';
 import { getNotificationContext } from '../notifications/notification-context.util';
 
 const SWEEP_INTERVAL_MS = 15 * 60 * 1000;
-const REVIEW_REMINDER_LEAD_MS = 24 * 60 * 60 * 1000; // half of the 48h review-decision window
-const INTERVENTION_REMINDER_LEAD_MS = 24 * 60 * 60 * 1000; // flat one-day-before on the 7-day intervention window
 
 @Injectable()
 export class SpecialistWorkloadReminderSweepService {
@@ -15,6 +14,7 @@ export class SpecialistWorkloadReminderSweepService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly notificationsService: NotificationsService,
+    private readonly notificationSettingsService: NotificationSettingsService,
   ) {}
 
   @Interval(SWEEP_INTERVAL_MS)
@@ -38,7 +38,9 @@ export class SpecialistWorkloadReminderSweepService {
       if (!deadline) {
         continue;
       }
-      const leadTimeMs = isIntervention ? INTERVENTION_REMINDER_LEAD_MS : REVIEW_REMINDER_LEAD_MS;
+      const leadTimeMs = await this.notificationSettingsService.getValueMs(
+        isIntervention ? 'SPECIALIST_WORKLOAD_INTERVENTION_LEAD_MS' : 'SPECIALIST_WORKLOAD_REVIEW_LEAD_MS',
+      );
       const remindAt = deadline.getTime() - leadTimeMs;
       if (now < remindAt || now >= deadline.getTime()) {
         continue;

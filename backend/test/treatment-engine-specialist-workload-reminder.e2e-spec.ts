@@ -183,4 +183,29 @@ describe('Specialist Workload Reminder sweep (e2e)', () => {
     const notifications = await prisma.notification.findMany({ where: { type: 'SPECIALIST_WORKLOAD_REMINDER' } });
     expect(notifications).toHaveLength(0);
   });
+
+  it('uses an admin-configured review lead time instead of the hardcoded default', async () => {
+    const { clinicianUserId, sampleId } = await setupReservedSample('+966500006016', '+966500006017');
+    // 30h remaining on the 48h deadline — outside the hardcoded 24h default's lead window, so a
+    // sweep against the default sends nothing yet.
+    await prisma.speechSample.update({ where: { id: sampleId }, data: { reviewDeadlineAt: new Date(Date.now() + 30 * 60 * 60 * 1000) } });
+
+    await sweepService.runSweep();
+    const notificationsBefore = await prisma.notification.findMany({ where: { recipientUserId: clinicianUserId, type: 'SPECIALIST_WORKLOAD_REMINDER' } });
+    expect(notificationsBefore).toHaveLength(0);
+
+    // Widen the lead time to 36h (still under the 48h window cap) — the same 30h-remaining
+    // deadline now falls inside the window, without moving the deadline itself.
+    const adminToken = await registerAndLogin(app, prisma, '+966500006018', 'ADMIN');
+    await request(app.getHttpServer())
+      .patch('/api/v1/admin/notification-settings/SPECIALIST_WORKLOAD_REVIEW_LEAD_MS')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ valueMs: 36 * 60 * 60 * 1000 })
+      .expect(200);
+
+    await sweepService.runSweep();
+
+    const notificationsAfter = await prisma.notification.findMany({ where: { recipientUserId: clinicianUserId, type: 'SPECIALIST_WORKLOAD_REMINDER' } });
+    expect(notificationsAfter).toHaveLength(1);
+  });
 });
