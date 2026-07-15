@@ -92,6 +92,27 @@ export class NotificationsService {
     });
   }
 
+  async listPreferencesForUser(userId: string): Promise<Array<{ type: NotificationType; enabled: boolean }>> {
+    const rows = await this.prisma.notificationPreference.findMany({
+      where: { userId, type: { in: GATEABLE_NOTIFICATION_TYPES } },
+    });
+    const enabledByType = new Map(rows.map((r) => [r.type, r.enabled]));
+    return GATEABLE_NOTIFICATION_TYPES.map((type) => ({ type, enabled: enabledByType.get(type) ?? true }));
+  }
+
+  async updatePreference(userId: string, type: string, enabled: boolean): Promise<{ type: NotificationType; enabled: boolean }> {
+    if (!GATEABLE_NOTIFICATION_TYPES.includes(type as NotificationType)) {
+      throw new BadRequestException(`${type} is not a notification type that can be disabled`);
+    }
+    const gateableType = type as NotificationType;
+    await this.prisma.notificationPreference.upsert({
+      where: { userId_type: { userId, type: gateableType } },
+      create: { userId, type: gateableType, enabled },
+      update: { enabled },
+    });
+    return { type: gateableType, enabled };
+  }
+
   async notifyRole(
     role: Role,
     type: NotificationType,
