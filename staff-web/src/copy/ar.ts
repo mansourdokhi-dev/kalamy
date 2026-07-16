@@ -28,6 +28,7 @@ export const ar = {
     patientsLink: 'المرضى',
     reviewQueueLink: 'قائمة المراجعة',
     complaintsLink: 'الشكاوى',
+    adminReportsLink: 'التقارير الإدارية',
     logoutButton: 'تسجيل الخروج',
     roles: {
       CLINICIAN: 'أخصائي',
