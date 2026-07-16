@@ -205,7 +205,6 @@ export const ar = {
     noLatestAssessment: 'لا يوجد تقييم معتمد',
     activePlanTitle: 'الخطة العلاجية النشطة',
     noActivePlanForReport: 'لا توجد خطة علاجية نشطة',
-    reviewDateLabel: 'تاريخ المراجعة',
     adminReportsTitle: 'التقارير الإدارية',
     tabs: {
       operationalStatus: 'الحالة التشغيلية',

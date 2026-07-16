@@ -106,7 +106,6 @@ export function ReportsSection() {
               {' — '}
               {medicalReport.activeTreatmentPlan.goals}
               {medicalReport.activeTreatmentPlan.reviewDate ? ` — ${formatDate(medicalReport.activeTreatmentPlan.reviewDate)}` : ''}
-              {ar.reports.reviewDateLabel ? null : null}
             </Text>
           ) : (
             <Text c="dimmed">{ar.reports.noActivePlanForReport}</Text>
