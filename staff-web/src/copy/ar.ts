@@ -30,7 +30,7 @@ export const ar = {
     complaintsLink: 'الشكاوى',
     adminReportsLink: 'التقارير الإدارية',
     staffAccountsLink: 'حسابات الطاقم',
-    myCliniciansLink: 'أخصائيوّ إشرافي',
+    myCliniciansLink: 'أخصائيو الإشراف',
     logoutButton: 'تسجيل الخروج',
     roles: {
       CLINICIAN: 'أخصائي',

@@ -333,7 +333,7 @@ export function SampleReviewSection() {
                 onChange={(e) => setTransferReason(e.currentTarget.value)}
               />
               <Group>
-                <Button onClick={handleTransfer} loading={transferring} disabled={!toUserId}>
+                <Button onClick={handleTransfer} loading={transferring} disabled={!toUserId || !transferReason.trim()}>
                   {ar.sampleReview.transferButton}
                 </Button>
               </Group>

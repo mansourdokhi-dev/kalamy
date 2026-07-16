@@ -42,7 +42,7 @@ export function StaffAccountsPage() {
         role: roleFilter ?? undefined,
         status: statusFilter ?? undefined,
       });
-      setAccounts(result);
+      setAccounts(result.filter((account) => account.role === 'CLINICIAN' || account.role === 'SUPERVISOR' || account.role === 'ADMIN'));
     } catch (err) {
       setError(err instanceof ApiError ? err.message : ar.errors.unexpected);
     }

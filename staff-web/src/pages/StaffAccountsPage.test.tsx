@@ -23,6 +23,17 @@ const clinicianRow = {
   createdAt: '2026-07-10T00:00:00.000Z',
 };
 
+const patientRow = {
+  id: 'patient-1',
+  fullName: 'مريض تجريبي',
+  mobile: '+966500000003',
+  email: null,
+  role: 'PATIENT' as const,
+  status: 'ACTIVE' as const,
+  mustChangePassword: false,
+  createdAt: '2026-07-08T00:00:00.000Z',
+};
+
 const supervisorRow = {
   id: 'supervisor-1',
   fullName: 'مشرف تجريبي',
@@ -147,6 +158,14 @@ describe('StaffAccountsPage', () => {
       expect(assignSupervisor).toHaveBeenCalledWith('clinician-1', 'supervisor-1');
       expect(screen.getByText('تم التعيين')).toBeTruthy();
     });
+  });
+
+  it('excludes PATIENT/CAREGIVER rows from the default (no role filter) view', async () => {
+    (listStaffAccounts as ReturnType<typeof vi.fn>).mockResolvedValue([patientRow, clinicianRow]);
+    renderPage('ADMIN');
+
+    await waitFor(() => expect(screen.getByTestId('staff-account-row-clinician-1')).toBeTruthy());
+    expect(screen.queryByText('مريض تجريبي')).toBeNull();
   });
 
   it('does not show the supervisor-assignment control for non-CLINICIAN rows', async () => {

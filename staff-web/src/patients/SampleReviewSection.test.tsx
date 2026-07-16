@@ -97,10 +97,11 @@ beforeEach(() => {
 describe('SampleReviewSection', () => {
   it('renders nothing for a SUPERVISOR when the cycle is not transfer-eligible', async () => {
     (getCurrentCycle as ReturnType<typeof vi.fn>).mockResolvedValue({ ...baseCycle, status: 'WAITING_FOR_SPECIALIST' });
-    const { container } = renderSection('SUPERVISOR');
+    renderSection('SUPERVISOR');
     await waitFor(() => {
-      expect(container.textContent).not.toContain('مراجعة العينة');
+      expect(screen.getByText('مراجعة العينة')).toBeTruthy();
     });
+    expect(screen.queryByText('نقل مسؤولية المراجعة')).toBeNull();
   });
 
   it('shows the transfer form for a SUPERVISOR when the cycle is transfer-eligible', async () => {
