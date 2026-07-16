@@ -8,12 +8,14 @@ import { getMe } from '../api/auth';
 import { getToken } from '../storage/session';
 import { getCurrentCycle } from '../api/cycles';
 import { getProgressDashboard, getPassedLevels } from '../api/progress';
+import { getAssessmentResultsReport, getMedicalReport } from '../api/reports';
 
 vi.mock('../api/patients');
 vi.mock('../api/auth');
 vi.mock('../storage/session');
 vi.mock('../api/cycles');
 vi.mock('../api/progress');
+vi.mock('../api/reports');
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -38,6 +40,10 @@ beforeEach(() => {
   // the section's own `.catch()` handles it and renders its error alert instead.
   (getProgressDashboard as ReturnType<typeof vi.fn>).mockRejectedValue(new Error('not mocked in this test'));
   (getPassedLevels as ReturnType<typeof vi.fn>).mockRejectedValue(new Error('not mocked in this test'));
+  // ReportsSection also chains `.then()`/`.catch()` un-awaited on a Promise.all of
+  // these two calls, so give both a rejected promise for the same reason as above.
+  (getAssessmentResultsReport as ReturnType<typeof vi.fn>).mockRejectedValue(new Error('not mocked in this test'));
+  (getMedicalReport as ReturnType<typeof vi.fn>).mockRejectedValue(new Error('not mocked in this test'));
 });
 
 function renderPage() {

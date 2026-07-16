@@ -5,6 +5,7 @@ import { PatientDetailProvider, usePatientDetail } from '../patients/PatientDeta
 import { ProfileSection } from '../patients/ProfileSection';
 import { AssessmentsSection } from '../patients/AssessmentsSection';
 import { TreatmentPlanSection } from '../patients/TreatmentPlanSection';
+import { ReportsSection } from '../patients/ReportsSection';
 import { SampleReviewSection } from '../patients/SampleReviewSection';
 import { ProgressSection } from '../patients/ProgressSection';
 
@@ -29,6 +30,7 @@ function PatientDetailContent() {
       <ProfileSection />
       <AssessmentsSection />
       <TreatmentPlanSection />
+      <ReportsSection />
       <SampleReviewSection />
       <ProgressSection />
     </Stack>
