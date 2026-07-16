@@ -226,6 +226,12 @@ export const ar = {
       ADMIN: 'مدير النظام',
     } as Record<string, string>,
     planStatuses: { ACTIVE: 'نشطة', INACTIVE: 'غير نشطة' } as Record<string, string>,
+    userStatuses: {
+      PENDING_VERIFICATION: 'بانتظار التحقق',
+      ACTIVE: 'نشط',
+      LOCKED: 'مقفل',
+      DISABLED: 'معطل',
+    } as Record<string, string>,
     cycleStatuses: {
       ACTIVE_LEVEL_TRAINING: 'تدريب المستوى النشط',
       SAMPLE_ELIGIBLE: 'مؤهل لتسجيل عينة',

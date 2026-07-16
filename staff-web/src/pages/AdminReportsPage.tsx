@@ -100,7 +100,7 @@ function RegisteredUsersTab() {
             <Table.Td>{row.fullName}</Table.Td>
             <Table.Td>{row.mobile}</Table.Td>
             <Table.Td>{ar.reports.roles[row.role] ?? row.role}</Table.Td>
-            <Table.Td>{ar.patients.statuses[row.status] ?? row.status}</Table.Td>
+            <Table.Td>{ar.reports.userStatuses[row.status] ?? row.status}</Table.Td>
             <Table.Td>{row.caseProgressSummary ?? '—'}</Table.Td>
           </Table.Tr>
         ))}
