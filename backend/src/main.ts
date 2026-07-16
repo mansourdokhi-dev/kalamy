@@ -5,8 +5,10 @@ import { NestExpressApplication } from '@nestjs/platform-express';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { cleanupOpenApiDoc } from 'nestjs-zod';
 import { AppModule } from './app.module';
+import { assertSafeBootConfig } from './boot-guard';
 
 async function bootstrap() {
+  assertSafeBootConfig();
   const app = await NestFactory.create<NestExpressApplication>(AppModule);
   app.enableCors();
 

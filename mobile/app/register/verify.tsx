@@ -35,7 +35,7 @@ export default function VerifyScreen() {
     <View style={[styles.container, { backgroundColor: tokens.colors.background }]}>
       <Text style={[styles.title, { color: tokens.colors.text }]}>{ar.verify.title}</Text>
       <Text style={[styles.subtitle, { color: tokens.colors.textSecondary }]}>{ar.verify.subtitle}</Text>
-      {devOtpCode ? (
+      {__DEV__ && devOtpCode ? (
         <View style={styles.devModeRow}>
           <Text style={[styles.devMode, { color: tokens.colors.textSecondary }]}>{ar.verify.devModeLabel}</Text>
           <Text style={[styles.devMode, { color: tokens.colors.textSecondary }]}>{devOtpCode}</Text>
