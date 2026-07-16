@@ -20,9 +20,31 @@ describe('reports API functions', () => {
     (apiRequest as ReturnType<typeof vi.fn>).mockResolvedValue([]);
   });
 
-  it('getAssessmentResultsReport fetches the patient-scoped endpoint', async () => {
-    await getAssessmentResultsReport('patient-1');
+  it('getAssessmentResultsReport fetches the patient-scoped endpoint and unwraps the assessments array', async () => {
+    (apiRequest as ReturnType<typeof vi.fn>).mockResolvedValue({ patientProfileId: 'patient-1', assessments: [] });
+    const result = await getAssessmentResultsReport('patient-1');
     expect(apiRequest).toHaveBeenCalledWith('/api/v1/reports/patients/patient-1/assessment-results', { auth: true });
+    expect(result).toEqual([]);
+  });
+
+  it('getAssessmentResultsReport unwraps a non-empty assessments array', async () => {
+    const assessments = [
+      {
+        id: 'a1',
+        type: 'INITIAL',
+        status: 'APPROVED',
+        ssi4Frequency: 10,
+        ssi4Duration: 5,
+        ssi4PhysicalConcomitants: 2,
+        ssi4Total: 17,
+        severityCategory: 'MODERATE',
+        approvedAt: '2026-01-01T00:00:00.000Z',
+        createdAt: '2025-12-01T00:00:00.000Z',
+      },
+    ];
+    (apiRequest as ReturnType<typeof vi.fn>).mockResolvedValue({ patientProfileId: 'patient-1', assessments });
+    const result = await getAssessmentResultsReport('patient-1');
+    expect(result).toEqual(assessments);
   });
 
   it('getMedicalReport fetches the patient-scoped endpoint', async () => {

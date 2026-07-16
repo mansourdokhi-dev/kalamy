@@ -14,8 +14,14 @@ export interface AssessmentResultsReportRow {
   createdAt: string;
 }
 
-export function getAssessmentResultsReport(patientId: string): Promise<AssessmentResultsReportRow[]> {
-  return apiRequest<AssessmentResultsReportRow[]>(`/api/v1/reports/patients/${patientId}/assessment-results`, { auth: true });
+interface AssessmentResultsReportResponse {
+  patientProfileId: string;
+  assessments: AssessmentResultsReportRow[];
+}
+
+export async function getAssessmentResultsReport(patientId: string): Promise<AssessmentResultsReportRow[]> {
+  const response = await apiRequest<AssessmentResultsReportResponse>(`/api/v1/reports/patients/${patientId}/assessment-results`, { auth: true });
+  return response.assessments;
 }
 
 export interface MedicalReport {
@@ -66,7 +72,7 @@ export interface RegisteredUserSummary {
   role: string;
   status: string;
   createdAt: string;
-  caseProgressSummary: string;
+  caseProgressSummary: string | null;
 }
 
 export function getRegisteredUsersReport(): Promise<RegisteredUserSummary[]> {
@@ -78,7 +84,7 @@ export interface ServiceModificationLogEntry {
   action: string;
   entity: string;
   entityId: string;
-  actorFullName: string;
+  actorFullName: string | null;
   actorRole: string;
   createdAt: string;
 }

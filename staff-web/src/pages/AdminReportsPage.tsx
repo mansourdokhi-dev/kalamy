@@ -101,7 +101,7 @@ function RegisteredUsersTab() {
             <Table.Td>{row.mobile}</Table.Td>
             <Table.Td>{ar.reports.roles[row.role] ?? row.role}</Table.Td>
             <Table.Td>{ar.patients.statuses[row.status] ?? row.status}</Table.Td>
-            <Table.Td>{row.caseProgressSummary}</Table.Td>
+            <Table.Td>{row.caseProgressSummary ?? '—'}</Table.Td>
           </Table.Tr>
         ))}
       </Table.Tbody>
@@ -158,7 +158,7 @@ function ServiceModificationsTab() {
               <Table.Tr key={row.id} data-testid={`service-modification-row-${row.id}`}>
                 <Table.Td>{row.action}</Table.Td>
                 <Table.Td>{row.entity}</Table.Td>
-                <Table.Td>{row.actorFullName}</Table.Td>
+                <Table.Td>{row.actorFullName ?? '—'}</Table.Td>
                 <Table.Td>{formatDate(row.createdAt)}</Table.Td>
               </Table.Tr>
             ))}
