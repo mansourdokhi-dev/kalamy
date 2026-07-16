@@ -1,8 +1,9 @@
 import { createZodDto } from 'nestjs-zod';
 import { z } from 'zod';
+import { recordingUrlSchema } from './recording-url.schema';
 
 export const RecordAttemptSchema = z.object({
-  recordingUrl: z.string().min(1),
+  recordingUrl: recordingUrlSchema,
   mimeType: z.string().min(1),
   fileSizeBytes: z.number().int().positive(),
   durationSeconds: z.number().int().positive().optional(),

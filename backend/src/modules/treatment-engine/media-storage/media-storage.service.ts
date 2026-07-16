@@ -1,6 +1,6 @@
-import { Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable } from '@nestjs/common';
 import { createReadStream, mkdirSync, ReadStream, unlink } from 'fs';
-import { join } from 'path';
+import { join, resolve, sep } from 'path';
 import { promisify } from 'util';
 
 const unlinkAsync = promisify(unlink);
@@ -25,13 +25,25 @@ export class LocalDiskMediaStorageService extends MediaStorageService {
     return this.uploadDir;
   }
 
+  // Resolves `filename` against the upload directory and asserts the result still
+  // lives inside it. Defense-in-depth against a path-traversal filename (e.g.
+  // `../../.env`) reaching the filesystem, regardless of what validation callers
+  // perform upstream (the DTO layer also restricts recordingUrl to a UUID+extension).
+  private resolveSafePath(filename: string): string {
+    const resolved = resolve(this.uploadDir, filename);
+    if (!resolved.startsWith(this.uploadDir + sep)) {
+      throw new BadRequestException('Invalid file reference');
+    }
+    return resolved;
+  }
+
   createReadStream(filename: string): ReadStream {
-    return createReadStream(join(this.uploadDir, filename));
+    return createReadStream(this.resolveSafePath(filename));
   }
 
   async delete(filename: string): Promise<void> {
     try {
-      await unlinkAsync(join(this.uploadDir, filename));
+      await unlinkAsync(this.resolveSafePath(filename));
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
         throw error;

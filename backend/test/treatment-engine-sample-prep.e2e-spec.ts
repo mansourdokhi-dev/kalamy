@@ -390,6 +390,15 @@ describe('Treatment Engine — Sample preparation (e2e)', () => {
       expect(response.status).toBe(400);
     });
 
+    it('rejects a path-traversal recordingUrl instead of storing it', async () => {
+      const response = await request(app.getHttpServer())
+        .post(`/api/v1/patients/${patientId}/cycles/current/sample-session/attempts`)
+        .set('Authorization', `Bearer ${patientToken}`)
+        .send({ recordingUrl: '../../../../../../etc/passwd', mimeType: 'video/mp4', fileSizeBytes: 100, durationSeconds: 5 });
+
+      expect(response.status).toBe(400);
+    });
+
     it('streams an attempt recording via the authenticated media endpoint', async () => {
       const createResponse = await request(app.getHttpServer())
         .post(`/api/v1/patients/${patientId}/cycles/current/sample-session/attempts`)

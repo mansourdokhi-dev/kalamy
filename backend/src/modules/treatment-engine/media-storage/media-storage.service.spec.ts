@@ -50,4 +50,16 @@ describe('LocalDiskMediaStorageService', () => {
   it('does not throw when deleting a file that does not exist', async () => {
     await expect(service.delete('never-existed.mp4')).resolves.toBeUndefined();
   });
+
+  it('rejects a path-traversal filename on createReadStream instead of escaping the upload directory', () => {
+    expect(() => service.createReadStream('../../../../../../etc/passwd')).toThrow('Invalid file reference');
+  });
+
+  it('rejects a path-traversal filename on delete instead of escaping the upload directory', async () => {
+    await expect(service.delete('../../../../../../etc/passwd')).rejects.toThrow('Invalid file reference');
+  });
+
+  it('rejects an absolute path filename', () => {
+    expect(() => service.createReadStream('/etc/passwd')).toThrow('Invalid file reference');
+  });
 });
