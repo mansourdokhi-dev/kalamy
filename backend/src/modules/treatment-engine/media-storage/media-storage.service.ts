@@ -28,7 +28,8 @@ export class LocalDiskMediaStorageService extends MediaStorageService {
   // Resolves `filename` against the upload directory and asserts the result still
   // lives inside it. Defense-in-depth against a path-traversal filename (e.g.
   // `../../.env`) reaching the filesystem, regardless of what validation callers
-  // perform upstream (the DTO layer also restricts recordingUrl to a UUID+extension).
+  // perform upstream (the DTO layer also rejects any path separator or bare
+  // "."/".." segment in recordingUrl — see recording-url.schema.ts).
   private resolveSafePath(filename: string): string {
     const resolved = resolve(this.uploadDir, filename);
     if (!resolved.startsWith(this.uploadDir + sep)) {
