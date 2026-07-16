@@ -199,17 +199,22 @@ export class AuthService {
   }
 
   async resetPassword(dto: ResetPasswordDto): Promise<void> {
+    // Every failure path below — unregistered mobile, no OTP ever issued,
+    // OTP expired, too many attempts, or a genuinely wrong code for a real
+    // OTP — throws this exact same generic message. Earlier this only
+    // special-cased the unregistered-mobile branch against a bare "no OTP
+    // exists" failure; it missed that otpService.verify's per-reason message
+    // (e.g. "INCORRECT_CODE" for a real, issued OTP) still let an attacker
+    // call forgot-password then reset-password with a throwaway code and
+    // read the reason back to learn whether the number is registered.
+    const genericFailureMessage = 'Invalid or expired reset code';
     const user = await this.prisma.user.findUnique({ where: { mobile: dto.mobile } });
     if (!user) {
-      // Deliberately give the exact same response as an OTP-verification
-      // failure (matches forgotPassword's identical rationale) — a
-      // distinguishable 404 here would let an unauthenticated caller
-      // enumerate registered mobile numbers via this endpoint.
-      throw new UnauthorizedException('OTP verification failed: NOT_FOUND');
+      throw new UnauthorizedException(genericFailureMessage);
     }
     const result = await this.otpService.verify(user.id, OtpPurpose.PASSWORD_RESET, dto.code);
     if (!result.ok) {
-      throw new UnauthorizedException(`OTP verification failed: ${result.reason}`);
+      throw new UnauthorizedException(genericFailureMessage);
     }
     const passwordHash = await this.passwordService.hash(dto.newPassword);
     await this.prisma.user.update({

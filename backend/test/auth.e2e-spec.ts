@@ -381,7 +381,7 @@ describe('Auth: password reset', () => {
     expect(loginWithNewPassword.status).toBe(200);
   });
 
-  it('gives the same response for reset-password on an unregistered mobile as on a wrong code for a registered one (no enumeration)', async () => {
+  it('gives the same response for an unregistered mobile as for a registered one with no OTP issued yet (no enumeration)', async () => {
     await registerAndActivate('+966500000041', 'some-password1');
 
     const unregisteredResponse = await request(app.getHttpServer()).post('/api/v1/auth/reset-password').send({
@@ -390,14 +390,42 @@ describe('Auth: password reset', () => {
       newPassword: 'whatever-password1',
     });
 
-    const wrongCodeResponse = await request(app.getHttpServer()).post('/api/v1/auth/reset-password').send({
+    const noOtpIssuedResponse = await request(app.getHttpServer()).post('/api/v1/auth/reset-password').send({
       mobile: '+966500000041',
       code: '000000',
       newPassword: 'whatever-password1',
     });
 
-    expect(unregisteredResponse.status).toBe(wrongCodeResponse.status);
-    expect(unregisteredResponse.body.message).toBe(wrongCodeResponse.body.message);
+    expect(unregisteredResponse.status).toBe(noOtpIssuedResponse.status);
+    expect(unregisteredResponse.body.message).toBe(noOtpIssuedResponse.body.message);
+  });
+
+  it('gives the same response for an unregistered mobile as for a registered one with a real OTP issued and a wrong code submitted (no enumeration)', async () => {
+    // This is the scenario the previous fix missed: forgot-password actually
+    // issues a real OTP for a registered number, so otpService.verify's
+    // failure reason for a wrong code (INCORRECT_CODE) differs from the
+    // no-OTP-exists case (NOT_FOUND) — if that reason ever leaks into the
+    // client-facing message, an attacker can call forgot-password then
+    // reset-password with a throwaway code and read the reason back to learn
+    // whether the number is registered, even though forgot-password's own
+    // response never reveals it directly.
+    await registerAndActivate('+966500000042', 'some-password1');
+    await request(app.getHttpServer()).post('/api/v1/auth/forgot-password').send({ mobile: '+966500000042' });
+
+    const unregisteredResponse = await request(app.getHttpServer()).post('/api/v1/auth/reset-password').send({
+      mobile: '+966500000097',
+      code: '000000',
+      newPassword: 'whatever-password1',
+    });
+
+    const wrongCodeAfterRealOtpResponse = await request(app.getHttpServer()).post('/api/v1/auth/reset-password').send({
+      mobile: '+966500000042',
+      code: '000000',
+      newPassword: 'whatever-password1',
+    });
+
+    expect(unregisteredResponse.status).toBe(wrongCodeAfterRealOtpResponse.status);
+    expect(unregisteredResponse.body.message).toBe(wrongCodeAfterRealOtpResponse.body.message);
   });
 });
 
