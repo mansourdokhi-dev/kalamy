@@ -6,20 +6,24 @@ import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { cleanupOpenApiDoc } from 'nestjs-zod';
 import { AppModule } from './app.module';
 import { assertSafeBootConfig } from './boot-guard';
+import { shouldExposeSwaggerDocs } from './swagger-gate';
+import { resolveAllowedOrigins } from './cors-config';
 
 async function bootstrap() {
   assertSafeBootConfig();
   const app = await NestFactory.create<NestExpressApplication>(AppModule);
-  app.enableCors();
+  app.enableCors({ origin: resolveAllowedOrigins() });
 
-  const config = new DocumentBuilder()
-    .setTitle('Kalamy API')
-    .setDescription('Kalamy foundation: Auth + Patient Profile, Assessment, Treatment Plan, Exercise Library, Treatment Engine (Levels, 72-Hour Cycles, Samples, Specialist Review), Progress, Reports, Complaints, Administration, Consultations, and Notifications modules')
-    .setVersion('0.1.0')
-    .addBearerAuth()
-    .build();
-  const document = SwaggerModule.createDocument(app, config);
-  SwaggerModule.setup('api/docs', app, cleanupOpenApiDoc(document));
+  if (shouldExposeSwaggerDocs()) {
+    const config = new DocumentBuilder()
+      .setTitle('Kalamy API')
+      .setDescription('Kalamy foundation: Auth + Patient Profile, Assessment, Treatment Plan, Exercise Library, Treatment Engine (Levels, 72-Hour Cycles, Samples, Specialist Review), Progress, Reports, Complaints, Administration, Consultations, and Notifications modules')
+      .setVersion('0.1.0')
+      .addBearerAuth()
+      .build();
+    const document = SwaggerModule.createDocument(app, config);
+    SwaggerModule.setup('api/docs', app, cleanupOpenApiDoc(document));
+  }
 
   const port = process.env.PORT ? Number(process.env.PORT) : 3000;
   await app.listen(port);
