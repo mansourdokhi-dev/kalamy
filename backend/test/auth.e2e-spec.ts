@@ -380,6 +380,25 @@ describe('Auth: password reset', () => {
       .send({ mobile: '+966500000040', password: 'new-password2' });
     expect(loginWithNewPassword.status).toBe(200);
   });
+
+  it('gives the same response for reset-password on an unregistered mobile as on a wrong code for a registered one (no enumeration)', async () => {
+    await registerAndActivate('+966500000041', 'some-password1');
+
+    const unregisteredResponse = await request(app.getHttpServer()).post('/api/v1/auth/reset-password').send({
+      mobile: '+966500000098',
+      code: '000000',
+      newPassword: 'whatever-password1',
+    });
+
+    const wrongCodeResponse = await request(app.getHttpServer()).post('/api/v1/auth/reset-password').send({
+      mobile: '+966500000041',
+      code: '000000',
+      newPassword: 'whatever-password1',
+    });
+
+    expect(unregisteredResponse.status).toBe(wrongCodeResponse.status);
+    expect(unregisteredResponse.body.message).toBe(wrongCodeResponse.body.message);
+  });
 });
 
 describe('Auth: mustChangePassword + change-password', () => {

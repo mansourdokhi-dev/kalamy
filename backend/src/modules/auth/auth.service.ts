@@ -201,7 +201,11 @@ export class AuthService {
   async resetPassword(dto: ResetPasswordDto): Promise<void> {
     const user = await this.prisma.user.findUnique({ where: { mobile: dto.mobile } });
     if (!user) {
-      throw new NotFoundException('User not found');
+      // Deliberately give the exact same response as an OTP-verification
+      // failure (matches forgotPassword's identical rationale) — a
+      // distinguishable 404 here would let an unauthenticated caller
+      // enumerate registered mobile numbers via this endpoint.
+      throw new UnauthorizedException('OTP verification failed: NOT_FOUND');
     }
     const result = await this.otpService.verify(user.id, OtpPurpose.PASSWORD_RESET, dto.code);
     if (!result.ok) {
