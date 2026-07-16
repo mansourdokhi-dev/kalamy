@@ -23,6 +23,16 @@ export function shouldSkipThrottling(env: NodeJS.ProcessEnv = process.env): bool
   return env.NODE_ENV === 'test';
 }
 
+// DEPLOYMENT NOTE: this throttle keys on req.ip, which Express derives from the
+// raw socket address unless `app.set('trust proxy', ...)` is configured. Deployed
+// behind a reverse proxy or load balancer (the expected production setup), every
+// request will appear to originate from the proxy's single IP, collapsing the
+// per-IP limit into one shared bucket for all real users. Whoever wires up the
+// production deployment must set Express's `trust proxy` to match the actual
+// proxy topology (e.g. the number of trusted hops, or the proxy's IP/CIDR) so
+// `req.ip` reflects the real client address — never set it to `true` blindly,
+// since that trusts a client-supplied X-Forwarded-For header and lets an
+// attacker spoof their way around the limit entirely.
 export function buildThrottlerOptions(env: NodeJS.ProcessEnv = process.env): AppThrottlerOptions {
   return {
     throttlers: [{ limit: 60, ttl: minutes(1) }],

@@ -158,4 +158,42 @@ describe('Reports: patient-scoped (assessment results, medical)', () => {
     expect(response.status).toBe(200);
     expect(response.body.activeTreatmentPlan).not.toBeNull();
   });
+
+  it('logs who viewed the assessment results report (a PHI-marked GET)', async () => {
+    const clinicianToken = await createClinicianToken('+966500001012', 'password123');
+    const clinicianUser = await prisma.user.findUniqueOrThrow({ where: { mobile: '+966500001012' } });
+    const { profileId, patientToken } = await setUpPatientWithApprovedAssessmentAndPlan(clinicianToken, '+966500001013', 'REP-TEST-6');
+
+    await request(app.getHttpServer())
+      .get(`/api/v1/reports/patients/${profileId}/assessment-results`)
+      .set('Authorization', `Bearer ${patientToken}`)
+      .expect(200);
+
+    const logs = await prisma.auditLog.findMany({
+      where: { action: `GET /api/v1/reports/patients/${profileId}/assessment-results` },
+    });
+    expect(logs).toHaveLength(1);
+    expect(logs[0].userId).not.toBe(clinicianUser.id);
+    expect(logs[0].entityId).toBe(profileId);
+    expect(logs[0].entity).toBe('reports');
+  });
+
+  it('logs who viewed the medical report (a PHI-marked GET)', async () => {
+    const clinicianToken = await createClinicianToken('+966500001014', 'password123');
+    const { profileId } = await setUpPatientWithApprovedAssessmentAndPlan(clinicianToken, '+966500001015', 'REP-TEST-7');
+    const clinicianUser = await prisma.user.findUniqueOrThrow({ where: { mobile: '+966500001014' } });
+
+    await request(app.getHttpServer())
+      .get(`/api/v1/reports/patients/${profileId}/medical`)
+      .set('Authorization', `Bearer ${clinicianToken}`)
+      .expect(200);
+
+    const logs = await prisma.auditLog.findMany({
+      where: { action: `GET /api/v1/reports/patients/${profileId}/medical` },
+    });
+    expect(logs).toHaveLength(1);
+    expect(logs[0].userId).toBe(clinicianUser.id);
+    expect(logs[0].entityId).toBe(profileId);
+    expect(logs[0].entity).toBe('reports');
+  });
 });

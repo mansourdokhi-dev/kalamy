@@ -5,6 +5,7 @@ import { CurrentUser } from '../../common/auth/current-user.decorator';
 import { PermissionsGuard } from '../../common/rbac/permissions.guard';
 import { RequirePermission } from '../../common/rbac/require-permission.decorator';
 import { Permission } from '../../common/rbac/permissions';
+import { AuditPhiRead } from '../../common/audit/audit-phi-read.decorator';
 
 @Controller('api/v1/reports')
 @UseGuards(SessionGuard, PermissionsGuard)
@@ -13,12 +14,14 @@ export class ReportsController {
 
   @Get('patients/:patientId/assessment-results')
   @RequirePermission(Permission.VIEW_PATIENT_REPORTS)
+  @AuditPhiRead()
   getAssessmentResultsReport(@Param('patientId') patientId: string, @CurrentUser() user: AuthenticatedUser) {
     return this.reportsService.getAssessmentResultsReport(patientId, user);
   }
 
   @Get('patients/:patientId/medical')
   @RequirePermission(Permission.VIEW_PATIENT_REPORTS)
+  @AuditPhiRead()
   getMedicalReport(@Param('patientId') patientId: string, @CurrentUser() user: AuthenticatedUser) {
     return this.reportsService.getMedicalReport(patientId, user);
   }
