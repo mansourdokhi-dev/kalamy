@@ -9,6 +9,7 @@ import { CurrentUser } from '../../common/auth/current-user.decorator';
 import { PermissionsGuard } from '../../common/rbac/permissions.guard';
 import { RequirePermission } from '../../common/rbac/require-permission.decorator';
 import { Permission } from '../../common/rbac/permissions';
+import { AuditPhiRead } from '../../common/audit/audit-phi-read.decorator';
 
 @Controller('api/v1/patients')
 @UseGuards(SessionGuard, PermissionsGuard)
@@ -35,6 +36,7 @@ export class PatientsController {
 
   @Get(':id')
   @RequirePermission(Permission.VIEW_PATIENT_PROFILE)
+  @AuditPhiRead()
   findOne(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
     return this.patientsService.findById(id, user);
   }

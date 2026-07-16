@@ -83,6 +83,55 @@ describe('Sample part media', () => {
     expect(response.status).toBe(404);
   });
 
+  it('logs who accessed a submitted sample recording (a PHI-marked GET)', async () => {
+    const clinician = await registerActivateAndLogin(app, prisma, '+966500000212', 'CLINICIAN');
+    const patient = await registerActivateAndLogin(app, prisma, '+966500000213', 'PATIENT');
+
+    const patientProfile = await prisma.patientProfile.create({
+      data: { userId: patient.userId, fullName: 'Media Audit Test Patient', gender: 'MALE', dateOfBirth: new Date('1995-01-01'), nationalId: 'MEDIA-AUDIT-1' },
+    });
+    const level = await prisma.level.create({ data: { name: 'Media Audit Test Level', order: 9002 } });
+    const levelVersion = await prisma.levelVersion.create({
+      data: { levelId: level.id, versionNumber: 1, behavioralTechnique: 'x', trainingListJson: '[]', samplePartTemplateJson: '[]', publishedAt: new Date() },
+    });
+    const plan = await prisma.treatmentPlan.create({
+      data: {
+        patientProfileId: patientProfile.id,
+        clinicianUserId: clinician.userId,
+        assessmentId: (
+          await prisma.assessment.create({
+            data: { patientProfileId: patientProfile.id, clinicianUserId: clinician.userId, type: 'INITIAL', status: 'APPROVED', approvedAt: new Date() },
+          })
+        ).id,
+        goals: 'x',
+        reviewDate: new Date(),
+      },
+    });
+    const cycle = await prisma.trainingCycle72h.create({
+      data: { patientProfileId: patientProfile.id, treatmentPlanId: plan.id, levelId: level.id, levelVersionId: levelVersion.id, cycleNumber: 1 },
+    });
+    const sample = await prisma.speechSample.create({ data: { trainingCycleId: cycle.id } });
+    // recordingUrl doesn't need to point at a real file on disk: the handler
+    // completes (and the interceptor logs) as soon as it calls stream.pipe(res);
+    // the file-not-found error surfaces asynchronously afterward on the stream
+    // itself (same reasoning as the existing sample-prep e2e coverage).
+    const part = await prisma.sampleSamplePart.create({
+      data: { speechSampleId: sample.id, partType: 'word', label: 'Test Part', order: 1, recordingUrl: 'does-not-exist-on-disk.mp4', mimeType: 'video/mp4' },
+    });
+
+    await request(app.getHttpServer())
+      .get(`/api/v1/patients/${patientProfile.id}/sample-parts/${part.id}/media`)
+      .set('Authorization', `Bearer ${clinician.token}`);
+
+    const logs = await prisma.auditLog.findMany({
+      where: { action: `GET /api/v1/patients/${patientProfile.id}/sample-parts/${part.id}/media` },
+    });
+    expect(logs).toHaveLength(1);
+    expect(logs[0].userId).toBe(clinician.userId);
+    expect(logs[0].entityId).toBe(patientProfile.id);
+    expect(logs[0].entity).toBe('samplemedia');
+  });
+
   it('rejects a role without VIEW_CYCLE from streaming part media', async () => {
     // No role in this system lacks VIEW_CYCLE among staff/patient/caregiver, so instead
     // confirm the permission guard is present by checking an unauthenticated request is rejected.

@@ -1,8 +1,10 @@
 import { CallHandler, ExecutionContext, Injectable, NestInterceptor } from '@nestjs/common';
+import { Reflector } from '@nestjs/core';
 import { Prisma } from '@prisma/client';
 import { Observable, concatMap } from 'rxjs';
 import { PrismaService } from '../../prisma/prisma.service';
 import { AuthenticatedUser } from '../auth/session.guard';
+import { AUDIT_PHI_READ_KEY } from './audit-phi-read.decorator';
 
 const MUTATING_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
 
@@ -36,18 +38,27 @@ interface AuditableRequest {
   url: string;
   user?: AuthenticatedUser;
   body: unknown;
+  params?: Record<string, string>;
 }
 
 // "before" stores the request payload (what was asked for), "after" stores the
 // resulting response body (what actually happened) — not a database pre/post diff.
+// PHI-read routes (see audit-phi-read.decorator.ts) get a lightweight entry
+// instead: no before/after body (some are raw media streams, not JSON, and even
+// the JSON ones could mean storing a patient's full clinical record a second
+// time inside the audit log itself) — just who accessed which resource, when.
 @Injectable()
 export class AuditInterceptor implements NestInterceptor {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly reflector: Reflector,
+  ) {}
 
   intercept(context: ExecutionContext, next: CallHandler): Observable<unknown> {
     const request = context.switchToHttp().getRequest<AuditableRequest>();
+    const isPhiRead = this.reflector.getAllAndOverride<boolean>(AUDIT_PHI_READ_KEY, [context.getHandler(), context.getClass()]);
 
-    if (!MUTATING_METHODS.has(request.method)) {
+    if (!MUTATING_METHODS.has(request.method) && !isPhiRead) {
       return next.handle();
     }
 
@@ -57,19 +68,30 @@ export class AuditInterceptor implements NestInterceptor {
       concatMap(async (responseBody) => {
         await this.prisma.auditLog
           .create({
-            data: {
-              userId: request.user?.id,
-              action: `${request.method} ${request.url}`,
-              entity,
-              entityId: this.extractEntityId(responseBody),
-              before: this.toJson(request.body),
-              after: this.toJson(responseBody),
-            },
+            data: isPhiRead
+              ? {
+                  userId: request.user?.id,
+                  action: `${request.method} ${request.url}`,
+                  entity,
+                  entityId: this.extractReadEntityId(request),
+                }
+              : {
+                  userId: request.user?.id,
+                  action: `${request.method} ${request.url}`,
+                  entity,
+                  entityId: this.extractEntityId(responseBody),
+                  before: this.toJson(request.body),
+                  after: this.toJson(responseBody),
+                },
           })
           .catch(() => undefined);
         return responseBody;
       }),
     );
+  }
+
+  private extractReadEntityId(request: AuditableRequest): string | undefined {
+    return request.params?.patientId ?? request.params?.id;
   }
 
   /**

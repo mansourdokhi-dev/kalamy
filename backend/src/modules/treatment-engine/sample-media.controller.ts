@@ -5,6 +5,7 @@ import { CurrentUser } from '../../common/auth/current-user.decorator';
 import { PermissionsGuard } from '../../common/rbac/permissions.guard';
 import { RequirePermission } from '../../common/rbac/require-permission.decorator';
 import { Permission } from '../../common/rbac/permissions';
+import { AuditPhiRead } from '../../common/audit/audit-phi-read.decorator';
 import { PrismaService } from '../../prisma/prisma.service';
 import { PatientAccessService } from '../../common/patient-access/patient-access.service';
 import { MediaStorageService } from './media-storage/media-storage.service';
@@ -20,6 +21,7 @@ export class SampleMediaController {
 
   @Get(':partId/media')
   @RequirePermission(Permission.VIEW_CYCLE)
+  @AuditPhiRead()
   async streamPartMedia(
     @Param('patientId') patientId: string,
     @Param('partId') partId: string,
