@@ -1,5 +1,5 @@
 import { apiRequest } from './client';
-import { listAvailableSamples, reserveSample, reviewSample, requestIntervention, completeIntervention } from './specialist-review';
+import { listAvailableSamples, reserveSample, reviewSample, requestIntervention, completeIntervention, transferReviewResponsibility } from './specialist-review';
 
 vi.mock('./client', async () => {
   const actual = await vi.importActual<typeof import('./client')>('./client');
@@ -50,6 +50,16 @@ describe('specialist-review API functions', () => {
       method: 'POST',
       auth: true,
       body: { outcomeNotes: 'observed session, improving' },
+    });
+  });
+
+  it('transferReviewResponsibility POSTs the transfer endpoint with toUserId and reason', async () => {
+    (apiRequest as ReturnType<typeof vi.fn>).mockResolvedValue({ id: 'sample-1', reservedByUserId: 'clinician-2' });
+    await transferReviewResponsibility('cycle-1', { toUserId: 'clinician-2', reason: 'إجازة طارئة' });
+    expect(apiRequest).toHaveBeenCalledWith('/api/v1/specialist-review/cycles/cycle-1/transfer', {
+      method: 'POST',
+      auth: true,
+      body: { toUserId: 'clinician-2', reason: 'إجازة طارئة' },
     });
   });
 });

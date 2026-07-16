@@ -55,3 +55,16 @@ export function completeIntervention(cycleId: string, input: CompleteInterventio
     body: input,
   });
 }
+
+export interface TransferReviewInput {
+  toUserId: string;
+  reason: string;
+}
+
+export function transferReviewResponsibility(cycleId: string, input: TransferReviewInput): Promise<SpeechSample> {
+  return apiRequest<SpeechSample>(`/api/v1/specialist-review/cycles/${cycleId}/transfer`, {
+    method: 'POST',
+    auth: true,
+    body: input,
+  });
+}
