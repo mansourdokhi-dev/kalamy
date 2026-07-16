@@ -84,10 +84,21 @@ export class AdminUsersService {
 
   async updateStatus(id: string, dto: UpdateUserStatusDto): Promise<StaffAccountSummary> {
     await this.findById(id);
-    return this.prisma.user.update({
+    const updated = await this.prisma.user.update({
       where: { id },
       data: { status: dto.status },
       select: STAFF_ACCOUNT_SUMMARY_SELECT,
     });
+    // A disabled account must lose access immediately, not just block future
+    // logins — otherwise an already-issued token keeps working for up to the
+    // full session TTL after an admin disables it. Mirrors the revocation
+    // already done on password reset (auth.service.ts resetPassword).
+    if (dto.status !== 'ACTIVE') {
+      await this.prisma.session.updateMany({
+        where: { userId: id, revokedAt: null },
+        data: { revokedAt: new Date() },
+      });
+    }
+    return updated;
   }
 }

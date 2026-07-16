@@ -248,6 +248,37 @@ describe('Admin Users: list, view, enable/disable', () => {
     expect(enableResponse.body.status).toBe('ACTIVE');
   });
 
+  it('revokes an already-issued session token immediately when the account is disabled', async () => {
+    const adminToken = await createAdminToken('+966500002307', 'password123');
+    const createResponse = await request(app.getHttpServer())
+      .post('/api/v1/admin/staff')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ fullName: 'To Disable While Logged In', mobile: '+966500002308', password: 'password123', role: 'CLINICIAN' });
+
+    // The target user logs in BEFORE being disabled, so their token is already
+    // issued and would otherwise remain valid for the full session TTL.
+    const targetLogin = await request(app.getHttpServer())
+      .post('/api/v1/auth/login')
+      .send({ mobile: '+966500002308', password: 'password123' });
+    const targetToken = targetLogin.body.token;
+
+    const meBeforeDisable = await request(app.getHttpServer())
+      .get('/api/v1/auth/me')
+      .set('Authorization', `Bearer ${targetToken}`);
+    expect(meBeforeDisable.status).toBe(200);
+
+    await request(app.getHttpServer())
+      .patch(`/api/v1/admin/users/${createResponse.body.id}/status`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ status: 'DISABLED' })
+      .expect(200);
+
+    const meAfterDisable = await request(app.getHttpServer())
+      .get('/api/v1/auth/me')
+      .set('Authorization', `Bearer ${targetToken}`);
+    expect(meAfterDisable.status).toBe(401);
+  });
+
   it('rejects a non-ADMIN listing users', async () => {
     const clinicianRegister = await request(app.getHttpServer()).post('/api/v1/auth/register').send({
       fullName: 'Clinician User',

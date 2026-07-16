@@ -27,6 +27,14 @@ export class SessionGuard implements CanActivate {
     if (!session || session.revokedAt || session.expiresAt < new Date()) {
       throw new UnauthorizedException('Invalid or expired session');
     }
+    // Defense-in-depth: re-check the account's own status on every request, not
+    // just at login. Session revocation is the primary mechanism (see
+    // AdminUsersService.updateStatus), but this guarantees a disabled/locked
+    // account loses access immediately even if some future code path forgets
+    // to revoke sessions explicitly.
+    if (session.user.status !== 'ACTIVE') {
+      throw new UnauthorizedException('Invalid or expired session');
+    }
 
     request.user = { id: session.user.id, role: session.user.role, sessionId: session.id };
     return true;
