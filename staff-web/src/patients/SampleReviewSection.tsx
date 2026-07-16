@@ -3,10 +3,12 @@ import { Card, Title, Text, Stack, Group, Select, NumberInput, Textarea, Button,
 import { ar } from '../copy/ar';
 import { usePatientDetail } from './PatientDetailContext';
 import { useAuth } from '../auth/AuthProvider';
-import { canReviewSample } from '../auth/permissions';
+import { canReviewSample, canTransferReview } from '../auth/permissions';
 import { getCurrentCycle } from '../api/cycles';
 import type { TrainingCycle, SpecialistDecision, InterventionType } from '../api/cycles';
-import { reviewSample, requestIntervention, completeIntervention } from '../api/specialist-review';
+import { reviewSample, requestIntervention, completeIntervention, transferReviewResponsibility } from '../api/specialist-review';
+import { listMyClinicians } from '../api/supervision';
+import type { ClinicianWithSupervisor } from '../api/supervision';
 import { fetchSampleMediaBlob } from '../api/sample-media';
 import { ApiError } from '../api/client';
 
@@ -26,6 +28,10 @@ const REVIEW_RELEVANT_STATUSES = new Set([
 // decision form itself doesn't render for them — submitting from either
 // would 409 on the backend.
 const DECISION_SUBMITTABLE_STATUSES = new Set(['UNDER_REVIEW', 'WAITING_FINAL_DECISION_AFTER_INTERVENTION']);
+
+// Mirrors the backend's own status guard in `transferResponsibility()`
+// (`specialist-review.service.ts`) exactly.
+const TRANSFER_ELIGIBLE_STATUSES = new Set(['UNDER_REVIEW', 'DIRECT_INTERVENTION_REQUIRED', 'WAITING_FINAL_DECISION_AFTER_INTERVENTION']);
 
 export function SampleReviewSection() {
   const { patient } = usePatientDetail();
@@ -52,6 +58,12 @@ export function SampleReviewSection() {
   const [completingIntervention, setCompletingIntervention] = useState(false);
   const [interventionError, setInterventionError] = useState<string | null>(null);
 
+  const [clinicians, setClinicians] = useState<ClinicianWithSupervisor[] | null>(null);
+  const [toUserId, setToUserId] = useState<string | null>(null);
+  const [transferReason, setTransferReason] = useState('');
+  const [transferring, setTransferring] = useState(false);
+  const [transferError, setTransferError] = useState<string | null>(null);
+
   const mediaUrlsRef = useRef<Record<string, string>>({});
   useEffect(() => {
     mediaUrlsRef.current = mediaUrls;
@@ -72,7 +84,14 @@ export function SampleReviewSection() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [patient?.id]);
 
-  if (!patient || !user || !canReviewSample(user.role)) {
+  useEffect(() => {
+    if (!user || !canTransferReview(user.role)) return;
+    listMyClinicians(user.id)
+      .then(setClinicians)
+      .catch((err) => setTransferError(err instanceof ApiError ? err.message : ar.errors.unexpected));
+  }, [user]);
+
+  if (!patient || !user || !(canReviewSample(user.role) || canTransferReview(user.role))) {
     return null;
   }
   if (!cycle || !REVIEW_RELEVANT_STATUSES.has(cycle.status) || !cycle.speechSample) {
@@ -150,6 +169,23 @@ export function SampleReviewSection() {
       setInterventionError(err instanceof ApiError ? err.message : ar.errors.unexpected);
     } finally {
       setCompletingIntervention(false);
+    }
+  }
+
+  async function handleTransfer() {
+    if (!patient || !toUserId) return;
+    setTransferring(true);
+    setTransferError(null);
+    try {
+      await transferReviewResponsibility(cycleId, { toUserId, reason: transferReason });
+      const fresh = await getCurrentCycle(patient.id);
+      setCycle(fresh);
+      setTransferReason('');
+      setToUserId(null);
+    } catch (err) {
+      setTransferError(err instanceof ApiError ? err.message : ar.errors.unexpected);
+    } finally {
+      setTransferring(false);
     }
   }
 
@@ -275,6 +311,34 @@ export function SampleReviewSection() {
               </Group>
             </Stack>
           ) : null}
+        </Stack>
+      ) : canTransferReview(user.role) && TRANSFER_ELIGIBLE_STATUSES.has(cycle.status) ? (
+        <Stack gap="xs">
+          {transferError ? <Alert color="red">{transferError}</Alert> : null}
+          <Text fw={600}>{ar.sampleReview.transferTitle}</Text>
+          {clinicians && clinicians.length === 0 ? (
+            <Text c="dimmed">{ar.sampleReview.noClinicians}</Text>
+          ) : (
+            <>
+              <Select
+                data-testid="transfer-target-select"
+                label={ar.sampleReview.transferToLabel}
+                data={(clinicians ?? []).map((c) => ({ value: c.id, label: c.fullName }))}
+                value={toUserId}
+                onChange={setToUserId}
+              />
+              <Textarea
+                label={ar.sampleReview.transferReasonLabel}
+                value={transferReason}
+                onChange={(e) => setTransferReason(e.currentTarget.value)}
+              />
+              <Group>
+                <Button onClick={handleTransfer} loading={transferring} disabled={!toUserId}>
+                  {ar.sampleReview.transferButton}
+                </Button>
+              </Group>
+            </>
+          )}
         </Stack>
       ) : sample.reservedByUserId ? (
         <Alert color="yellow">{ar.sampleReview.reservedByOtherLabel}</Alert>

@@ -23,3 +23,7 @@ export function canManageStaffAccounts(role: StaffRole): boolean {
 export function canViewMyClinicians(role: StaffRole): boolean {
   return role === 'SUPERVISOR';
 }
+
+export function canTransferReview(role: StaffRole): boolean {
+  return role === 'SUPERVISOR';
+}

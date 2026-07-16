@@ -5,7 +5,8 @@ import { PatientDetailProvider } from './PatientDetailContext';
 import { AuthProvider } from '../auth/AuthProvider';
 import { getPatient } from '../api/patients';
 import { getCurrentCycle } from '../api/cycles';
-import { reviewSample, requestIntervention, completeIntervention } from '../api/specialist-review';
+import { reviewSample, requestIntervention, completeIntervention, transferReviewResponsibility } from '../api/specialist-review';
+import { listMyClinicians } from '../api/supervision';
 import { getMe } from '../api/auth';
 import { getToken } from '../storage/session';
 import { fetchSampleMediaBlob } from '../api/sample-media';
@@ -13,6 +14,7 @@ import { fetchSampleMediaBlob } from '../api/sample-media';
 vi.mock('../api/patients');
 vi.mock('../api/cycles');
 vi.mock('../api/specialist-review');
+vi.mock('../api/supervision');
 vi.mock('../api/auth');
 vi.mock('../storage/session');
 vi.mock('../api/sample-media');
@@ -60,7 +62,12 @@ const baseCycle = {
 function renderSection(role: 'CLINICIAN' | 'SUPERVISOR' | 'ADMIN' = 'CLINICIAN') {
   (getToken as ReturnType<typeof vi.fn>).mockReturnValue('token-123');
   (getMe as ReturnType<typeof vi.fn>).mockResolvedValue({
-    id: 'staff-1',
+    // baseCycle.speechSample.reservedByUserId is 'staff-1', matching the
+    // CLINICIAN reservation holder used throughout the existing tests below.
+    // A SUPERVISOR is never the reservation holder in real usage (per the
+    // brief's note), so it needs a distinct id here too, or isReservationHolder
+    // would spuriously become true and hide the transfer branch.
+    id: role === 'SUPERVISOR' ? 'supervisor-1' : 'staff-1',
     fullName: 'Staff Member',
     mobile: '+966500000000',
     role,
@@ -81,15 +88,31 @@ function renderSection(role: 'CLINICIAN' | 'SUPERVISOR' | 'ADMIN' = 'CLINICIAN')
 
 beforeEach(() => {
   vi.clearAllMocks();
+  // Default so tests that render as SUPERVISOR without exercising the transfer
+  // flow itself (e.g. the not-transfer-eligible case) don't crash the
+  // unconditional listMyClinicians useEffect; tests that care override this.
+  (listMyClinicians as ReturnType<typeof vi.fn>).mockResolvedValue([]);
 });
 
 describe('SampleReviewSection', () => {
-  it('renders nothing for a SUPERVISOR', async () => {
-    (getCurrentCycle as ReturnType<typeof vi.fn>).mockResolvedValue(baseCycle);
+  it('renders nothing for a SUPERVISOR when the cycle is not transfer-eligible', async () => {
+    (getCurrentCycle as ReturnType<typeof vi.fn>).mockResolvedValue({ ...baseCycle, status: 'WAITING_FOR_SPECIALIST' });
     const { container } = renderSection('SUPERVISOR');
     await waitFor(() => {
       expect(container.textContent).not.toContain('مراجعة العينة');
     });
+  });
+
+  it('shows the transfer form for a SUPERVISOR when the cycle is transfer-eligible', async () => {
+    (getCurrentCycle as ReturnType<typeof vi.fn>).mockResolvedValue(baseCycle);
+    (listMyClinicians as ReturnType<typeof vi.fn>).mockResolvedValue([
+      { id: 'clinician-2', fullName: 'أخصائي آخر', mobile: '+966500000009', email: null, role: 'CLINICIAN', status: 'ACTIVE', mustChangePassword: false, createdAt: '2026-07-01T00:00:00.000Z', supervisorUserId: 'staff-1' },
+    ]);
+    renderSection('SUPERVISOR');
+    await waitFor(() => {
+      expect(screen.getByText('نقل مسؤولية المراجعة')).toBeTruthy();
+    });
+    expect(screen.queryByText('إرسال القرار')).toBeNull();
   });
 
   it('renders nothing when the cycle is not in a review-relevant status', async () => {
@@ -196,6 +219,28 @@ describe('SampleReviewSection', () => {
 
     await waitFor(() => {
       expect(completeIntervention).toHaveBeenCalledWith('cycle-1', { outcomeNotes: 'تحسّن ملحوظ' });
+    });
+  });
+
+  it('submits a transfer with the selected clinician and reason', async () => {
+    (getCurrentCycle as ReturnType<typeof vi.fn>).mockResolvedValue(baseCycle);
+    (listMyClinicians as ReturnType<typeof vi.fn>).mockResolvedValue([
+      { id: 'clinician-2', fullName: 'أخصائي آخر', mobile: '+966500000009', email: null, role: 'CLINICIAN', status: 'ACTIVE', mustChangePassword: false, createdAt: '2026-07-01T00:00:00.000Z', supervisorUserId: 'staff-1' },
+    ]);
+    (transferReviewResponsibility as ReturnType<typeof vi.fn>).mockResolvedValue({ ...baseCycle.speechSample, reservedByUserId: 'clinician-2' });
+    renderSection('SUPERVISOR');
+
+    await waitFor(() => expect(screen.getByTestId('transfer-target-select')).toBeTruthy());
+    // Same lesson as StaffAccountsPage.test.tsx: data-testid lands on the Select's
+    // own <input role="combobox">, so click it directly rather than scoping
+    // within(...).getByRole('combobox'), which finds no descendant.
+    fireEvent.click(screen.getByTestId('transfer-target-select'));
+    fireEvent.click(await screen.findByText('أخصائي آخر'));
+    fireEvent.change(screen.getByLabelText('سبب النقل'), { target: { value: 'إجازة طارئة' } });
+    fireEvent.click(screen.getByText('تنفيذ النقل'));
+
+    await waitFor(() => {
+      expect(transferReviewResponsibility).toHaveBeenCalledWith('cycle-1', { toUserId: 'clinician-2', reason: 'إجازة طارئة' });
     });
   });
 });

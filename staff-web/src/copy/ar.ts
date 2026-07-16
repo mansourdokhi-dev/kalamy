@@ -170,6 +170,11 @@ export const ar = {
     reviewNotesLabel: 'ملاحظات المراجعة',
     damagedPartsLabel: 'الأجزاء التي تحتاج إعادة تسجيل',
     submitDecisionButton: 'إرسال القرار',
+    transferTitle: 'نقل مسؤولية المراجعة',
+    transferToLabel: 'نقل إلى',
+    transferReasonLabel: 'سبب النقل',
+    transferButton: 'تنفيذ النقل',
+    noClinicians: 'لا يوجد أخصائيون تحت إشرافك',
   },
   progress: {
     title: 'التقدم',
