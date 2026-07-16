@@ -30,6 +30,7 @@ export const ar = {
     complaintsLink: 'الشكاوى',
     adminReportsLink: 'التقارير الإدارية',
     staffAccountsLink: 'حسابات الطاقم',
+    myCliniciansLink: 'أخصائيوّ إشرافي',
     logoutButton: 'تسجيل الخروج',
     roles: {
       CLINICIAN: 'أخصائي',
@@ -306,6 +307,13 @@ export const ar = {
     noSupervisorOption: 'بدون مشرف',
     choosePlaceholder: 'اختر مشرفًا',
     assignSuccessMessage: 'تم التعيين',
+  },
+  myClinicians: {
+    title: 'الأخصائيون الخاضعون لإشرافي',
+    emptyState: 'لا يوجد أخصائيون معينون لك حاليًا',
+    tableName: 'الاسم',
+    tableMobile: 'رقم الجوال',
+    tableStatus: 'الحالة',
   },
   errors: {
     unexpected: 'حدث خطأ غير متوقع',

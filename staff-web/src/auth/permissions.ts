@@ -19,3 +19,7 @@ export function canViewAdminReports(role: StaffRole): boolean {
 export function canManageStaffAccounts(role: StaffRole): boolean {
   return role === 'ADMIN';
 }
+
+export function canViewMyClinicians(role: StaffRole): boolean {
+  return role === 'SUPERVISOR';
+}

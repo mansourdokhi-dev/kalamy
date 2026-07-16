@@ -12,6 +12,7 @@ import { ReviewQueuePage } from './pages/ReviewQueuePage';
 import { ComplaintsPage } from './pages/ComplaintsPage';
 import { AdminReportsPage } from './pages/AdminReportsPage';
 import { StaffAccountsPage } from './pages/StaffAccountsPage';
+import { MyCliniciansPage } from './pages/MyCliniciansPage';
 
 export default function App() {
   return (
@@ -86,6 +87,16 @@ export default function App() {
               <RequireAuth>
                 <AppShell>
                   <StaffAccountsPage />
+                </AppShell>
+              </RequireAuth>
+            }
+          />
+          <Route
+            path="/my-clinicians"
+            element={
+              <RequireAuth>
+                <AppShell>
+                  <MyCliniciansPage />
                 </AppShell>
               </RequireAuth>
             }
