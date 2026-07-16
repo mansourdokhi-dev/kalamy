@@ -33,6 +33,7 @@ export function AppShell({ children }: { children: ReactNode }) {
       </MantineAppShell.Header>
       <MantineAppShell.Navbar p="md">
         <NavLink component={Link} to="/patients" label={ar.shell.patientsLink} />
+        <NavLink component={Link} to="/complaints" label={ar.shell.complaintsLink} />
         {user && canReviewSample(user.role) ? (
           <NavLink component={Link} to="/review-queue" label={ar.shell.reviewQueueLink} />
         ) : null}

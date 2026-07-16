@@ -9,6 +9,10 @@ if (typeof window !== 'undefined' && !window.ResizeObserver) {
   window.ResizeObserver = ResizeObserverMock as unknown as typeof ResizeObserver;
 }
 
+if (typeof window !== 'undefined' && !window.Element.prototype.scrollIntoView) {
+  window.Element.prototype.scrollIntoView = () => {};
+}
+
 if (typeof window !== 'undefined' && !window.matchMedia) {
   window.matchMedia = (query: string): MediaQueryList => ({
     matches: false,

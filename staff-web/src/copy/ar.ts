@@ -27,6 +27,7 @@ export const ar = {
   shell: {
     patientsLink: 'المرضى',
     reviewQueueLink: 'قائمة المراجعة',
+    complaintsLink: 'الشكاوى',
     logoutButton: 'تسجيل الخروج',
     roles: {
       CLINICIAN: 'أخصائي',
@@ -259,6 +260,19 @@ export const ar = {
     complaintsAgainstLabel: 'الشكاوى المقدمة ضده',
     noStaffPerformance: 'لا توجد بيانات أداء',
     noRegisteredUsers: 'لا يوجد مستخدمون',
+  },
+  complaints: {
+    title: 'الشكاوى',
+    emptyState: 'لا توجد شكاوى',
+    typeLabel: 'النوع',
+    types: { COMPLAINT: 'شكوى', SUGGESTION: 'اقتراح' } as Record<string, string>,
+    subjectLabel: 'الموضوع',
+    descriptionLabel: 'الوصف',
+    statusLabel: 'الحالة',
+    statuses: { OPEN: 'مفتوحة', REVIEWED: 'تمت مراجعتها', RESOLVED: 'تم حلها' } as Record<string, string>,
+    createdAtLabel: 'تاريخ التقديم',
+    statusFilterLabel: 'تصفية حسب الحالة',
+    statusFilterAll: 'الكل',
   },
   errors: {
     unexpected: 'حدث خطأ غير متوقع',
