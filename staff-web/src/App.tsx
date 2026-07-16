@@ -11,6 +11,7 @@ import { PatientDetailPage } from './pages/PatientDetailPage';
 import { ReviewQueuePage } from './pages/ReviewQueuePage';
 import { ComplaintsPage } from './pages/ComplaintsPage';
 import { AdminReportsPage } from './pages/AdminReportsPage';
+import { StaffAccountsPage } from './pages/StaffAccountsPage';
 
 export default function App() {
   return (
@@ -75,6 +76,16 @@ export default function App() {
               <RequireAuth>
                 <AppShell>
                   <AdminReportsPage />
+                </AppShell>
+              </RequireAuth>
+            }
+          />
+          <Route
+            path="/staff-accounts"
+            element={
+              <RequireAuth>
+                <AppShell>
+                  <StaffAccountsPage />
                 </AppShell>
               </RequireAuth>
             }

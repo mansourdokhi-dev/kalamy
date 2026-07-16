@@ -15,3 +15,7 @@ export function canManageComplaints(role: StaffRole): boolean {
 export function canViewAdminReports(role: StaffRole): boolean {
   return role === 'SUPERVISOR' || role === 'ADMIN';
 }
+
+export function canManageStaffAccounts(role: StaffRole): boolean {
+  return role === 'ADMIN';
+}

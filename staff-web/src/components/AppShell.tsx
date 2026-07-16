@@ -3,7 +3,7 @@ import { AppShell as MantineAppShell, Group, Text, Button, NavLink } from '@mant
 import { Link, useNavigate } from 'react-router-dom';
 import { ar } from '../copy/ar';
 import { useAuth } from '../auth/AuthProvider';
-import { canReviewSample, canViewAdminReports } from '../auth/permissions';
+import { canReviewSample, canViewAdminReports, canManageStaffAccounts } from '../auth/permissions';
 
 export function AppShell({ children }: { children: ReactNode }) {
   const { user, logout } = useAuth();
@@ -36,6 +36,9 @@ export function AppShell({ children }: { children: ReactNode }) {
         <NavLink component={Link} to="/complaints" label={ar.shell.complaintsLink} />
         {user && canViewAdminReports(user.role) ? (
           <NavLink component={Link} to="/admin-reports" label={ar.shell.adminReportsLink} />
+        ) : null}
+        {user && canManageStaffAccounts(user.role) ? (
+          <NavLink component={Link} to="/staff-accounts" label={ar.shell.staffAccountsLink} />
         ) : null}
         {user && canReviewSample(user.role) ? (
           <NavLink component={Link} to="/review-queue" label={ar.shell.reviewQueueLink} />
