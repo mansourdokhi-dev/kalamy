@@ -323,4 +323,27 @@ export const ar = {
   errors: {
     unexpected: 'حدث خطأ غير متوقع',
   },
+  consultation: {
+    sectionTitle: 'الاستشارة المجانية',
+    noConsultations: 'لا توجد طلبات استشارة',
+    typeLabel: 'النوع',
+    statusLabel: 'الحالة',
+    reasonLabel: 'السبب',
+    types: {
+      VIDEO: 'مرئية',
+      VOICE: 'صوتية',
+    },
+    statuses: {
+      REQUESTED: 'تم الطلب',
+      SCHEDULING: 'قيد الجدولة',
+      SCHEDULED: 'مجدولة',
+      COMPLETED: 'تم الاكتمال',
+      CANCELLED: 'ملغاة',
+    },
+    statusSelectLabel: 'تحديث الحالة',
+    scheduledAtLabel: 'موعد الاستشارة',
+    meetingLinkLabel: 'رابط الاجتماع',
+    outcomeNotesLabel: 'ملاحظات النتيجة',
+    saveButton: 'حفظ',
+  },
 };

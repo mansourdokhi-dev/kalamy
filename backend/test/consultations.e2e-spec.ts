@@ -200,4 +200,23 @@ describe('Consultations (e2e)', () => {
     expect(logs[0].entityId).toBe(profile.id);
     expect(logs[0].entity).toBe('consultations');
   });
+
+  it("lets a CLINICIAN list a patient's consultations", async () => {
+    const { token, profile } = await setupPatient('+966500006070');
+    const clinicianToken = await registerAndLogin(app, prisma, '+966500006071', 'CLINICIAN');
+
+    await request(app.getHttpServer())
+      .post(`/api/v1/patients/${profile.id}/consultations`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({ type: 'VOICE', reasonNote: 'Need help with hand-sync technique' })
+      .expect(201);
+
+    const res = await request(app.getHttpServer())
+      .get(`/api/v1/patients/${profile.id}/consultations`)
+      .set('Authorization', `Bearer ${clinicianToken}`)
+      .expect(200);
+
+    expect(res.body).toHaveLength(1);
+    expect(res.body[0].type).toBe('VOICE');
+  });
 });
