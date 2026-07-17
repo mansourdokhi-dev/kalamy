@@ -21,7 +21,7 @@ export class ConsultationsController {
   }
 
   @Get('patients/:patientId/consultations')
-  @RequirePermission(Permission.REQUEST_CONSULTATION)
+  @RequirePermission(Permission.VIEW_CONSULTATION)
   @AuditPhiRead()
   async list(@Param('patientId') patientId: string, @CurrentUser() user: AuthenticatedUser) {
     return this.consultationsService.listForPatient(patientId, user);

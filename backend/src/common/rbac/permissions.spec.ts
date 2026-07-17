@@ -87,6 +87,14 @@ describe('hasPermission — reports and complaints', () => {
     expect(hasPermission('SUPERVISOR', Permission.VIEW_ADMIN_REPORTS)).toBe(true);
   });
 
+  it('grants VIEW_CONSULTATION to both patient-side and staff-side roles', () => {
+    expect(hasPermission('PATIENT', Permission.VIEW_CONSULTATION)).toBe(true);
+    expect(hasPermission('CAREGIVER', Permission.VIEW_CONSULTATION)).toBe(true);
+    expect(hasPermission('CLINICIAN', Permission.VIEW_CONSULTATION)).toBe(true);
+    expect(hasPermission('SUPERVISOR', Permission.VIEW_CONSULTATION)).toBe(true);
+    expect(hasPermission('ADMIN', Permission.VIEW_CONSULTATION)).toBe(true);
+  });
+
   it('does not allow a PATIENT to view admin reports', () => {
     expect(hasPermission('PATIENT', Permission.VIEW_ADMIN_REPORTS)).toBe(false);
   });
