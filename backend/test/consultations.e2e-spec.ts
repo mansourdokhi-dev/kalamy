@@ -177,4 +177,27 @@ describe('Consultations (e2e)', () => {
       .send({ status: 'SCHEDULED' })
       .expect(409);
   });
+
+  it("logs who viewed a patient's consultation list (a PHI-marked GET)", async () => {
+    const { token, profile } = await setupPatient('+966500006060');
+
+    await request(app.getHttpServer())
+      .post(`/api/v1/patients/${profile.id}/consultations`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({ type: 'VOICE', reasonNote: 'Need help with hand-sync technique' })
+      .expect(201);
+
+    await request(app.getHttpServer())
+      .get(`/api/v1/patients/${profile.id}/consultations`)
+      .set('Authorization', `Bearer ${token}`)
+      .expect(200);
+
+    const logs = await prisma.auditLog.findMany({
+      where: { action: `GET /api/v1/patients/${profile.id}/consultations` },
+    });
+    expect(logs).toHaveLength(1);
+    expect(logs[0].userId).toBe(profile.userId);
+    expect(logs[0].entityId).toBe(profile.id);
+    expect(logs[0].entity).toBe('consultations');
+  });
 });

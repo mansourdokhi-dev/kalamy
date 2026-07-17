@@ -7,6 +7,7 @@ import { RequirePermission } from '../../common/rbac/require-permission.decorato
 import { Permission } from '../../common/rbac/permissions';
 import { RequestConsultationDto } from './dto/request-consultation.dto';
 import { UpdateConsultationDto } from './dto/update-consultation.dto';
+import { AuditPhiRead } from '../../common/audit/audit-phi-read.decorator';
 
 @Controller('api/v1')
 @UseGuards(SessionGuard, PermissionsGuard)
@@ -21,6 +22,7 @@ export class ConsultationsController {
 
   @Get('patients/:patientId/consultations')
   @RequirePermission(Permission.REQUEST_CONSULTATION)
+  @AuditPhiRead()
   async list(@Param('patientId') patientId: string, @CurrentUser() user: AuthenticatedUser) {
     return this.consultationsService.listForPatient(patientId, user);
   }
