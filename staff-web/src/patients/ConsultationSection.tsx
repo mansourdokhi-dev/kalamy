@@ -5,10 +5,12 @@ import { usePatientDetail } from './PatientDetailContext';
 import { useAuth } from '../auth/AuthProvider';
 import { canManageConsultation } from '../auth/permissions';
 import { listConsultations, updateConsultation } from '../api/consultations';
-import type { Consultation, ConsultationStatus } from '../api/consultations';
+import type { Consultation, UpdateConsultationInput } from '../api/consultations';
 import { ApiError } from '../api/client';
 
 const TERMINAL_STATUSES = new Set(['COMPLETED', 'CANCELLED']);
+
+type EditableStatus = NonNullable<UpdateConsultationInput['status']>;
 
 function typeLabel(type: Consultation['type']): string {
   return ar.consultation.types[type];
@@ -25,7 +27,7 @@ export function ConsultationSection() {
   const [consultations, setConsultations] = useState<Consultation[] | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
 
-  const [status, setStatus] = useState<ConsultationStatus | null>(null);
+  const [status, setStatus] = useState<EditableStatus | null>(null);
   const [scheduledAt, setScheduledAt] = useState('');
   const [externalMeetingLink, setExternalMeetingLink] = useState('');
   const [outcomeNotes, setOutcomeNotes] = useState('');
@@ -103,7 +105,7 @@ export function ConsultationSection() {
               { value: 'CANCELLED', label: ar.consultation.statuses.CANCELLED },
             ]}
             value={status}
-            onChange={(value) => setStatus((value as ConsultationStatus) ?? null)}
+            onChange={(value) => setStatus((value as EditableStatus) ?? null)}
           />
           <TextInput
             data-testid="consultation-scheduled-input"
