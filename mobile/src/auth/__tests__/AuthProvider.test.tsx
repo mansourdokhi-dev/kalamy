@@ -21,7 +21,7 @@ describe('AuthProvider', () => {
 
   it('starts logged-out when no token is stored', async () => {
     (getToken as jest.Mock).mockResolvedValue(null);
-    render(<AuthProvider><Probe /></AuthProvider>);
+    await render(<AuthProvider><Probe /></AuthProvider>);
     await waitFor(() => {
       expect(screen.getByTestId('state').props.children).toBe('logged-out');
     });
@@ -29,7 +29,7 @@ describe('AuthProvider', () => {
 
   it('starts logged-in when a token is stored', async () => {
     (getToken as jest.Mock).mockResolvedValue('tok');
-    render(<AuthProvider><Probe /></AuthProvider>);
+    await render(<AuthProvider><Probe /></AuthProvider>);
     await waitFor(() => {
       expect(screen.getByTestId('state').props.children).toBe('logged-in');
     });
@@ -37,7 +37,7 @@ describe('AuthProvider', () => {
 
   it('clears the token and flips to logged-out on logout()', async () => {
     (getToken as jest.Mock).mockResolvedValue('tok');
-    render(<AuthProvider><Probe /></AuthProvider>);
+    await render(<AuthProvider><Probe /></AuthProvider>);
     await waitFor(() => screen.getByTestId('logout'));
     await fireEvent.press(screen.getByTestId('logout'));
     await waitFor(() => {

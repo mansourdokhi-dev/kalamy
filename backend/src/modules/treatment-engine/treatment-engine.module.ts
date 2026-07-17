@@ -19,6 +19,7 @@ import { TrainingSessionsController } from './training-sessions.controller';
 import { TrainingSessionsService } from './training-sessions.service';
 import { TrainingReminderSweepService } from './training-reminder-sweep.service';
 import { SpecialistWorkloadReminderSweepService } from './specialist-workload-reminder-sweep.service';
+import { SlaEvaluationSweepService } from './sla-evaluation-sweep.service';
 import { AuthModule } from '../auth/auth.module';
 import { PatientAccessModule } from '../../common/patient-access/patient-access.module';
 import { MediaStorageModule } from './media-storage/media-storage.module';
@@ -63,7 +64,7 @@ import { NotificationsModule } from '../notifications/notifications.module';
     }),
   ],
   controllers: [LevelsController, TrainingCyclesController, SamplesController, SampleMediaController, SpecialistReviewController, SpecialistReviewQueueController, PatientLevelsController, TrainingSessionsController],
-  providers: [LevelsService, TrainingCyclesService, SamplesService, SpecialistReviewService, PatientLevelsService, TrainingSessionsService, TrainingReminderSweepService, SpecialistWorkloadReminderSweepService],
-  exports: [LevelsService, TrainingCyclesService, SamplesService, SpecialistReviewService, PatientLevelsService, TrainingSessionsService, TrainingReminderSweepService, SpecialistWorkloadReminderSweepService],
+  providers: [LevelsService, TrainingCyclesService, SamplesService, SpecialistReviewService, PatientLevelsService, TrainingSessionsService, TrainingReminderSweepService, SpecialistWorkloadReminderSweepService, SlaEvaluationSweepService],
+  exports: [LevelsService, TrainingCyclesService, SamplesService, SpecialistReviewService, PatientLevelsService, TrainingSessionsService, TrainingReminderSweepService, SpecialistWorkloadReminderSweepService, SlaEvaluationSweepService],
 })
 export class TreatmentEngineModule {}

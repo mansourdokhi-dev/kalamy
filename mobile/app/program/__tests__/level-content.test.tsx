@@ -23,7 +23,7 @@ describe('LevelContentScreen', () => {
       trainingListJson: JSON.stringify(['حا', 'جا']),
     });
 
-    render(<ThemeProvider><LevelContentScreen /></ThemeProvider>);
+    await render(<ThemeProvider><LevelContentScreen /></ThemeProvider>);
 
     await waitFor(
       () => {
@@ -53,7 +53,7 @@ describe('LevelContentScreen', () => {
       trainingListJson: JSON.stringify(['حا']),
     });
 
-    render(<ThemeProvider><LevelContentScreen /></ThemeProvider>);
+    await render(<ThemeProvider><LevelContentScreen /></ThemeProvider>);
 
     await waitFor(
       () => {

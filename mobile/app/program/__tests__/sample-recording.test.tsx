@@ -84,7 +84,7 @@ describe('SampleRecordingScreen', () => {
     (openSampleSession as jest.Mock).mockResolvedValue({ id: 'session-1', trainingCycleId: 'cycle-1', attemptsUsed: 0, status: 'OPEN' });
     (listAttempts as jest.Mock).mockResolvedValue([]);
 
-    render(<ThemeProvider><SampleRecordingScreen /></ThemeProvider>);
+    await render(<ThemeProvider><SampleRecordingScreen /></ThemeProvider>);
 
     // See home.test.tsx (commit 42da9d6) and history.test.tsx for why: under
     // CPU-contended/cold-start conditions (e.g. a freshly installed
@@ -106,7 +106,7 @@ describe('SampleRecordingScreen', () => {
     (getCurrentCycle as jest.Mock).mockResolvedValue({ id: 'cycle-1', levelId: 'level-1', status: 'SAMPLE_PREPARATION' });
     (listAttempts as jest.Mock).mockResolvedValue([mockAttempt('attempt-1', 1)]);
 
-    render(<ThemeProvider><SampleRecordingScreen /></ThemeProvider>);
+    await render(<ThemeProvider><SampleRecordingScreen /></ThemeProvider>);
 
     await waitFor(() => {
       expect(openSampleSession).not.toHaveBeenCalled();
@@ -122,7 +122,7 @@ describe('SampleRecordingScreen', () => {
     (uploadRecording as jest.Mock).mockResolvedValue({ url: 'attempt-1.mp4', mimeType: 'video/mp4', fileSizeBytes: 204800 });
     (recordAttempt as jest.Mock).mockResolvedValue(mockAttempt('attempt-1', 1));
 
-    render(<ThemeProvider><SampleRecordingScreen /></ThemeProvider>);
+    await render(<ThemeProvider><SampleRecordingScreen /></ThemeProvider>);
     await waitFor(() => expect(screen.getByText('SIMULATE_RECORD')).toBeTruthy());
     fireEvent.press(screen.getByText('SIMULATE_RECORD'));
 
@@ -143,7 +143,7 @@ describe('SampleRecordingScreen', () => {
     const tenAttempts = Array.from({ length: 10 }, (_, i) => mockAttempt(`attempt-${i}`, i + 1));
     (listAttempts as jest.Mock).mockResolvedValue(tenAttempts);
 
-    render(<ThemeProvider><SampleRecordingScreen /></ThemeProvider>);
+    await render(<ThemeProvider><SampleRecordingScreen /></ThemeProvider>);
 
     await waitFor(() => {
       expect(screen.getByText('وصلت للحد الأقصى (10 محاولات)')).toBeTruthy();
@@ -158,7 +158,7 @@ describe('SampleRecordingScreen', () => {
       .mockResolvedValueOnce([]);
     (deleteAttempt as jest.Mock).mockResolvedValue({ ...mockAttempt('attempt-1', 1), deletedAt: '2026-07-01T00:00:00.000Z' });
 
-    render(<ThemeProvider><SampleRecordingScreen /></ThemeProvider>);
+    await render(<ThemeProvider><SampleRecordingScreen /></ThemeProvider>);
     await waitFor(() => expect(screen.getByText('محاولة 1')).toBeTruthy());
     fireEvent.press(screen.getByText('حذف'));
 
@@ -176,7 +176,7 @@ describe('SampleRecordingScreen', () => {
     (listAttempts as jest.Mock).mockResolvedValue([mockAttempt('attempt-1', 1)]);
     (submitSample as jest.Mock).mockResolvedValue({ id: 'sample-1' });
 
-    render(<ThemeProvider><SampleRecordingScreen /></ThemeProvider>);
+    await render(<ThemeProvider><SampleRecordingScreen /></ThemeProvider>);
     await waitFor(() => expect(screen.getByText('محاولة 1')).toBeTruthy());
 
     fireEvent.press(screen.getByText('التالي'));

@@ -31,7 +31,7 @@ describe('ComplaintsScreen', () => {
       },
     ]);
 
-    render(<ThemeProvider><ComplaintsScreen /></ThemeProvider>);
+    await render(<ThemeProvider><ComplaintsScreen /></ThemeProvider>);
 
     // See reports.test.tsx (commit 5241b81) and its several prior repeats for
     // why: under CPU-contended/cold-start conditions, RTL's default ~1s
@@ -51,7 +51,7 @@ describe('ComplaintsScreen', () => {
   it('shows the empty state when there are no complaints', async () => {
     (getMyComplaints as jest.Mock).mockResolvedValue([]);
 
-    render(<ThemeProvider><ComplaintsScreen /></ThemeProvider>);
+    await render(<ThemeProvider><ComplaintsScreen /></ThemeProvider>);
 
     await waitFor(() => {
       expect(screen.getByText('لا توجد شكاوى بعد')).toBeTruthy();
@@ -61,7 +61,7 @@ describe('ComplaintsScreen', () => {
   it('shows an ErrorBanner when the fetch fails', async () => {
     (getMyComplaints as jest.Mock).mockRejectedValue(new ApiError(500, 'SERVER_ERROR', 'Something broke'));
 
-    render(<ThemeProvider><ComplaintsScreen /></ThemeProvider>);
+    await render(<ThemeProvider><ComplaintsScreen /></ThemeProvider>);
 
     await waitFor(() => {
       expect(screen.getByText('Something broke')).toBeTruthy();
@@ -71,7 +71,7 @@ describe('ComplaintsScreen', () => {
   it('navigates to the submit screen when the "submit new complaint" link is pressed', async () => {
     (getMyComplaints as jest.Mock).mockResolvedValue([]);
 
-    render(<ThemeProvider><ComplaintsScreen /></ThemeProvider>);
+    await render(<ThemeProvider><ComplaintsScreen /></ThemeProvider>);
 
     await waitFor(() => {
       expect(screen.getByText('تقديم شكوى جديدة')).toBeTruthy();

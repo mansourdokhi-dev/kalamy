@@ -51,7 +51,7 @@ describe('TrainingSessionScreen', () => {
       currentSessionId: null,
     });
 
-    render(<ThemeProvider><TrainingSessionScreen /></ThemeProvider>);
+    await render(<ThemeProvider><TrainingSessionScreen /></ThemeProvider>);
 
     // A loose single-digit regex here (e.g. /2/) would be a real, reproducible
     // collision risk: baseLevelVersion's training list renders "تمرين 2" (exercise 2)
@@ -73,7 +73,7 @@ describe('TrainingSessionScreen', () => {
       currentSessionId: null,
     });
 
-    render(<ThemeProvider><TrainingSessionScreen /></ThemeProvider>);
+    await render(<ThemeProvider><TrainingSessionScreen /></ThemeProvider>);
 
     await waitFor(() => {
       expect(screen.getByText(ar_intervalActiveLabelText())).toBeTruthy();
@@ -110,7 +110,7 @@ describe('TrainingSessionScreen', () => {
       completedAt: null,
     });
 
-    render(<ThemeProvider><TrainingSessionScreen /></ThemeProvider>);
+    await render(<ThemeProvider><TrainingSessionScreen /></ThemeProvider>);
 
     await waitFor(() => {
       expect(screen.getByText('ابدأ / استكمل التدريب')).toBeTruthy();
@@ -154,7 +154,7 @@ describe('TrainingSessionScreen', () => {
       completedAt: '2026-07-15T12:30:00.000Z',
     });
 
-    render(<ThemeProvider><TrainingSessionScreen /></ThemeProvider>);
+    await render(<ThemeProvider><TrainingSessionScreen /></ThemeProvider>);
     await waitFor(() => {
       expect(screen.getByText('ابدأ / استكمل التدريب')).toBeTruthy();
     });

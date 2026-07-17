@@ -33,7 +33,7 @@ describe('SampleResultScreen', () => {
       },
     ]);
 
-    render(<ThemeProvider><SampleResultScreen /></ThemeProvider>);
+    await render(<ThemeProvider><SampleResultScreen /></ThemeProvider>);
 
     await waitFor(
       () => {

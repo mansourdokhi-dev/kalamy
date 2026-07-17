@@ -58,7 +58,7 @@ describe('ReportsScreen', () => {
       },
     });
 
-    render(<ThemeProvider><ReportsScreen /></ThemeProvider>);
+    await render(<ThemeProvider><ReportsScreen /></ThemeProvider>);
 
     // See home.test.tsx (commit 42da9d6) and its several later repeats
     // (history.test.tsx, sample-recording.test.tsx, sample-rerecord.test.tsx)
@@ -95,7 +95,7 @@ describe('ReportsScreen', () => {
       activeTreatmentPlan: null,
     });
 
-    render(<ThemeProvider><ReportsScreen /></ThemeProvider>);
+    await render(<ThemeProvider><ReportsScreen /></ThemeProvider>);
 
     await waitFor(() => {
       expect(screen.getByText('لا توجد تقييمات بعد')).toBeTruthy();
@@ -112,7 +112,7 @@ describe('ReportsScreen', () => {
       activeTreatmentPlan: null,
     });
 
-    render(<ThemeProvider><ReportsScreen /></ThemeProvider>);
+    await render(<ThemeProvider><ReportsScreen /></ThemeProvider>);
 
     await waitFor(() => {
       expect(screen.getByText('لا توجد معلومات سريرية مسجّلة')).toBeTruthy();
@@ -131,7 +131,7 @@ describe('ReportsScreen', () => {
       activeTreatmentPlan: null,
     });
 
-    render(<ThemeProvider><ReportsScreen /></ThemeProvider>);
+    await render(<ThemeProvider><ReportsScreen /></ThemeProvider>);
 
     await waitFor(
       () => {
