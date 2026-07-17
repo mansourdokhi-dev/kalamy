@@ -27,3 +27,7 @@ export function canViewMyClinicians(role: StaffRole): boolean {
 export function canTransferReview(role: StaffRole): boolean {
   return role === 'SUPERVISOR';
 }
+
+export function canManageConsultation(role: StaffRole): boolean {
+  return role === 'CLINICIAN' || role === 'SUPERVISOR' || role === 'ADMIN';
+}
