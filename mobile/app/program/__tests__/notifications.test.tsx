@@ -30,7 +30,7 @@ describe('NotificationsScreen', () => {
   it('shows an empty state when there are no notifications', async () => {
     (getMyNotifications as jest.Mock).mockResolvedValue([]);
 
-    render(<ThemeProvider><NotificationsScreen /></ThemeProvider>);
+    await render(<ThemeProvider><NotificationsScreen /></ThemeProvider>);
 
     await waitFor(() => {
       expect(screen.getByText('لا توجد إشعارات بعد')).toBeTruthy();
@@ -40,7 +40,7 @@ describe('NotificationsScreen', () => {
   it('renders a notification\'s title and body', async () => {
     (getMyNotifications as jest.Mock).mockResolvedValue([unreadNotification]);
 
-    render(<ThemeProvider><NotificationsScreen /></ThemeProvider>);
+    await render(<ThemeProvider><NotificationsScreen /></ThemeProvider>);
 
     await waitFor(() => {
       expect(screen.getByText('تذكير')).toBeTruthy();
@@ -52,7 +52,7 @@ describe('NotificationsScreen', () => {
     (getMyNotifications as jest.Mock).mockResolvedValue([unreadNotification]);
     (markNotificationRead as jest.Mock).mockResolvedValue({ ...unreadNotification, readAt: '2026-07-15T01:00:00.000Z' });
 
-    render(<ThemeProvider><NotificationsScreen /></ThemeProvider>);
+    await render(<ThemeProvider><NotificationsScreen /></ThemeProvider>);
     await waitFor(() => {
       expect(screen.getByText('تذكير')).toBeTruthy();
     });
@@ -66,7 +66,7 @@ describe('NotificationsScreen', () => {
   it('does not call markNotificationRead when tapping an already-read notification', async () => {
     (getMyNotifications as jest.Mock).mockResolvedValue([{ ...unreadNotification, readAt: '2026-07-15T01:00:00.000Z' }]);
 
-    render(<ThemeProvider><NotificationsScreen /></ThemeProvider>);
+    await render(<ThemeProvider><NotificationsScreen /></ThemeProvider>);
     await waitFor(() => {
       expect(screen.getByText('تذكير')).toBeTruthy();
     });

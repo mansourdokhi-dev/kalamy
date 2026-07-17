@@ -39,7 +39,7 @@ describe('PatientProfileProvider', () => {
       dateOfBirth: '2015-01-01',
     });
 
-    render(
+    await render(
       <ThemeProvider>
         <PatientProfileProvider>
           <Consumer />
@@ -56,7 +56,7 @@ describe('PatientProfileProvider', () => {
     const { ApiError } = jest.requireActual('../api/client');
     (getMyPatientProfile as jest.Mock).mockRejectedValue(new ApiError(404, 'NOT_FOUND', 'No patient profile exists for this user yet'));
 
-    render(
+    await render(
       <ThemeProvider>
         <PatientProfileProvider>
           <Consumer />
@@ -73,7 +73,7 @@ describe('PatientProfileProvider', () => {
     const { ApiError } = jest.requireActual('../api/client');
     (getMyPatientProfile as jest.Mock).mockRejectedValue(new ApiError(500, 'UNKNOWN_ERROR', 'حدث خطأ غير متوقع'));
 
-    render(
+    await render(
       <ThemeProvider>
         <PatientProfileProvider>
           <Consumer />

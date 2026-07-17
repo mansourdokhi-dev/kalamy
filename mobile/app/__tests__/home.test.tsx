@@ -44,7 +44,7 @@ describe('HomeScreen (My Program)', () => {
     (getCurrentCycle as jest.Mock).mockRejectedValue(new ApiError(404, 'NOT_FOUND', 'No active training cycle'));
     (getActiveTreatmentPlan as jest.Mock).mockResolvedValue({ id: 'plan-1' });
 
-    render(<ThemeProvider><HomeScreen /></ThemeProvider>);
+    await render(<ThemeProvider><HomeScreen /></ThemeProvider>);
 
     // This test's load() chain is longer than the others (progress+history in
     // parallel, then a rejected getCurrentCycle, then getActiveTreatmentPlan) —
@@ -80,7 +80,7 @@ describe('HomeScreen (My Program)', () => {
       humanModelWatchedAt: null,
     });
 
-    render(<ThemeProvider><HomeScreen /></ThemeProvider>);
+    await render(<ThemeProvider><HomeScreen /></ThemeProvider>);
 
     await waitFor(() => {
       expect(screen.getByText('شاهد محتوى المستوى')).toBeTruthy();
@@ -97,7 +97,7 @@ describe('HomeScreen (My Program)', () => {
       humanModelWatchedAt: '2026-07-01T00:00:00.000Z',
     });
 
-    render(<ThemeProvider><HomeScreen /></ThemeProvider>);
+    await render(<ThemeProvider><HomeScreen /></ThemeProvider>);
 
     await waitFor(() => {
       expect(screen.getByText('سجّل تدريب اليوم')).toBeTruthy();
@@ -114,7 +114,7 @@ describe('HomeScreen (My Program)', () => {
     mockNoDecisionHistory();
     (getCurrentCycle as jest.Mock).mockResolvedValue({ id: 'cycle-1', status: 'WAITING_FOR_SPECIALIST' });
 
-    render(<ThemeProvider><HomeScreen /></ThemeProvider>);
+    await render(<ThemeProvider><HomeScreen /></ThemeProvider>);
 
     await waitFor(() => {
       expect(screen.getByText('بانتظار مراجعة أخصائيك لعينتك')).toBeTruthy();
@@ -132,7 +132,7 @@ describe('HomeScreen (My Program)', () => {
       },
     ]);
 
-    render(<ThemeProvider><HomeScreen /></ThemeProvider>);
+    await render(<ThemeProvider><HomeScreen /></ThemeProvider>);
 
     await waitFor(() => {
       expect(screen.getByText('لديك رسالة من أخصائيك')).toBeTruthy();
@@ -144,7 +144,7 @@ describe('HomeScreen (My Program)', () => {
     mockNoDecisionHistory();
     (getCurrentCycle as jest.Mock).mockResolvedValue({ id: 'cycle-1', levelId: 'level-1', status: 'SAMPLE_ELIGIBLE' });
 
-    render(<ThemeProvider><HomeScreen /></ThemeProvider>);
+    await render(<ThemeProvider><HomeScreen /></ThemeProvider>);
 
     await waitFor(() => {
       expect(screen.getByText('سجّل عينتك')).toBeTruthy();
@@ -156,7 +156,7 @@ describe('HomeScreen (My Program)', () => {
     mockNoDecisionHistory();
     (getCurrentCycle as jest.Mock).mockResolvedValue({ id: 'cycle-1', levelId: 'level-1', status: 'TECHNICAL_PARTIAL_RERECORD' });
 
-    render(<ThemeProvider><HomeScreen /></ThemeProvider>);
+    await render(<ThemeProvider><HomeScreen /></ThemeProvider>);
 
     await waitFor(() => {
       expect(screen.getByText('أعد تسجيل الأجزاء المطلوبة')).toBeTruthy();
@@ -168,7 +168,7 @@ describe('HomeScreen (My Program)', () => {
     mockNoDecisionHistory();
     (getCurrentCycle as jest.Mock).mockResolvedValue({ id: 'cycle-1', levelId: 'level-1', status: 'ACTIVE_LEVEL_TRAINING', humanModelWatchedAt: '2026-07-01T00:00:00.000Z' });
 
-    render(<ThemeProvider><HomeScreen /></ThemeProvider>);
+    await render(<ThemeProvider><HomeScreen /></ThemeProvider>);
 
     await waitFor(() => {
       expect(screen.getByText('التقارير')).toBeTruthy();
@@ -180,7 +180,7 @@ describe('HomeScreen (My Program)', () => {
     mockNoDecisionHistory();
     (getCurrentCycle as jest.Mock).mockResolvedValue({ id: 'cycle-1', levelId: 'level-1', status: 'ACTIVE_LEVEL_TRAINING', humanModelWatchedAt: '2026-07-01T00:00:00.000Z' });
 
-    render(<ThemeProvider><HomeScreen /></ThemeProvider>);
+    await render(<ThemeProvider><HomeScreen /></ThemeProvider>);
 
     await waitFor(() => {
       expect(screen.getByText('الشكاوى')).toBeTruthy();

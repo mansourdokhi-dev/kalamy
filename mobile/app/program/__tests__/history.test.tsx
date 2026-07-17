@@ -28,7 +28,7 @@ describe('HistoryScreen', () => {
       },
     ]);
 
-    render(<ThemeProvider><HistoryScreen /></ThemeProvider>);
+    await render(<ThemeProvider><HistoryScreen /></ThemeProvider>);
 
     // See home.test.tsx (commit 42da9d6) for why: under CPU-contended parallel
     // test-worker runs, RTL's default ~1s waitFor timeout has been too tight
@@ -50,7 +50,7 @@ describe('HistoryScreen', () => {
       { id: 'cycle-1', levelId: 'level-1', status: 'ACTIVE_LEVEL_TRAINING', cycleNumber: 1, closedAt: null, speechSample: null },
     ]);
 
-    render(<ThemeProvider><HistoryScreen /></ThemeProvider>);
+    await render(<ThemeProvider><HistoryScreen /></ThemeProvider>);
 
     await waitFor(
       () => {

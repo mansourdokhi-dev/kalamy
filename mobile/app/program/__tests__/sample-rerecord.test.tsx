@@ -63,7 +63,7 @@ describe('SampleRerecordScreen', () => {
   it('shows only the damaged parts, not the untouched ones', async () => {
     (getCurrentCycle as jest.Mock).mockResolvedValue(mockCycleWithDamagedParts());
 
-    render(<ThemeProvider><SampleRerecordScreen /></ThemeProvider>);
+    await render(<ThemeProvider><SampleRerecordScreen /></ThemeProvider>);
 
     // See home.test.tsx (commit 42da9d6) and history.test.tsx for why: under
     // CPU-contended/cold-start conditions (e.g. a freshly installed
@@ -84,7 +84,7 @@ describe('SampleRerecordScreen', () => {
     (getCurrentCycle as jest.Mock).mockResolvedValue(mockCycleWithDamagedParts());
     (uploadRecording as jest.Mock).mockResolvedValue({ url: 'part-1.mp4', mimeType: 'video/mp4', fileSizeBytes: 204800 });
 
-    render(<ThemeProvider><SampleRerecordScreen /></ThemeProvider>);
+    await render(<ThemeProvider><SampleRerecordScreen /></ThemeProvider>);
     await waitFor(() => expect(screen.getByText('SIMULATE_RECORD')).toBeTruthy());
     fireEvent.press(screen.getByText('SIMULATE_RECORD'));
 
@@ -108,7 +108,7 @@ describe('SampleRerecordScreen', () => {
     (uploadRecording as jest.Mock).mockResolvedValue({ url: 'part-1.mp4', mimeType: 'video/mp4', fileSizeBytes: 204800 });
     (rerecordDamagedParts as jest.Mock).mockResolvedValue({ id: 'sample-1' });
 
-    render(<ThemeProvider><SampleRerecordScreen /></ThemeProvider>);
+    await render(<ThemeProvider><SampleRerecordScreen /></ThemeProvider>);
     await waitFor(() => expect(screen.getAllByText('SIMULATE_RECORD')).toHaveLength(2));
 
     // Submit is disabled with only 1 of 2 damaged parts recorded
