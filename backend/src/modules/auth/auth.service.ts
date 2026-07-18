@@ -48,6 +48,7 @@ export class AuthService {
         passwordHash,
         role: dto.role,
         status: UserStatus.PENDING_VERIFICATION,
+        termsAcceptedAt: dto.acceptedTerms ? new Date() : null,
       },
     });
 

@@ -33,12 +33,13 @@ describe('RegisterFormScreen', () => {
     expect(registerPatient).not.toHaveBeenCalled();
   });
 
-  it('calls registerPatient with valid input', async () => {
+  it('calls registerPatient with valid input once the terms are accepted', async () => {
     (registerPatient as jest.Mock).mockResolvedValue({ userId: 'u1', devOtpCode: '123456' });
     await renderScreen();
     await fireEvent.changeText(screen.getByTestId('fullName-input'), 'Test User');
     await fireEvent.changeText(screen.getByTestId('mobile-input'), '+966500000001');
     await fireEvent.changeText(screen.getByTestId('password-input'), 'password123');
+    await fireEvent.press(screen.getByTestId('terms-checkbox'));
     await fireEvent.press(screen.getByText('إرسال'));
 
     await waitFor(() => {
@@ -47,6 +48,7 @@ describe('RegisterFormScreen', () => {
         mobile: '+966500000001',
         email: undefined,
         password: 'password123',
+        acceptedTerms: true,
       });
     });
     await waitFor(() => {
@@ -55,5 +57,19 @@ describe('RegisterFormScreen', () => {
         params: { mobile: '+966500000001', devOtpCode: '123456' },
       });
     });
+  });
+
+  it('blocks registration until the terms are accepted', async () => {
+    await renderScreen();
+    await fireEvent.changeText(screen.getByTestId('fullName-input'), 'Test User');
+    await fireEvent.changeText(screen.getByTestId('mobile-input'), '+966500000001');
+    await fireEvent.changeText(screen.getByTestId('password-input'), 'password123');
+    // terms NOT accepted
+    await fireEvent.press(screen.getByText('إرسال'));
+
+    await waitFor(() => {
+      expect(screen.getByText('يجب الموافقة على الشروط والأحكام للمتابعة')).toBeTruthy();
+    });
+    expect(registerPatient).not.toHaveBeenCalled();
   });
 });

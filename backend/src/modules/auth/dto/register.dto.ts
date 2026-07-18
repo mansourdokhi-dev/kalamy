@@ -7,6 +7,10 @@ export const RegisterSchema = z.object({
   email: z.email().optional(),
   password: z.string().min(8).max(128),
   role: z.enum(['PATIENT', 'CAREGIVER']),
+  // Consent to terms & privacy policy (SRS Part5 §5). The mobile registration
+  // form makes the checkbox mandatory before submit; the backend records the
+  // acceptance timestamp when true.
+  acceptedTerms: z.boolean().optional(),
 });
 
 export class RegisterDto extends createZodDto(RegisterSchema) {}

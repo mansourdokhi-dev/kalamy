@@ -35,6 +35,37 @@ describe('Auth: register + verify', () => {
     expect(user?.status).toBe('PENDING_VERIFICATION');
   });
 
+  it('records the consent timestamp when the user accepts the terms (SRS Part5 §5)', async () => {
+    await request(app.getHttpServer())
+      .post('/api/v1/auth/register')
+      .send({
+        fullName: 'Consenting User',
+        mobile: '+966500000015',
+        password: 'password123',
+        role: 'PATIENT',
+        acceptedTerms: true,
+      })
+      .expect(201);
+
+    const user = await prisma.user.findUniqueOrThrow({ where: { mobile: '+966500000015' } });
+    expect(user.termsAcceptedAt).toBeInstanceOf(Date);
+  });
+
+  it('leaves the consent timestamp null when terms are not accepted', async () => {
+    await request(app.getHttpServer())
+      .post('/api/v1/auth/register')
+      .send({
+        fullName: 'Non Consenting User',
+        mobile: '+966500000016',
+        password: 'password123',
+        role: 'PATIENT',
+      })
+      .expect(201);
+
+    const user = await prisma.user.findUniqueOrThrow({ where: { mobile: '+966500000016' } });
+    expect(user.termsAcceptedAt).toBeNull();
+  });
+
   it('rejects registration with a duplicate mobile number', async () => {
     await request(app.getHttpServer()).post('/api/v1/auth/register').send({
       fullName: 'First User',
