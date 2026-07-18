@@ -1,6 +1,7 @@
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, fireEvent } from '@testing-library/react';
 import { MantineProvider } from '@mantine/core';
 import { ReportsSection } from './ReportsSection';
+import { printMedicalReport } from './medicalReportPrint';
 import { PatientDetailProvider } from './PatientDetailContext';
 import { AuthProvider } from '../auth/AuthProvider';
 import { getPatient } from '../api/patients';
@@ -12,6 +13,7 @@ vi.mock('../api/patients');
 vi.mock('../api/reports');
 vi.mock('../api/auth');
 vi.mock('../storage/session');
+vi.mock('./medicalReportPrint', () => ({ printMedicalReport: vi.fn() }));
 
 function renderSection() {
   (getToken as ReturnType<typeof vi.fn>).mockReturnValue('token-123');
@@ -116,5 +118,23 @@ describe('ReportsSection', () => {
       expect(screen.getByTestId('latest-assessment-summary')).toBeTruthy();
       expect(screen.getByTestId('active-plan-summary')).toBeTruthy();
     });
+  });
+
+  it('exports the medical report as a printable PDF when the export button is clicked', async () => {
+    const medical = {
+      patientProfileId: 'patient-1',
+      patientFullName: 'مريض',
+      clinicalInfo: null,
+      latestApprovedAssessment: null,
+      activeTreatmentPlan: null,
+    };
+    (getAssessmentResultsReport as ReturnType<typeof vi.fn>).mockResolvedValue([]);
+    (getMedicalReport as ReturnType<typeof vi.fn>).mockResolvedValue(medical);
+    renderSection();
+
+    await waitFor(() => expect(screen.getByTestId('export-medical-pdf')).toBeTruthy());
+    fireEvent.click(screen.getByTestId('export-medical-pdf'));
+
+    expect(printMedicalReport).toHaveBeenCalledWith(medical);
   });
 });

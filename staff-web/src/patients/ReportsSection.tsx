@@ -1,10 +1,11 @@
 import { useEffect, useState } from 'react';
-import { Card, Title, Text, Table, Alert, Stack } from '@mantine/core';
+import { Card, Title, Text, Table, Alert, Stack, Button, Group } from '@mantine/core';
 import { ar } from '../copy/ar';
 import { usePatientDetail } from './PatientDetailContext';
 import { getAssessmentResultsReport, getMedicalReport } from '../api/reports';
 import type { AssessmentResultsReportRow, MedicalReport } from '../api/reports';
 import { ApiError } from '../api/client';
+import { printMedicalReport } from './medicalReportPrint';
 
 function formatDate(isoString: string): string {
   return new Date(isoString).toLocaleDateString('ar-SA');
@@ -68,7 +69,19 @@ export function ReportsSection() {
         </Table>
       )}
 
-      <Text fw={600} mb="xs">{ar.reports.medicalReportTitle}</Text>
+      <Group justify="space-between" mb="xs">
+        <Text fw={600}>{ar.reports.medicalReportTitle}</Text>
+        {medicalReport ? (
+          <Button
+            size="xs"
+            variant="light"
+            data-testid="export-medical-pdf"
+            onClick={() => printMedicalReport(medicalReport)}
+          >
+            {ar.reports.exportMedicalPdfButton}
+          </Button>
+        ) : null}
+      </Group>
       {medicalReport === null ? null : (
         <Stack gap="xs">
           {medicalReport.clinicalInfo ? (
