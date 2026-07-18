@@ -418,6 +418,25 @@ describe('Treatment Engine — Sample preparation (e2e)', () => {
       expect(response.status).toBe(404);
     });
 
+    it('logs who streamed an attempt recording (a PHI-marked GET)', async () => {
+      const createResponse = await request(app.getHttpServer())
+        .post(`/api/v1/patients/${patientId}/cycles/current/sample-session/attempts`)
+        .set('Authorization', `Bearer ${patientToken}`)
+        .send({ recordingUrl: 'nonexistent-file.mp4', mimeType: 'video/mp4', fileSizeBytes: 100, durationSeconds: 5 });
+      const attemptId = createResponse.body.id;
+
+      await request(app.getHttpServer())
+        .get(`/api/v1/patients/${patientId}/cycles/current/sample-session/attempts/${attemptId}/media`)
+        .set('Authorization', `Bearer ${patientToken}`);
+
+      const logs = await prisma.auditLog.findMany({
+        where: { action: `GET /api/v1/patients/${patientId}/cycles/current/sample-session/attempts/${attemptId}/media` },
+      });
+      expect(logs).toHaveLength(1);
+      expect(logs[0].entityId).toBe(patientId);
+      expect(logs[0].entity).toBe('samples');
+    });
+
     it("rejects an unrelated patient from streaming another patient's attempt media", async () => {
       const createResponse = await request(app.getHttpServer())
         .post(`/api/v1/patients/${patientId}/cycles/current/sample-session/attempts`)

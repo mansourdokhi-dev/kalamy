@@ -55,6 +55,7 @@ export class PatientsController {
 
   @Get()
   @RequirePermission(Permission.SEARCH_PATIENTS)
+  @AuditPhiRead()
   search(@Query('q') q?: string) {
     return this.patientsService.search(q);
   }

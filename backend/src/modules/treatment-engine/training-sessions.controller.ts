@@ -7,6 +7,7 @@ import { PermissionsGuard } from '../../common/rbac/permissions.guard';
 import { RequirePermission } from '../../common/rbac/require-permission.decorator';
 import { Permission } from '../../common/rbac/permissions';
 import { RecordProgressDto } from './dto/record-progress.dto';
+import { AuditPhiRead } from '../../common/audit/audit-phi-read.decorator';
 
 @Controller('api/v1/patients/:patientId/cycles/current/training-sessions')
 @UseGuards(SessionGuard, PermissionsGuard)
@@ -32,6 +33,7 @@ export class TrainingSessionsController {
 
   @Get('progress')
   @RequirePermission(Permission.VIEW_CYCLE)
+  @AuditPhiRead()
   async getProgress(@Param('patientId') patientId: string, @CurrentUser() user: AuthenticatedUser) {
     const current = await this.trainingCyclesService.getCurrent(patientId, user);
     return this.trainingSessionsService.getProgress(current.id, user);
