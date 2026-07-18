@@ -149,14 +149,6 @@ export default function HomeScreen() {
     return <Text style={{ color: tokens.colors.textSecondary }}>{ar.program.genericWaiting}</Text>;
   }
 
-  if (profileLoading || loading) {
-    return (
-      <View style={[styles.container, { backgroundColor: tokens.colors.background }]}>
-        <Text style={{ color: tokens.colors.text }}>{ar.program.loading}</Text>
-      </View>
-    );
-  }
-
   if (profileNotFound) {
     return (
       <View style={[styles.container, { backgroundColor: tokens.colors.background }]}>
@@ -165,10 +157,26 @@ export default function HomeScreen() {
     );
   }
 
-  if (profileError || error) {
+  if (profileError) {
     return (
       <View style={[styles.container, { backgroundColor: tokens.colors.background }]}>
-        <ErrorBanner message={(profileError || error) as string} />
+        <ErrorBanner message={profileError} />
+      </View>
+    );
+  }
+
+  if (profileLoading || loading) {
+    return (
+      <View style={[styles.container, { backgroundColor: tokens.colors.background }]}>
+        <Text style={{ color: tokens.colors.text }}>{ar.program.loading}</Text>
+      </View>
+    );
+  }
+
+  if (error) {
+    return (
+      <View style={[styles.container, { backgroundColor: tokens.colors.background }]}>
+        <ErrorBanner message={error} />
       </View>
     );
   }

@@ -48,7 +48,7 @@ function ScoreStepper({ label, value, onChange }: { label: string; value: number
 export default function SampleRecordingScreen() {
   const router = useRouter();
   const { tokens } = useTheme();
-  const { patientProfileId } = usePatientProfile();
+  const { patientProfileId, loading: profileLoading, notFound: profileNotFound, error: profileError } = usePatientProfile();
 
   const [step, setStep] = useState<1 | 2 | 3>(1);
   const [loading, setLoading] = useState(true);
@@ -142,7 +142,23 @@ export default function SampleRecordingScreen() {
     }
   }
 
-  if (loading) {
+  if (profileNotFound) {
+    return (
+      <View style={[styles.container, { backgroundColor: tokens.colors.background }]}>
+        <ErrorBanner message={ar.program.noTreatmentPlanYet} />
+      </View>
+    );
+  }
+
+  if (profileError) {
+    return (
+      <View style={[styles.container, { backgroundColor: tokens.colors.background }]}>
+        <ErrorBanner message={profileError} />
+      </View>
+    );
+  }
+
+  if (profileLoading || loading) {
     return (
       <View style={[styles.container, { backgroundColor: tokens.colors.background }]}>
         <Text style={{ color: tokens.colors.text }}>{ar.program.loading}</Text>

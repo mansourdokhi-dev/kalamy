@@ -60,4 +60,14 @@ describe('HistoryScreen', () => {
     );
     expect(screen.queryByText(/قرر الأخصائي/)).toBeNull();
   });
+
+  it('shows the no-profile message instead of an infinite spinner when the patient has no profile yet', async () => {
+    (usePatientProfile as jest.Mock).mockReturnValue({ patientProfileId: null, loading: false, notFound: true, error: null });
+
+    await render(<ThemeProvider><HistoryScreen /></ThemeProvider>);
+
+    await waitFor(() => {
+      expect(screen.getByText('لم يُكمل فريقك الطبي خطة علاجك بعد — يرجى التواصل مع عيادتك')).toBeTruthy();
+    });
+  });
 });
