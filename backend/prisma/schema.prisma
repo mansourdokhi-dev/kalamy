@@ -137,6 +137,9 @@ model User {
   lockedUntil         DateTime?
   mustChangePassword  Boolean    @default(false)
   supervisorUserId    String?
+  // When the user accepted the terms & privacy policy at registration
+  // (SRS Part5 §5 — "تسجيل موافقات المستخدم"). Null = not recorded.
+  termsAcceptedAt     DateTime?
   createdAt           DateTime   @default(now())
   updatedAt           DateTime   @updatedAt
 

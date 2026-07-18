@@ -20,6 +20,8 @@ export const ar = {
     mobileInvalid: 'رقم جوال غير صحيح',
     passwordTooShort: 'كلمة السر يجب ألا تقل عن 8 أحرف',
     nameRequired: 'الاسم مطلوب',
+    termsCheckbox: 'أوافق على الشروط والأحكام وسياسة الخصوصية',
+    termsRequired: 'يجب الموافقة على الشروط والأحكام للمتابعة',
   },
   verify: {
     title: 'تأكيد رقم الجوال',

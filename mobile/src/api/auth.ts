@@ -17,6 +17,7 @@ export interface RegisterPatientInput {
   mobile: string;
   email?: string;
   password: string;
+  acceptedTerms?: boolean;
 }
 
 export interface RegisterResponse {
