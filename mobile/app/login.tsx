@@ -9,10 +9,12 @@ import { ErrorBanner } from '../src/components/ErrorBanner';
 import { login } from '../src/api/auth';
 import { saveToken } from '../src/storage/session';
 import { ApiError } from '../src/api/client';
+import { usePatientProfile } from '../src/patient/PatientProfileProvider';
 
 export default function LoginScreen() {
   const router = useRouter();
   const { tokens } = useTheme();
+  const { refresh: refreshPatientProfile } = usePatientProfile();
 
   const [mobile, setMobile] = useState('');
   const [password, setPassword] = useState('');
@@ -25,6 +27,10 @@ export default function LoginScreen() {
     try {
       const result = await login({ mobile, password });
       await saveToken(result.token);
+      // The profile provider is mounted at the root (while logged out), so it
+      // holds stale not-found/error state from before this login — re-fetch now
+      // that a token exists so /home renders the real profile, not that stale state.
+      await refreshPatientProfile();
       router.push('/home');
     } catch (err) {
       if (err instanceof ApiError && err.status === 429) {

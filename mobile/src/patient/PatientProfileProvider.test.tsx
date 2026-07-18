@@ -1,5 +1,5 @@
-import { Text } from 'react-native';
-import { render, screen, waitFor } from '@testing-library/react-native';
+import { Text, Pressable } from 'react-native';
+import { render, screen, waitFor, fireEvent } from '@testing-library/react-native';
 import { ThemeProvider, useTheme } from '../theme/ThemeContext';
 import { PatientProfileProvider, usePatientProfile, computeAgeGroup } from './PatientProfileProvider';
 import { getMyPatientProfile } from '../api/patients';
@@ -13,6 +13,18 @@ function Consumer() {
   if (notFound) return <Text>not-found</Text>;
   if (error) return <Text>{error}</Text>;
   return <Text>{`${patientProfileId}:${ageGroup}`}</Text>;
+}
+
+function RefreshConsumer() {
+  const { patientProfileId, notFound, refresh } = usePatientProfile();
+  return (
+    <>
+      <Text>{notFound ? 'not-found' : `id:${patientProfileId}`}</Text>
+      <Pressable testID="refresh" onPress={() => refresh()}>
+        <Text>refresh</Text>
+      </Pressable>
+    </>
+  );
 }
 
 describe('computeAgeGroup', () => {
@@ -66,6 +78,32 @@ describe('PatientProfileProvider', () => {
 
     await waitFor(() => {
       expect(screen.getByText('not-found')).toBeTruthy();
+    });
+  });
+
+  it('re-fetches when refresh() is called (e.g. after login), recovering from an initial not-found', async () => {
+    const { ApiError } = jest.requireActual('../api/client');
+    // First mount (logged out / no profile) rejects; after login the same call succeeds.
+    (getMyPatientProfile as jest.Mock)
+      .mockRejectedValueOnce(new ApiError(404, 'NOT_FOUND', 'No patient profile exists for this user yet'))
+      .mockResolvedValueOnce({ id: 'profile-9', dateOfBirth: '1990-01-01' });
+
+    await render(
+      <ThemeProvider>
+        <PatientProfileProvider>
+          <RefreshConsumer />
+        </PatientProfileProvider>
+      </ThemeProvider>,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText('not-found')).toBeTruthy();
+    });
+
+    await fireEvent.press(screen.getByTestId('refresh'));
+
+    await waitFor(() => {
+      expect(screen.getByText('id:profile-9')).toBeTruthy();
     });
   });
 
