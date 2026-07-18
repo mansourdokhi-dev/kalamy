@@ -1,4 +1,4 @@
-import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { Assessment, PatientProfile, Role } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { CreateAssessmentDto } from './dto/create-assessment.dto';
@@ -11,7 +11,13 @@ export class AssessmentsService {
   constructor(private readonly prisma: PrismaService) {}
 
   async create(patientProfileId: string, dto: CreateAssessmentDto, actor: AuthenticatedUser): Promise<Assessment> {
-    await this.findPatientProfileOrThrow(patientProfileId);
+    const profile = await this.findPatientProfileOrThrow(patientProfileId);
+    // CLAUDE.md: "assessment requires a complete clinical profile" — clinical
+    // profiles are never deleted, only deactivated, so a DISABLED profile is
+    // exactly the case that must not accept new clinical activity.
+    if (profile.status !== 'ACTIVE') {
+      throw new ConflictException('Cannot create an assessment for a disabled patient profile');
+    }
     return this.prisma.assessment.create({
       data: {
         patientProfileId,

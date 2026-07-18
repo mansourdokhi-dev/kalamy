@@ -155,7 +155,7 @@ export class AuthService {
     };
   }
 
-  async changePassword(userId: string, dto: ChangePasswordDto): Promise<void> {
+  async changePassword(userId: string, dto: ChangePasswordDto, currentSessionId?: string): Promise<void> {
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
     if (!user) {
       throw new NotFoundException('User not found');
@@ -168,6 +168,15 @@ export class AuthService {
     await this.prisma.user.update({
       where: { id: userId },
       data: { passwordHash: newPasswordHash, mustChangePassword: false },
+    });
+    // Revoke every *other* active session so a stolen/leaked token can't outlive
+    // the password change that was made in response to it — but keep the caller's
+    // own session alive so they aren't logged out of the very request they just
+    // made. (resetPassword revokes all sessions including the current one, because
+    // that flow is unauthenticated and has no current session to preserve.)
+    await this.prisma.session.updateMany({
+      where: { userId, revokedAt: null, ...(currentSessionId ? { id: { not: currentSessionId } } : {}) },
+      data: { revokedAt: new Date() },
     });
   }
 

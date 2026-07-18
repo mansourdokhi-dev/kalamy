@@ -86,7 +86,7 @@ export class AuthController {
   @UseGuards(SessionGuard)
   @HttpCode(200)
   async changePassword(@Body() dto: ChangePasswordDto, @CurrentUser() user: AuthenticatedUser): Promise<{ changed: true }> {
-    await this.authService.changePassword(user.id, dto);
+    await this.authService.changePassword(user.id, dto, user.sessionId);
     return { changed: true };
   }
 }

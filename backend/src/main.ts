@@ -8,11 +8,15 @@ import { AppModule } from './app.module';
 import { assertSafeBootConfig } from './boot-guard';
 import { shouldExposeSwaggerDocs } from './swagger-gate';
 import { resolveAllowedOrigins } from './cors-config';
+import { resolveTrustProxy } from './trust-proxy-config';
 
 async function bootstrap() {
   assertSafeBootConfig();
   const app = await NestFactory.create<NestExpressApplication>(AppModule);
   app.enableCors({ origin: resolveAllowedOrigins() });
+  // Makes req.ip reflect the real client behind a reverse proxy so the per-IP
+  // throttler isn't collapsed into one bucket — see trust-proxy-config.ts.
+  app.set('trust proxy', resolveTrustProxy());
 
   if (shouldExposeSwaggerDocs()) {
     const config = new DocumentBuilder()
