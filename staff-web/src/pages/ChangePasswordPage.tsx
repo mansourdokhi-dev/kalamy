@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import type { FormEvent } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Container, Title, Text, PasswordInput, Button, Alert, Stack } from '@mantine/core';
 import { ar } from '../copy/ar';
 import { useAuth } from '../auth/AuthProvider';
@@ -7,6 +8,7 @@ import { changePassword } from '../api/auth';
 import { ApiError } from '../api/client';
 
 export function ChangePasswordPage() {
+  const navigate = useNavigate();
   const { refreshUser } = useAuth();
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
@@ -20,6 +22,7 @@ export function ChangePasswordPage() {
     try {
       await changePassword({ currentPassword, newPassword });
       await refreshUser();
+      navigate('/patients');
     } catch (err) {
       setError(err instanceof ApiError ? err.message : ar.errors.unexpected);
     } finally {

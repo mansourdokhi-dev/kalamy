@@ -34,6 +34,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (!cancelled) {
           setUser(me);
         }
+      } catch {
+        // A saved token that no longer authenticates (expired, revoked, the
+        // account was disabled) must not surface as an unhandled rejection —
+        // treat it the same as never having been logged in.
+        clearToken();
       } finally {
         if (!cancelled) {
           setLoading(false);

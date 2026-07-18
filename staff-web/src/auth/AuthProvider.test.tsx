@@ -1,6 +1,7 @@
 import { render, screen, waitFor, fireEvent } from '@testing-library/react';
 import { AuthProvider, useAuth } from './AuthProvider';
 import { login, getMe } from '../api/auth';
+import { ApiError } from '../api/client';
 import { getToken, clearToken } from '../storage/session';
 
 vi.mock('../api/auth');
@@ -94,5 +95,17 @@ describe('AuthProvider', () => {
     await waitFor(() => {
       expect(screen.getByText('logged in: Dr. Sara')).toBeTruthy();
     });
+  });
+
+  it('clears a stale/invalid saved token instead of leaving an unhandled rejection', async () => {
+    (getMe as ReturnType<typeof vi.fn>).mockRejectedValue(new ApiError(401, 'UNAUTHORIZED', 'Invalid or expired token'));
+    localStorage.setItem('kalamy_staff_token', 'expired-token');
+
+    render(<AuthProvider><Probe /></AuthProvider>);
+
+    await waitFor(() => {
+      expect(screen.getByText('logged out')).toBeTruthy();
+    });
+    expect(getToken()).toBeNull();
   });
 });

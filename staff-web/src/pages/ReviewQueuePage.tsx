@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Container, Title, Table, Button, Text, Badge, Alert } from '@mantine/core';
 import { ar } from '../copy/ar';
+import { useAuth } from '../auth/AuthProvider';
+import { canReviewSample } from '../auth/permissions';
 import { listAvailableSamples, reserveSample } from '../api/specialist-review';
 import type { AvailableSampleRow } from '../api/specialist-review';
 import { ApiError } from '../api/client';
@@ -12,15 +14,22 @@ function formatDate(isoString: string): string {
 
 export function ReviewQueuePage() {
   const navigate = useNavigate();
+  const { user } = useAuth();
   const [rows, setRows] = useState<AvailableSampleRow[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [reservingId, setReservingId] = useState<string | null>(null);
 
   useEffect(() => {
+    if (!user || !canReviewSample(user.role)) return;
     listAvailableSamples()
       .then(setRows)
       .catch((err) => setError(err instanceof ApiError ? err.message : ar.errors.unexpected));
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.role]);
+
+  if (!user || !canReviewSample(user.role)) {
+    return null;
+  }
 
   async function handleReserve(row: AvailableSampleRow) {
     setReservingId(row.id);
