@@ -212,6 +212,9 @@ export const ar = {
     noLatestAssessment: 'لا يوجد تقييم معتمد',
     activePlanTitle: 'الخطة العلاجية النشطة',
     noActivePlanForReport: 'لا توجد خطة علاجية نشطة',
+    exportMedicalPdfButton: 'تصدير التقرير الطبي (PDF)',
+    reportGeneratedAtLabel: 'تاريخ إصدار التقرير',
+    reportFooterNote: 'تقرير مُولَّد آليًا من منصة كلامي',
     adminReportsTitle: 'التقارير الإدارية',
     tabs: {
       operationalStatus: 'الحالة التشغيلية',
