@@ -10,6 +10,7 @@ import { OtpPurpose, Role, UserStatus } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { OtpService } from './otp.service';
 import { PasswordService } from '../../common/security/password.service';
+import { OtpDeliveryService } from '../../common/otp-delivery/otp-delivery.service';
 import { generateSessionToken, hashToken } from '../../common/security/token-hash.util';
 import { RegisterDto } from './dto/register.dto';
 import { VerifyOtpDto } from './dto/verify-otp.dto';
@@ -28,6 +29,7 @@ export class AuthService {
     private readonly prisma: PrismaService,
     private readonly otpService: OtpService,
     private readonly passwordService: PasswordService,
+    private readonly otpDeliveryService: OtpDeliveryService,
   ) {}
 
   async register(dto: RegisterDto): Promise<{ userId: string; devOtpCode?: string }> {
@@ -50,6 +52,20 @@ export class AuthService {
     });
 
     const code = await this.otpService.issue(user.id, OtpPurpose.REGISTRATION);
+    // A delivery failure must never block registration itself — the code is
+    // already stored and verifiable; DEV_MODE's devOtpCode below is the
+    // fallback path for local development/testing regardless of delivery.
+    try {
+      await this.otpDeliveryService.deliver(
+        { mobile: user.mobile, email: user.email, fullName: user.fullName },
+        code,
+        OtpPurpose.REGISTRATION,
+      );
+    } catch {
+      // OtpDeliveryService itself already logs channel-level failures; a
+      // rejection this far up would mean a channel implementation bug, not a
+      // recoverable delivery failure — still must not break registration.
+    }
 
     return {
       userId: user.id,
@@ -139,7 +155,7 @@ export class AuthService {
     };
   }
 
-  async changePassword(userId: string, dto: ChangePasswordDto): Promise<void> {
+  async changePassword(userId: string, dto: ChangePasswordDto, currentSessionId?: string): Promise<void> {
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
     if (!user) {
       throw new NotFoundException('User not found');
@@ -152,6 +168,15 @@ export class AuthService {
     await this.prisma.user.update({
       where: { id: userId },
       data: { passwordHash: newPasswordHash, mustChangePassword: false },
+    });
+    // Revoke every *other* active session so a stolen/leaked token can't outlive
+    // the password change that was made in response to it — but keep the caller's
+    // own session alive so they aren't logged out of the very request they just
+    // made. (resetPassword revokes all sessions including the current one, because
+    // that flow is unauthenticated and has no current session to preserve.)
+    await this.prisma.session.updateMany({
+      where: { userId, revokedAt: null, ...(currentSessionId ? { id: { not: currentSessionId } } : {}) },
+      data: { revokedAt: new Date() },
     });
   }
 
@@ -195,6 +220,15 @@ export class AuthService {
       return {};
     }
     const code = await this.otpService.issue(user.id, OtpPurpose.PASSWORD_RESET);
+    try {
+      await this.otpDeliveryService.deliver(
+        { mobile: user.mobile, email: user.email, fullName: user.fullName },
+        code,
+        OtpPurpose.PASSWORD_RESET,
+      );
+    } catch {
+      // See register() above: delivery failures must never block the response.
+    }
     return { devOtpCode: process.env.DEV_MODE === 'true' ? code : undefined };
   }
 

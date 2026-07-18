@@ -12,6 +12,7 @@ import { Permission } from '../../common/rbac/permissions';
 import { RecordAttemptDto } from './dto/record-attempt.dto';
 import { SubmitSampleDto } from './dto/submit-sample.dto';
 import { RerecordPartsDto } from './dto/rerecord-parts.dto';
+import { AuditPhiRead } from '../../common/audit/audit-phi-read.decorator';
 
 @Controller('api/v1/patients/:patientId/cycles/current/sample-session')
 @UseGuards(SessionGuard, PermissionsGuard)
@@ -75,6 +76,7 @@ export class SamplesController {
 
   @Get('attempts/:attemptId/media')
   @RequirePermission(Permission.PREPARE_SAMPLE)
+  @AuditPhiRead()
   async streamAttemptMedia(
     @Param('patientId') patientId: string,
     @Param('attemptId') attemptId: string,

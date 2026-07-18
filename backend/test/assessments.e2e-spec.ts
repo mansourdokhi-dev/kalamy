@@ -77,6 +77,24 @@ describe('Assessments: create, list, get', () => {
     expect(response.body.status).toBe('DRAFT');
   });
 
+  it('rejects creating an assessment against a disabled patient profile', async () => {
+    const clinicianToken = await createClinicianToken('+966500000390', 'password123');
+    const patient = await registerActivateAndLogin('+966500000391', 'password123', 'PATIENT');
+    const profileId = await createPatientProfile(clinicianToken, patient.userId, 'ASM-TEST-DISABLED');
+    await request(app.getHttpServer())
+      .patch(`/api/v1/patients/${profileId}/status`)
+      .set('Authorization', `Bearer ${clinicianToken}`)
+      .send({ status: 'DISABLED' })
+      .expect(200);
+
+    const response = await request(app.getHttpServer())
+      .post(`/api/v1/patients/${profileId}/assessments`)
+      .set('Authorization', `Bearer ${clinicianToken}`)
+      .send({ type: 'INITIAL' });
+
+    expect(response.status).toBe(409);
+  });
+
   it('rejects a PATIENT trying to create an assessment', async () => {
     const clinicianToken = await createClinicianToken('+966500000302', 'password123');
     const patient = await registerActivateAndLogin('+966500000303', 'password123', 'PATIENT');

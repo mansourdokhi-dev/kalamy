@@ -510,6 +510,43 @@ describe('Auth: mustChangePassword + change-password', () => {
 
     void user;
   });
+
+  it('revokes all other active sessions when the password is changed', async () => {
+    const bcrypt = await import('bcryptjs');
+    const passwordHash = await bcrypt.hash('current-pass-123', 10);
+    await prisma.user.create({
+      data: {
+        fullName: 'Multi Session User',
+        mobile: '+966500002150',
+        passwordHash,
+        role: 'CLINICIAN',
+        status: 'ACTIVE',
+      },
+    });
+
+    // Two independent logins → two active session tokens (e.g. a stolen token
+    // in an attacker's hands plus the legitimate user's own).
+    const firstLogin = await request(app.getHttpServer())
+      .post('/api/v1/auth/login')
+      .send({ mobile: '+966500002150', password: 'current-pass-123' });
+    const attackerToken = firstLogin.body.token;
+    const secondLogin = await request(app.getHttpServer())
+      .post('/api/v1/auth/login')
+      .send({ mobile: '+966500002150', password: 'current-pass-123' });
+    const ownerToken = secondLogin.body.token;
+
+    // Both tokens work before the change.
+    await request(app.getHttpServer()).get('/api/v1/auth/me').set('Authorization', `Bearer ${attackerToken}`).expect(200);
+
+    await request(app.getHttpServer())
+      .post('/api/v1/auth/change-password')
+      .set('Authorization', `Bearer ${ownerToken}`)
+      .send({ currentPassword: 'current-pass-123', newPassword: 'brand-new-pass-456' })
+      .expect(200);
+
+    // The other session (attacker's) must no longer authenticate.
+    await request(app.getHttpServer()).get('/api/v1/auth/me').set('Authorization', `Bearer ${attackerToken}`).expect(401);
+  });
 });
 
 describe('Auth: GET /me', () => {

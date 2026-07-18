@@ -8,6 +8,10 @@ import { ApiError } from '../../src/api/client';
 jest.mock('../../src/api/auth');
 jest.mock('../../src/storage/session');
 jest.mock('expo-router', () => ({ useRouter: () => ({ push: jest.fn() }) }));
+const mockRefreshProfile = jest.fn().mockResolvedValue(undefined);
+jest.mock('../../src/patient/PatientProfileProvider', () => ({
+  usePatientProfile: () => ({ refresh: mockRefreshProfile }),
+}));
 
 function renderScreen() {
   return render(

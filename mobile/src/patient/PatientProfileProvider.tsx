@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
+import { createContext, useCallback, useContext, useEffect, useState, ReactNode } from 'react';
 import { getMyPatientProfile } from '../api/patients';
 import { ApiError } from '../api/client';
 import { useTheme } from '../theme/ThemeContext';
@@ -9,6 +9,7 @@ interface PatientProfileContextValue {
   loading: boolean;
   notFound: boolean;
   error: string | null;
+  refresh: () => Promise<void>;
 }
 
 const PatientProfileContext = createContext<PatientProfileContextValue | undefined>(undefined);
@@ -33,32 +34,36 @@ export function PatientProfileProvider({ children }: { children: ReactNode }) {
   const [notFound, setNotFound] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    let cancelled = false;
-    getMyPatientProfile()
-      .then((profile) => {
-        if (cancelled) return;
-        setPatientProfileId(profile.id);
-        setAgeGroup(computeAgeGroup(profile.dateOfBirth));
-        setLoading(false);
-      })
-      .catch((err) => {
-        if (cancelled) return;
-        if (err instanceof ApiError && err.status === 404) {
-          setNotFound(true);
-        } else {
-          setError(err instanceof ApiError ? err.message : 'حدث خطأ غير متوقع');
-        }
-        setLoading(false);
-      });
-    return () => {
-      cancelled = true;
-    };
+  // Exposed so the login screen can force a re-fetch after saving the token —
+  // this provider lives at the root layout and is mounted once (while logged
+  // out), so without an explicit refresh its initial not-found/error state
+  // would persist through the first login instead of loading the real profile.
+  const refresh = useCallback(async () => {
+    setLoading(true);
+    setNotFound(false);
+    setError(null);
+    try {
+      const profile = await getMyPatientProfile();
+      setPatientProfileId(profile.id);
+      setAgeGroup(computeAgeGroup(profile.dateOfBirth));
+    } catch (err) {
+      if (err instanceof ApiError && err.status === 404) {
+        setNotFound(true);
+      } else {
+        setError(err instanceof ApiError ? err.message : 'حدث خطأ غير متوقع');
+      }
+    } finally {
+      setLoading(false);
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  useEffect(() => {
+    refresh();
+  }, [refresh]);
+
   return (
-    <PatientProfileContext.Provider value={{ patientProfileId, loading, notFound, error }}>
+    <PatientProfileContext.Provider value={{ patientProfileId, loading, notFound, error, refresh }}>
       {children}
     </PatientProfileContext.Provider>
   );

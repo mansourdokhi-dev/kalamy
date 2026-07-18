@@ -161,6 +161,11 @@ model User {
   supervisedClinicians      User[]                   @relation("ClinicianSupervisor")
   notifications             Notification[]
   notificationPreferences   NotificationPreference[]
+
+  // supervision.service.ts lists a supervisor's clinicians by this FK; role is
+  // filtered in admin-users.service.ts's account list.
+  @@index([supervisorUserId])
+  @@index([role])
 }
 
 model OtpCode {
@@ -246,6 +251,13 @@ model AuditLog {
   before    Json?
   after     Json?
   createdAt DateTime @default(now())
+
+  // This table is append-only and never pruned (domain rule: sensitive-op history
+  // is permanent), so it grows without bound. The service-modification-log report
+  // filters/orders by createdAt, and incident investigations look up "who touched
+  // this entity" by (entity, entityId) — both would otherwise full-scan.
+  @@index([createdAt])
+  @@index([entity, entityId])
 }
 
 model Assessment {

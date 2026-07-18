@@ -3,16 +3,16 @@ import { z } from 'zod';
 
 export const UpdatePatientSchema = z.object({
   fullName: z.string().min(1).max(100).optional(),
-  address: z.string().optional(),
-  referralSource: z.string().optional(),
+  address: z.string().max(300).optional(),
+  referralSource: z.string().max(200).optional(),
   clinicalInfo: z
     .object({
-      referralReason: z.string().optional(),
-      initialDiagnosis: z.string().optional(),
-      medicalHistory: z.string().optional(),
-      medications: z.string().optional(),
-      allergies: z.string().optional(),
-      familyHistory: z.string().optional(),
+      referralReason: z.string().max(2000).optional(),
+      initialDiagnosis: z.string().max(2000).optional(),
+      medicalHistory: z.string().max(5000).optional(),
+      medications: z.string().max(2000).optional(),
+      allergies: z.string().max(2000).optional(),
+      familyHistory: z.string().max(2000).optional(),
     })
     .optional(),
 });

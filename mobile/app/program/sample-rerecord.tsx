@@ -13,7 +13,7 @@ import { getCurrentCycle, uploadRecording, rerecordDamagedParts, SampleSamplePar
 export default function SampleRerecordScreen() {
   const router = useRouter();
   const { tokens } = useTheme();
-  const { patientProfileId } = usePatientProfile();
+  const { patientProfileId, loading: profileLoading, notFound: profileNotFound, error: profileError } = usePatientProfile();
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -68,7 +68,23 @@ export default function SampleRerecordScreen() {
     }
   }
 
-  if (loading) {
+  if (profileNotFound) {
+    return (
+      <View style={[styles.container, { backgroundColor: tokens.colors.background }]}>
+        <ErrorBanner message={ar.program.noTreatmentPlanYet} />
+      </View>
+    );
+  }
+
+  if (profileError) {
+    return (
+      <View style={[styles.container, { backgroundColor: tokens.colors.background }]}>
+        <ErrorBanner message={profileError} />
+      </View>
+    );
+  }
+
+  if (profileLoading || loading) {
     return (
       <View style={[styles.container, { backgroundColor: tokens.colors.background }]}>
         <Text style={{ color: tokens.colors.text }}>{ar.program.loading}</Text>

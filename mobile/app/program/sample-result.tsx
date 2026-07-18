@@ -10,7 +10,7 @@ import { getCycleHistory, SpeechSample, SpecialistDecision } from '../../src/api
 
 export default function SampleResultScreen() {
   const { tokens } = useTheme();
-  const { patientProfileId } = usePatientProfile();
+  const { patientProfileId, loading: profileLoading, notFound: profileNotFound, error: profileError } = usePatientProfile();
   const { cycleId } = useLocalSearchParams<{ cycleId: string }>();
 
   const [sample, setSample] = useState<SpeechSample | null>(null);
@@ -38,7 +38,23 @@ export default function SampleResultScreen() {
     return '';
   }
 
-  if (loading) {
+  if (profileNotFound) {
+    return (
+      <View style={[styles.container, { backgroundColor: tokens.colors.background }]}>
+        <ErrorBanner message={ar.program.noTreatmentPlanYet} />
+      </View>
+    );
+  }
+
+  if (profileError) {
+    return (
+      <View style={[styles.container, { backgroundColor: tokens.colors.background }]}>
+        <ErrorBanner message={profileError} />
+      </View>
+    );
+  }
+
+  if (profileLoading || loading) {
     return (
       <View style={[styles.container, { backgroundColor: tokens.colors.background }]}>
         <Text style={{ color: tokens.colors.text }}>{ar.program.loading}</Text>

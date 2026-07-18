@@ -6,6 +6,7 @@ import { PermissionsGuard } from '../../common/rbac/permissions.guard';
 import { RequirePermission } from '../../common/rbac/require-permission.decorator';
 import { Permission } from '../../common/rbac/permissions';
 import { StartCycleDto } from './dto/start-cycle.dto';
+import { AuditPhiRead } from '../../common/audit/audit-phi-read.decorator';
 
 @Controller('api/v1/patients/:patientId/cycles')
 @UseGuards(SessionGuard, PermissionsGuard)
@@ -26,6 +27,7 @@ export class TrainingCyclesController {
 
   @Get()
   @RequirePermission(Permission.VIEW_CYCLE)
+  @AuditPhiRead()
   listHistory(@Param('patientId') patientId: string, @CurrentUser() user: AuthenticatedUser) {
     return this.trainingCyclesService.listHistory(patientId, user);
   }
@@ -39,6 +41,7 @@ export class TrainingCyclesController {
 
   @Get('current')
   @RequirePermission(Permission.VIEW_CYCLE)
+  @AuditPhiRead()
   getCurrent(@Param('patientId') patientId: string, @CurrentUser() user: AuthenticatedUser) {
     return this.trainingCyclesService.getCurrent(patientId, user);
   }

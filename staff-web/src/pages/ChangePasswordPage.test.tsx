@@ -7,6 +7,12 @@ import { changePassword, getMe } from '../api/auth';
 
 vi.mock('../api/auth');
 
+const mockNavigate = vi.fn();
+vi.mock('react-router-dom', async () => {
+  const actual = await vi.importActual<typeof import('react-router-dom')>('react-router-dom');
+  return { ...actual, useNavigate: () => mockNavigate };
+});
+
 beforeEach(() => {
   vi.clearAllMocks();
   localStorage.setItem('kalamy_staff_token', 'existing-token');
@@ -40,6 +46,7 @@ describe('ChangePasswordPage', () => {
     await waitFor(() => {
       expect(changePassword).toHaveBeenCalledWith({ currentPassword: 'temp123', newPassword: 'newpassword123' });
       expect(getMe).toHaveBeenCalledTimes(2);
+      expect(mockNavigate).toHaveBeenCalledWith('/patients');
     });
   });
 });

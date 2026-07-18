@@ -44,6 +44,12 @@ export class TrainingCyclesService {
     if (!plan || plan.patientProfileId !== patientProfileId) {
       throw new NotFoundException('Treatment plan not found for this patient');
     }
+    // A new plan deactivates the prior one (see treatment-plans.service.ts) — the
+    // gated journey requires training to start only from the current, active plan,
+    // never a superseded one.
+    if (plan.status !== 'ACTIVE') {
+      throw new ConflictException('Cannot start a training cycle against an inactive treatment plan');
+    }
 
     const { level: firstLevel, version: activeVersion } = await this.resolveFirstLevel();
 

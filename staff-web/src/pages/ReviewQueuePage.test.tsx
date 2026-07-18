@@ -81,4 +81,15 @@ describe('ReviewQueuePage', () => {
       expect(mockNavigate).toHaveBeenCalledWith('/patients/patient-1');
     });
   });
+
+  it('does not fetch or render the queue for a SUPERVISOR (lacks REVIEW_SAMPLE)', async () => {
+    (listAvailableSamples as ReturnType<typeof vi.fn>).mockResolvedValue([queueRow]);
+    renderPage('SUPERVISOR');
+
+    // Give any stray effect a tick to fire before asserting it didn't.
+    await new Promise((resolve) => setTimeout(resolve, 50));
+
+    expect(listAvailableSamples).not.toHaveBeenCalled();
+    expect(screen.queryByText('مريض تجريبي')).toBeNull();
+  });
 });

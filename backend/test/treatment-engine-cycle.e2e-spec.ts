@@ -114,6 +114,45 @@ describe('Treatment Engine — Cycle lifecycle (e2e)', () => {
     expect(currentRes.body.status).toBe('ACTIVE_LEVEL_TRAINING'); // one completed training alone is not the full 72h gate
   });
 
+  it('rejects starting a cycle against an inactive (superseded) treatment plan', async () => {
+    const clinicianToken = await registerAndLogin(app, prisma, '+966500001900', 'CLINICIAN');
+    const patientToken = await registerAndLogin(app, prisma, '+966500001901', null);
+
+    const patientProfile = await prisma.patientProfile.create({
+      data: {
+        userId: (await prisma.user.findUniqueOrThrow({ where: { mobile: '+966500001901' } })).id,
+        fullName: 'Inactive Plan Test Patient',
+        gender: 'MALE',
+        dateOfBirth: new Date('2000-01-01'),
+        nationalId: 'CYCLE-TEST-INACTIVE-1',
+      },
+    });
+    const assessment = await prisma.assessment.create({
+      data: { patientProfileId: patientProfile.id, clinicianUserId: (await prisma.user.findUniqueOrThrow({ where: { mobile: '+966500001900' } })).id, type: 'INITIAL', status: 'APPROVED' },
+    });
+    const plan = await prisma.treatmentPlan.create({
+      data: { patientProfileId: patientProfile.id, clinicianUserId: assessment.clinicianUserId, assessmentId: assessment.id, goals: 'g', reviewDate: new Date(), status: 'INACTIVE' },
+    });
+    const level = await prisma.level.create({ data: { name: 'Inactive Plan Test Level', order: 8999 } });
+    await prisma.levelVersion.create({
+      data: {
+        levelId: level.id,
+        versionNumber: 1,
+        behavioralTechnique: 'x',
+        trainingListJson: '[]',
+        samplePartTemplateJson: '[]',
+        publishedAt: new Date(),
+      },
+    });
+
+    const response = await request(app.getHttpServer())
+      .post(`/api/v1/patients/${patientProfile.id}/cycles/start`)
+      .set('Authorization', `Bearer ${patientToken}`)
+      .send({ treatmentPlanId: plan.id });
+
+    expect(response.status).toBe(409);
+  });
+
   it('rejects starting a cycle with a treatment plan that belongs to a different patient', async () => {
     const clinicianToken = await registerAndLogin(app, prisma, '+966500001002', 'CLINICIAN');
     const patientAToken = await registerAndLogin(app, prisma, '+966500001003', null);

@@ -9,6 +9,7 @@ import { CurrentUser } from '../../common/auth/current-user.decorator';
 import { PermissionsGuard } from '../../common/rbac/permissions.guard';
 import { RequirePermission } from '../../common/rbac/require-permission.decorator';
 import { Permission } from '../../common/rbac/permissions';
+import { AuditPhiRead } from '../../common/audit/audit-phi-read.decorator';
 
 @Controller('api/v1/patients/:patientId/treatment-plans')
 @UseGuards(SessionGuard, PermissionsGuard)
@@ -23,12 +24,14 @@ export class TreatmentPlansController {
 
   @Get()
   @RequirePermission(Permission.VIEW_TREATMENT_PLAN)
+  @AuditPhiRead()
   findAll(@Param('patientId') patientId: string, @CurrentUser() user: AuthenticatedUser) {
     return this.treatmentPlansService.findAllForPatient(patientId, user);
   }
 
   @Get('active')
   @RequirePermission(Permission.VIEW_TREATMENT_PLAN)
+  @AuditPhiRead()
   findActive(@Param('patientId') patientId: string, @CurrentUser() user: AuthenticatedUser) {
     return this.treatmentPlansService.findActiveForPatient(patientId, user);
   }
@@ -58,6 +61,7 @@ export class TreatmentPlansController {
 
   @Get(':id/exercises')
   @RequirePermission(Permission.VIEW_TREATMENT_PLAN)
+  @AuditPhiRead()
   listExercises(@Param('patientId') patientId: string, @Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
     return this.treatmentPlansService.listExercises(patientId, id, user);
   }
