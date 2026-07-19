@@ -218,6 +218,9 @@ export const ar = {
     typeSelectLabel: 'نوع الاستشارة',
     reasonInputLabel: 'سبب طلب الاستشارة',
     submitButtonLabel: 'إرسال الطلب',
+    bookAppointmentTitle: 'احجز موعدًا',
+    noSlotsAvailable: 'لا توجد مواعيد متاحة حاليًا',
+    bookButton: 'احجز',
   },
   notifications: {
     title: 'الإشعارات',

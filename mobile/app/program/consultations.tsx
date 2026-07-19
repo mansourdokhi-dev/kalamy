@@ -7,7 +7,7 @@ import { Button } from '../../src/components/Button';
 import { ErrorBanner } from '../../src/components/ErrorBanner';
 import { ApiError } from '../../src/api/client';
 import { usePatientProfile } from '../../src/patient/PatientProfileProvider';
-import { getMyConsultations, Consultation } from '../../src/api/consultations';
+import { getMyConsultations, getAvailableSlots, bookSlot, Consultation, ConsultationSlot } from '../../src/api/consultations';
 
 function typeLabel(type: Consultation['type']): string {
   return ar.consultations.types[type];
@@ -25,19 +25,36 @@ export default function ConsultationsScreen() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [consultations, setConsultations] = useState<Consultation[]>([]);
+  const [slots, setSlots] = useState<ConsultationSlot[]>([]);
+  const [bookingSlotId, setBookingSlotId] = useState<string | null>(null);
 
   const load = useCallback(async (id: string) => {
     setLoading(true);
     setError(null);
     try {
-      const result = await getMyConsultations(id);
+      const [result, availableSlots] = await Promise.all([getMyConsultations(id), getAvailableSlots()]);
       setConsultations(result);
+      setSlots(availableSlots);
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'حدث خطأ غير متوقع');
     } finally {
       setLoading(false);
     }
   }, []);
+
+  async function handleBook(consultationId: string, slotId: string) {
+    if (!patientProfileId) return;
+    setBookingSlotId(slotId);
+    setError(null);
+    try {
+      await bookSlot(consultationId, slotId);
+      await load(patientProfileId);
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'حدث خطأ غير متوقع');
+    } finally {
+      setBookingSlotId(null);
+    }
+  }
 
   useFocusEffect(
     useCallback(() => {
@@ -120,6 +137,25 @@ export default function ConsultationsScreen() {
               <Text style={{ color: tokens.colors.text }}>
                 {ar.consultations.outcomeNotesLabel}: <Text>{consultation.outcomeNotes}</Text>
               </Text>
+            ) : null}
+
+            {/* Slot booking: only for a consultation that isn't scheduled/terminal yet. */}
+            {(consultation.status === 'REQUESTED' || consultation.status === 'SCHEDULING') && !consultation.scheduledAt ? (
+              <View style={{ marginTop: 12, gap: 8 }}>
+                <Text style={{ color: tokens.colors.text, fontWeight: '600' }}>{ar.consultations.bookAppointmentTitle}</Text>
+                {slots.length === 0 ? (
+                  <Text style={{ color: tokens.colors.textSecondary }}>{ar.consultations.noSlotsAvailable}</Text>
+                ) : (
+                  slots.map((slot) => (
+                    <Button
+                      key={slot.id}
+                      title={`${ar.consultations.bookButton} — ${new Date(slot.startsAt).toLocaleString('ar')}`}
+                      onPress={() => handleBook(consultation.id, slot.id)}
+                      loading={bookingSlotId === slot.id}
+                    />
+                  ))
+                )}
+              </View>
             ) : null}
           </View>
         ))

@@ -4,7 +4,7 @@ import { ConsultationSection } from './ConsultationSection';
 import { PatientDetailProvider } from './PatientDetailContext';
 import { AuthProvider } from '../auth/AuthProvider';
 import { getPatient } from '../api/patients';
-import { listConsultations, updateConsultation } from '../api/consultations';
+import { listConsultations, updateConsultation, listMySlots, createSlot } from '../api/consultations';
 import { getMe } from '../api/auth';
 import { getToken } from '../storage/session';
 
@@ -14,6 +14,7 @@ vi.mock('../api/auth');
 vi.mock('../storage/session');
 
 function renderSection() {
+  (listMySlots as ReturnType<typeof vi.fn>).mockResolvedValue([]);
   (getToken as ReturnType<typeof vi.fn>).mockReturnValue('token-123');
   (getMe as ReturnType<typeof vi.fn>).mockResolvedValue({
     id: 'staff-1',
@@ -99,6 +100,20 @@ describe('ConsultationSection', () => {
     renderSection();
     await waitFor(() => {
       expect(screen.getByText('لا توجد طلبات استشارة')).toBeTruthy();
+    });
+  });
+
+  it('lets the clinician publish an availability slot', async () => {
+    (listConsultations as ReturnType<typeof vi.fn>).mockResolvedValue([]);
+    (createSlot as ReturnType<typeof vi.fn>).mockResolvedValue({ id: 'slot-1', startsAt: '2026-08-01T10:00:00.000Z', durationMinutes: 30, status: 'AVAILABLE' });
+    renderSection();
+
+    await waitFor(() => expect(screen.getByTestId('new-slot-input')).toBeTruthy());
+    fireEvent.change(screen.getByTestId('new-slot-input'), { target: { value: '2026-08-01T10:00' } });
+    fireEvent.click(screen.getByTestId('publish-slot'));
+
+    await waitFor(() => {
+      expect(createSlot).toHaveBeenCalledWith(new Date('2026-08-01T10:00').toISOString());
     });
   });
 });

@@ -2,7 +2,7 @@ import { render, screen, waitFor, fireEvent } from '@testing-library/react-nativ
 import { ThemeProvider } from '../../../src/theme/ThemeContext';
 import ConsultationsScreen from '../consultations';
 import { usePatientProfile } from '../../../src/patient/PatientProfileProvider';
-import { getMyConsultations } from '../../../src/api/consultations';
+import { getMyConsultations, getAvailableSlots, bookSlot } from '../../../src/api/consultations';
 import { ApiError } from '../../../src/api/client';
 
 const mockPush = jest.fn();
@@ -19,6 +19,7 @@ jest.mock('expo-router', () => {
 beforeEach(() => {
   jest.clearAllMocks();
   (usePatientProfile as jest.Mock).mockReturnValue({ patientProfileId: 'profile-1', loading: false, notFound: false, error: null });
+  (getAvailableSlots as jest.Mock).mockResolvedValue([]);
 });
 
 describe('ConsultationsScreen', () => {
@@ -110,6 +111,32 @@ describe('ConsultationsScreen', () => {
 
     await waitFor(() => {
       expect(screen.getByText('Something broke')).toBeTruthy();
+    });
+  });
+
+  it('shows available slots for a not-yet-scheduled consultation and books one on press', async () => {
+    (getMyConsultations as jest.Mock).mockResolvedValue([
+      {
+        id: 'c1', patientProfileId: 'profile-1', requestedByUserId: 'user-1', type: 'VOICE', status: 'REQUESTED',
+        reasonNote: 'x', scheduledAt: null, externalMeetingLink: null, specialistUserId: null, outcomeNotes: null,
+        completedAt: null, cancelledAt: null, createdAt: '2026-07-17T00:00:00.000Z', updatedAt: '2026-07-17T00:00:00.000Z',
+      },
+    ]);
+    (getAvailableSlots as jest.Mock).mockResolvedValue([
+      { id: 'slot-1', startsAt: '2026-08-01T10:00:00.000Z', durationMinutes: 30, status: 'AVAILABLE' },
+    ]);
+    (bookSlot as jest.Mock).mockResolvedValue({ id: 'slot-1', status: 'BOOKED' });
+
+    await render(<ThemeProvider><ConsultationsScreen /></ThemeProvider>);
+
+    await waitFor(() => {
+      expect(screen.getByText('احجز موعدًا')).toBeTruthy();
+    });
+    const bookButton = await screen.findByText(/احجز —/);
+    fireEvent.press(bookButton);
+
+    await waitFor(() => {
+      expect(bookSlot).toHaveBeenCalledWith('c1', 'slot-1');
     });
   });
 });

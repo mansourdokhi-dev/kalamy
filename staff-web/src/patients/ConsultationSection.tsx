@@ -4,8 +4,8 @@ import { ar } from '../copy/ar';
 import { usePatientDetail } from './PatientDetailContext';
 import { useAuth } from '../auth/AuthProvider';
 import { canManageConsultation } from '../auth/permissions';
-import { listConsultations, updateConsultation } from '../api/consultations';
-import type { Consultation, UpdateConsultationInput } from '../api/consultations';
+import { listConsultations, updateConsultation, listMySlots, createSlot } from '../api/consultations';
+import type { Consultation, UpdateConsultationInput, ConsultationSlot } from '../api/consultations';
 import { ApiError } from '../api/client';
 
 const TERMINAL_STATUSES = new Set(['COMPLETED', 'CANCELLED']);
@@ -34,6 +34,11 @@ export function ConsultationSection() {
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
 
+  const [slots, setSlots] = useState<ConsultationSlot[]>([]);
+  const [newSlotAt, setNewSlotAt] = useState('');
+  const [publishing, setPublishing] = useState(false);
+  const [slotError, setSlotError] = useState<string | null>(null);
+
   useEffect(() => {
     if (!patient) return;
     setLoadError(null);
@@ -42,6 +47,26 @@ export function ConsultationSection() {
       .catch((err) => setLoadError(err instanceof ApiError ? err.message : ar.errors.unexpected));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [patient?.id]);
+
+  useEffect(() => {
+    if (!user || !canManageConsultation(user.role)) return;
+    listMySlots().then(setSlots).catch(() => undefined);
+  }, [user]);
+
+  async function handlePublishSlot() {
+    if (!newSlotAt) return;
+    setPublishing(true);
+    setSlotError(null);
+    try {
+      await createSlot(new Date(newSlotAt).toISOString());
+      setSlots(await listMySlots());
+      setNewSlotAt('');
+    } catch (err) {
+      setSlotError(err instanceof ApiError ? err.message : ar.errors.unexpected);
+    } finally {
+      setPublishing(false);
+    }
+  }
 
   if (!patient || !user || !canManageConsultation(user.role)) {
     return null;
@@ -131,6 +156,32 @@ export function ConsultationSection() {
           </Group>
         </Stack>
       ) : null}
+
+      <Stack gap="xs" mt="lg">
+        <Text fw={600}>{ar.consultation.availabilityTitle}</Text>
+        {slotError ? <Alert color="red">{slotError}</Alert> : null}
+        <Group align="flex-end">
+          <TextInput
+            data-testid="new-slot-input"
+            type="datetime-local"
+            label={ar.consultation.addSlotLabel}
+            value={newSlotAt}
+            onChange={(e) => setNewSlotAt(e.currentTarget.value)}
+          />
+          <Button data-testid="publish-slot" onClick={handlePublishSlot} loading={publishing} disabled={!newSlotAt}>
+            {ar.consultation.publishSlotButton}
+          </Button>
+        </Group>
+        {slots.length === 0 ? (
+          <Text c="dimmed">{ar.consultation.noSlots}</Text>
+        ) : (
+          slots.map((slot) => (
+            <Text key={slot.id} data-testid={`slot-${slot.id}`}>
+              {new Date(slot.startsAt).toLocaleString('ar-SA')} — {ar.consultation.slotStatuses[slot.status]}
+            </Text>
+          ))
+        )}
+      </Stack>
     </Card>
   );
 }

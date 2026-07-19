@@ -32,3 +32,18 @@ export function getMyConsultations(patientProfileId: string): Promise<Consultati
 export function requestConsultation(patientProfileId: string, input: RequestConsultationInput): Promise<Consultation> {
   return apiRequest<Consultation>(`/api/v1/patients/${patientProfileId}/consultations`, { method: 'POST', body: input, auth: true });
 }
+
+export interface ConsultationSlot {
+  id: string;
+  startsAt: string;
+  durationMinutes: number;
+  status: 'AVAILABLE' | 'BOOKED';
+}
+
+export function getAvailableSlots(): Promise<ConsultationSlot[]> {
+  return apiRequest<ConsultationSlot[]>('/api/v1/consultation-slots/available', { auth: true });
+}
+
+export function bookSlot(consultationId: string, slotId: string): Promise<ConsultationSlot> {
+  return apiRequest<ConsultationSlot>(`/api/v1/consultations/${consultationId}/book-slot`, { method: 'POST', body: { slotId }, auth: true });
+}
