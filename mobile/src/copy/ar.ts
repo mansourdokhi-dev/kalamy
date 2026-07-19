@@ -72,6 +72,7 @@ export const ar = {
     viewComplaints: 'الشكاوى',
     viewNotifications: 'الإشعارات',
     viewConsultations: 'الاستشارة المجانية',
+    viewMessages: 'المحادثة مع الفريق',
     logout: 'تسجيل الخروج',
   },
   levelContent: {
@@ -221,6 +222,15 @@ export const ar = {
     bookAppointmentTitle: 'احجز موعدًا',
     noSlotsAvailable: 'لا توجد مواعيد متاحة حاليًا',
     bookButton: 'احجز',
+  },
+  messages: {
+    title: 'المحادثة مع الفريق العلاجي',
+    empty: 'لا توجد رسائل بعد. اكتب رسالتك الأولى.',
+    inputLabel: 'اكتب رسالتك',
+    sendButton: 'إرسال',
+    fromMe: 'أنا',
+    fromCareTeam: 'الفريق العلاجي',
+    readLabel: 'تم الاطلاع',
   },
   notifications: {
     title: 'الإشعارات',

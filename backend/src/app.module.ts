@@ -21,6 +21,7 @@ import { AdminUsersModule } from './modules/admin-users/admin-users.module';
 import { SupervisionModule } from './modules/supervision/supervision.module';
 import { TreatmentEngineModule } from './modules/treatment-engine/treatment-engine.module';
 import { ConsultationsModule } from './modules/consultations/consultations.module';
+import { MessagesModule } from './modules/messages/messages.module';
 import { NotificationsModule } from './modules/notifications/notifications.module';
 
 @Module({
@@ -41,6 +42,7 @@ import { NotificationsModule } from './modules/notifications/notifications.modul
     SupervisionModule,
     TreatmentEngineModule,
     ConsultationsModule,
+    MessagesModule,
     NotificationsModule,
   ],
   controllers: [AppController],

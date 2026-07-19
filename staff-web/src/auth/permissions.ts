@@ -31,3 +31,9 @@ export function canTransferReview(role: StaffRole): boolean {
 export function canManageConsultation(role: StaffRole): boolean {
   return role === 'CLINICIAN' || role === 'SUPERVISOR' || role === 'ADMIN';
 }
+
+// Messaging is the treating clinician's direct channel to the patient; the
+// backend grants VIEW_MESSAGE/SEND_MESSAGE to CLINICIAN only among staff.
+export function canMessagePatient(role: StaffRole): boolean {
+  return role === 'CLINICIAN';
+}
