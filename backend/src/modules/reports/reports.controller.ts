@@ -32,6 +32,12 @@ export class ReportsController {
     return this.reportsService.getOperationalStatusReport();
   }
 
+  @Get('kpi-dashboard')
+  @RequirePermission(Permission.VIEW_ADMIN_REPORTS)
+  getKpiDashboard() {
+    return this.reportsService.getKpiDashboard();
+  }
+
   @Get('registered-users')
   @RequirePermission(Permission.VIEW_ADMIN_REPORTS)
   getRegisteredUsersReport() {

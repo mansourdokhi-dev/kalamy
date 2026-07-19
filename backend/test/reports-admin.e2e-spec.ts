@@ -80,6 +80,44 @@ describe('Reports: operational status and registered users', () => {
     expect(response.status).toBe(403);
   });
 
+  it('returns an admin KPI dashboard aggregating patients, approved diagnoses, severity, and consultations', async () => {
+    const { token: adminToken } = await createUserToken('+966500001200', 'password123', 'ADMIN');
+    const { userId: clinicianUserId } = await createUserToken('+966500001201', 'password123', 'CLINICIAN');
+    const { userId: patientUserId } = await createUserToken('+966500001202', 'password123', 'PATIENT');
+
+    const profile = await prisma.patientProfile.create({
+      data: { userId: patientUserId, fullName: 'KPI Patient', gender: 'MALE', dateOfBirth: new Date('2000-01-01'), nationalId: 'KPI-1' },
+    });
+    // Two approved assessments (one MILD, one MODERATE) + one draft (not counted as a diagnosis).
+    await prisma.assessment.create({ data: { patientProfileId: profile.id, clinicianUserId, type: 'INITIAL', status: 'APPROVED', severityCategory: 'MILD', approvedAt: new Date() } });
+    await prisma.assessment.create({ data: { patientProfileId: profile.id, clinicianUserId, type: 'PERIODIC', status: 'APPROVED', severityCategory: 'MODERATE', approvedAt: new Date() } });
+    await prisma.assessment.create({ data: { patientProfileId: profile.id, clinicianUserId, type: 'INITIAL', status: 'DRAFT' } });
+    await prisma.consultation.create({ data: { patientProfileId: profile.id, requestedByUserId: patientUserId, type: 'VOICE', status: 'REQUESTED' } });
+
+    const response = await request(app.getHttpServer())
+      .get('/api/v1/reports/kpi-dashboard')
+      .set('Authorization', `Bearer ${adminToken}`);
+
+    expect(response.status).toBe(200);
+    expect(response.body.totalPatients).toBe(1);
+    expect(response.body.approvedDiagnosesCount).toBe(2);
+    expect(response.body.assessmentsBySeverity.MILD).toBe(1);
+    expect(response.body.assessmentsBySeverity.MODERATE).toBe(1);
+    expect(response.body.assessmentsBySeverity.SEVERE).toBe(0);
+    expect(response.body.consultationsByStatus.REQUESTED).toBe(1);
+    expect(response.body.newRegistrationsLast30Days).toBeGreaterThanOrEqual(3);
+    expect(typeof response.body.activeCases).toBe('number');
+    expect(typeof response.body.inactiveCases).toBe('number');
+  });
+
+  it('rejects a CLINICIAN viewing the KPI dashboard', async () => {
+    const { token } = await createUserToken('+966500001203', 'password123', 'CLINICIAN');
+    const response = await request(app.getHttpServer())
+      .get('/api/v1/reports/kpi-dashboard')
+      .set('Authorization', `Bearer ${token}`);
+    expect(response.status).toBe(403);
+  });
+
   it('lists registered users with a case-progress summary for patients', async () => {
     const { token: adminToken } = await createUserToken('+966500001104', 'password123', 'ADMIN');
     const patientRegister = await request(app.getHttpServer()).post('/api/v1/auth/register').send({
