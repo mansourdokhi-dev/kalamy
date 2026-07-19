@@ -8,6 +8,7 @@ import {
   getServiceModificationsReport,
   getStaffPerformanceReport,
   getComplaintsReport,
+  getKpiDashboard,
 } from '../api/reports';
 import { getMe } from '../api/auth';
 import { getToken } from '../storage/session';
@@ -35,6 +36,17 @@ function renderPage(role: 'CLINICIAN' | 'SUPERVISOR' | 'ADMIN' = 'SUPERVISOR') {
   (getServiceModificationsReport as ReturnType<typeof vi.fn>).mockResolvedValue([]);
   (getStaffPerformanceReport as ReturnType<typeof vi.fn>).mockResolvedValue([]);
   (getComplaintsReport as ReturnType<typeof vi.fn>).mockResolvedValue([]);
+  (getKpiDashboard as ReturnType<typeof vi.fn>).mockResolvedValue({
+    totalPatients: 4,
+    totalRegisteredUsers: 8,
+    newRegistrationsLast30Days: 3,
+    approvedDiagnosesCount: 6,
+    assessmentsBySeverity: { MILD: 2, MODERATE: 3, SEVERE: 1, VERY_SEVERE: 0 },
+    activeCases: 3,
+    inactiveCases: 1,
+    levelTransitions: 5,
+    consultationsByStatus: { REQUESTED: 1, SCHEDULING: 0, SCHEDULED: 1, COMPLETED: 2, CANCELLED: 0 },
+  });
 
   return render(
     <MantineProvider>
@@ -57,8 +69,19 @@ describe('AdminReportsPage', () => {
     });
   });
 
+  it('SUPERVISOR lands on the KPI dashboard by default with headline metrics', async () => {
+    renderPage('SUPERVISOR');
+    await waitFor(() => {
+      expect(screen.getByTestId('kpi-totalPatients')).toBeTruthy();
+      expect(screen.getByTestId('kpi-approvedDiagnosesCount')).toBeTruthy();
+      expect(screen.getByTestId('kpi-severity-MODERATE')).toBeTruthy();
+    });
+  });
+
   it('SUPERVISOR sees the operational status tab with non-zero stats only', async () => {
     renderPage('SUPERVISOR');
+    await waitFor(() => expect(screen.getByTestId('tab-operationalStatus')).toBeTruthy());
+    fireEvent.click(screen.getByTestId('tab-operationalStatus'));
     await waitFor(() => {
       expect(screen.getByTestId('stat-PATIENT')).toBeTruthy();
       expect(screen.getByTestId('stat-CLINICIAN')).toBeTruthy();

@@ -65,6 +65,22 @@ export function getOperationalStatusReport(): Promise<OperationalStatusReport> {
   return apiRequest<OperationalStatusReport>('/api/v1/reports/operational-status', { auth: true });
 }
 
+export interface KpiDashboard {
+  totalPatients: number;
+  totalRegisteredUsers: number;
+  newRegistrationsLast30Days: number;
+  approvedDiagnosesCount: number;
+  assessmentsBySeverity: Record<string, number>;
+  activeCases: number;
+  inactiveCases: number;
+  levelTransitions: number;
+  consultationsByStatus: Record<string, number>;
+}
+
+export function getKpiDashboard(): Promise<KpiDashboard> {
+  return apiRequest<KpiDashboard>('/api/v1/reports/kpi-dashboard', { auth: true });
+}
+
 export interface RegisteredUserSummary {
   id: string;
   fullName: string;

@@ -53,6 +53,18 @@ export interface OperationalStatusReport {
   trainingCyclesByStatus: Record<string, number>;
 }
 
+export interface KpiDashboard {
+  totalPatients: number;
+  totalRegisteredUsers: number;
+  newRegistrationsLast30Days: number;
+  approvedDiagnosesCount: number;
+  assessmentsBySeverity: Record<string, number>;
+  activeCases: number;
+  inactiveCases: number;
+  levelTransitions: number;
+  consultationsByStatus: Record<string, number>;
+}
+
 export interface RegisteredUserSummary {
   id: string;
   fullName: string;
@@ -197,6 +209,50 @@ export class ReportsService {
           'SUBSCRIPTION_EXPIRED_CLINICAL_FLOW_OPEN',
         ],
         cyclesByStatusRaw,
+        'status',
+      ),
+    };
+  }
+
+  // Admin KPI dashboard. Every metric is a pure aggregation of data the system
+  // already captures — no invented clinical thresholds or formulas. Revenue is
+  // deliberately absent (no payments module yet).
+  async getKpiDashboard(): Promise<KpiDashboard> {
+    const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+    const [
+      totalPatients,
+      totalRegisteredUsers,
+      newRegistrationsLast30Days,
+      approvedDiagnosesCount,
+      severityRaw,
+      activeCases,
+      inactiveCases,
+      levelTransitions,
+      consultationsRaw,
+    ] = await Promise.all([
+      this.prisma.patientProfile.count({ where: { status: 'ACTIVE' } }),
+      this.prisma.user.count(),
+      this.prisma.user.count({ where: { createdAt: { gte: thirtyDaysAgo } } }),
+      this.prisma.assessment.count({ where: { status: 'APPROVED' } }),
+      this.prisma.assessment.groupBy({ by: ['severityCategory'], where: { status: 'APPROVED', severityCategory: { not: null } }, _count: { _all: true } }),
+      this.prisma.treatmentPlan.count({ where: { status: 'ACTIVE' } }),
+      this.prisma.trainingCycle72h.count({ where: { status: 'CLOSED_DUE_TO_INACTIVITY' } }),
+      this.prisma.trainingCycle72h.count({ where: { status: 'NEXT_LEVEL_APPROVED' } }),
+      this.prisma.consultation.groupBy({ by: ['status'], _count: { _all: true } }),
+    ]);
+
+    return {
+      totalPatients,
+      totalRegisteredUsers,
+      newRegistrationsLast30Days,
+      approvedDiagnosesCount,
+      assessmentsBySeverity: this.zeroFillCounts(['MILD', 'MODERATE', 'SEVERE', 'VERY_SEVERE'], severityRaw, 'severityCategory'),
+      activeCases,
+      inactiveCases,
+      levelTransitions,
+      consultationsByStatus: this.zeroFillCounts(
+        ['REQUESTED', 'SCHEDULING', 'SCHEDULED', 'COMPLETED', 'CANCELLED'],
+        consultationsRaw,
         'status',
       ),
     };

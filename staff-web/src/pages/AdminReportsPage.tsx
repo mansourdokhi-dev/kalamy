@@ -9,12 +9,14 @@ import {
   getServiceModificationsReport,
   getStaffPerformanceReport,
   getComplaintsReport,
+  getKpiDashboard,
 } from '../api/reports';
 import type {
   OperationalStatusReport,
   RegisteredUserSummary,
   ServiceModificationLogEntry,
   StaffPerformanceSummary,
+  KpiDashboard,
 } from '../api/reports';
 import type { Complaint } from '../api/complaints';
 import { ApiError } from '../api/client';
@@ -25,6 +27,67 @@ function formatDate(isoString: string): string {
 
 function errorMessage(err: unknown): string {
   return err instanceof ApiError ? err.message : ar.errors.unexpected;
+}
+
+function KpiDashboardTab() {
+  const [kpi, setKpi] = useState<KpiDashboard | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    getKpiDashboard().then(setKpi).catch((err) => setError(errorMessage(err)));
+  }, []);
+
+  if (error) return <Alert color="red">{error}</Alert>;
+  if (!kpi) return null;
+
+  const headline: Array<{ key: string; label: string; value: number }> = [
+    { key: 'totalPatients', label: ar.reports.kpi.totalPatients, value: kpi.totalPatients },
+    { key: 'activeCases', label: ar.reports.kpi.activeCases, value: kpi.activeCases },
+    { key: 'inactiveCases', label: ar.reports.kpi.inactiveCases, value: kpi.inactiveCases },
+    { key: 'approvedDiagnosesCount', label: ar.reports.kpi.approvedDiagnosesCount, value: kpi.approvedDiagnosesCount },
+    { key: 'levelTransitions', label: ar.reports.kpi.levelTransitions, value: kpi.levelTransitions },
+    { key: 'newRegistrationsLast30Days', label: ar.reports.kpi.newRegistrationsLast30Days, value: kpi.newRegistrationsLast30Days },
+    { key: 'totalRegisteredUsers', label: ar.reports.kpi.totalRegisteredUsers, value: kpi.totalRegisteredUsers },
+  ];
+
+  return (
+    <Stack gap="md">
+      <SimpleGrid cols={{ base: 2, sm: 4 }}>
+        {headline.map((item) => (
+          <Card withBorder key={item.key} data-testid={`kpi-${item.key}`}>
+            <Text size="xl" fw={700}>{item.value}</Text>
+            <Text size="sm" c="dimmed">{item.label}</Text>
+          </Card>
+        ))}
+      </SimpleGrid>
+
+      <div>
+        <Text fw={600} mb="xs">{ar.reports.kpi.severityTitle}</Text>
+        <SimpleGrid cols={{ base: 2, sm: 4 }}>
+          {Object.entries(kpi.assessmentsBySeverity).map(([key, count]) => (
+            <Card withBorder key={key} data-testid={`kpi-severity-${key}`}>
+              <Text size="lg" fw={700}>{count}</Text>
+              <Text size="sm" c="dimmed">{ar.patientDetail.severityCategories[key] ?? key}</Text>
+            </Card>
+          ))}
+        </SimpleGrid>
+      </div>
+
+      <div>
+        <Text fw={600} mb="xs">{ar.reports.kpi.consultationsTitle}</Text>
+        <SimpleGrid cols={{ base: 2, sm: 5 }}>
+          {Object.entries(kpi.consultationsByStatus).map(([key, count]) => (
+            <Card withBorder key={key} data-testid={`kpi-consultation-${key}`}>
+              <Text size="lg" fw={700}>{count}</Text>
+              <Text size="sm" c="dimmed">{ar.consultation.statuses[key as keyof typeof ar.consultation.statuses] ?? key}</Text>
+            </Card>
+          ))}
+        </SimpleGrid>
+      </div>
+
+      <Text c="dimmed" size="sm">{ar.reports.kpi.revenueNote}</Text>
+    </Stack>
+  );
 }
 
 function OperationalStatusTab() {
@@ -255,14 +318,16 @@ export function AdminReportsPage() {
   return (
     <Container size="lg">
       <Title order={2} mb="md">{ar.reports.adminReportsTitle}</Title>
-      <Tabs defaultValue="operationalStatus" keepMounted={false}>
+      <Tabs defaultValue="kpiDashboard" keepMounted={false}>
         <Tabs.List>
+          <Tabs.Tab value="kpiDashboard" data-testid="tab-kpiDashboard">{ar.reports.tabs.kpiDashboard}</Tabs.Tab>
           <Tabs.Tab value="operationalStatus" data-testid="tab-operationalStatus">{ar.reports.tabs.operationalStatus}</Tabs.Tab>
           <Tabs.Tab value="registeredUsers" data-testid="tab-registeredUsers">{ar.reports.tabs.registeredUsers}</Tabs.Tab>
           <Tabs.Tab value="serviceModifications" data-testid="tab-serviceModifications">{ar.reports.tabs.serviceModifications}</Tabs.Tab>
           <Tabs.Tab value="staffPerformance" data-testid="tab-staffPerformance">{ar.reports.tabs.staffPerformance}</Tabs.Tab>
           <Tabs.Tab value="complaintsReport" data-testid="tab-complaintsReport">{ar.reports.tabs.complaintsReport}</Tabs.Tab>
         </Tabs.List>
+        <Tabs.Panel value="kpiDashboard" pt="md"><KpiDashboardTab /></Tabs.Panel>
         <Tabs.Panel value="operationalStatus" pt="md"><OperationalStatusTab /></Tabs.Panel>
         <Tabs.Panel value="registeredUsers" pt="md"><RegisteredUsersTab /></Tabs.Panel>
         <Tabs.Panel value="serviceModifications" pt="md"><ServiceModificationsTab /></Tabs.Panel>
