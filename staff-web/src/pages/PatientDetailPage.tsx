@@ -10,6 +10,7 @@ import { SampleReviewSection } from '../patients/SampleReviewSection';
 import { ProgressSection } from '../patients/ProgressSection';
 import { ConsultationSection } from '../patients/ConsultationSection';
 import { MessagesSection } from '../patients/MessagesSection';
+import { QuestionnaireResponsesSection } from '../patients/QuestionnaireResponsesSection';
 
 function PatientDetailContent() {
   const { patient, loading, error } = usePatientDetail();
@@ -36,6 +37,7 @@ function PatientDetailContent() {
       <SampleReviewSection />
       <ConsultationSection />
       <MessagesSection />
+      <QuestionnaireResponsesSection />
       <ProgressSection />
     </Stack>
   );

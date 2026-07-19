@@ -160,6 +160,8 @@ model User {
   consultationsAsSpecialist Consultation[]           @relation("ConsultationSpecialist")
   consultationSlots         ConsultationSlot[]       @relation("ConsultationSlotStaff")
   sentMessages              PatientMessage[]         @relation("PatientMessageSender")
+  questionnaireTemplates    QuestionnaireTemplate[]  @relation("QuestionnaireTemplateCreator")
+  questionnaireResponses    QuestionnaireResponse[]  @relation("QuestionnaireResponseSubmitter")
   complaintsSubmitted       Complaint[]              @relation("ComplaintSubmitter")
   complaintsAboutMe         Complaint[]              @relation("ComplaintRelatedClinician")
   supervisorUser            User?                    @relation("ClinicianSupervisor", fields: [supervisorUserId], references: [id])
@@ -230,6 +232,7 @@ model PatientProfile {
   trainingCycles TrainingCycle72h[]
   consultations  Consultation[]
   messages       PatientMessage[]
+  questionnaireResponses QuestionnaireResponse[]
 }
 
 model PatientClinicalInfo {
@@ -617,6 +620,68 @@ model PatientMessage {
   createdAt        DateTime       @default(now())
 
   @@index([patientProfileId, createdAt])
+}
+
+// A questionnaire authored by clinical staff. The platform provides only the
+// mechanism — staff supply every question and option, so no clinical content is
+// hard-coded here.
+model QuestionnaireTemplate {
+  id              String                  @id @default(uuid())
+  title           String
+  description     String?
+  createdByUserId String
+  createdByUser   User                    @relation("QuestionnaireTemplateCreator", fields: [createdByUserId], references: [id])
+  isActive        Boolean                 @default(true)
+  questions       QuestionnaireQuestion[]
+  responses       QuestionnaireResponse[]
+  createdAt       DateTime                @default(now())
+  updatedAt       DateTime                @updatedAt
+}
+
+model QuestionnaireQuestion {
+  id         String                @id @default(uuid())
+  templateId String
+  template   QuestionnaireTemplate @relation(fields: [templateId], references: [id])
+  order      Int
+  text       String
+  type       QuestionType
+  options    String[] // choices for SINGLE_CHOICE/MULTI_CHOICE; empty for TEXT/SCALE
+  required   Boolean               @default(true)
+  answers    QuestionnaireAnswer[]
+
+  @@index([templateId, order])
+}
+
+model QuestionnaireResponse {
+  id                String                @id @default(uuid())
+  templateId        String
+  template          QuestionnaireTemplate @relation(fields: [templateId], references: [id])
+  patientProfileId  String
+  patientProfile    PatientProfile        @relation(fields: [patientProfileId], references: [id])
+  submittedByUserId String
+  submittedByUser   User                  @relation("QuestionnaireResponseSubmitter", fields: [submittedByUserId], references: [id])
+  answers           QuestionnaireAnswer[]
+  submittedAt       DateTime              @default(now())
+
+  @@index([patientProfileId, submittedAt])
+}
+
+model QuestionnaireAnswer {
+  id         String                @id @default(uuid())
+  responseId String
+  response   QuestionnaireResponse @relation(fields: [responseId], references: [id])
+  questionId String
+  question   QuestionnaireQuestion @relation(fields: [questionId], references: [id])
+  value      String // free text, joined chosen option(s), or scale number as string
+
+  @@index([responseId])
+}
+
+enum QuestionType {
+  TEXT
+  SINGLE_CHOICE
+  MULTI_CHOICE
+  SCALE
 }
 
 enum ConsultationType {
