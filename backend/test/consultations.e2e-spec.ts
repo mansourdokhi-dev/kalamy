@@ -219,4 +219,76 @@ describe('Consultations (e2e)', () => {
     expect(res.body).toHaveLength(1);
     expect(res.body[0].type).toBe('VOICE');
   });
+
+  it('lets a clinician publish a slot and a patient book it, scheduling the consultation', async () => {
+    const { token, profile } = await setupPatient('+966500006080');
+    const clinicianToken = await registerAndLogin(app, prisma, '+966500006081', 'CLINICIAN');
+
+    const consultation = await request(app.getHttpServer())
+      .post(`/api/v1/patients/${profile.id}/consultations`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({ type: 'VIDEO', reasonNote: 'x' })
+      .expect(201);
+
+    const startsAt = new Date(Date.now() + 48 * 60 * 60 * 1000).toISOString();
+    const slot = await request(app.getHttpServer())
+      .post('/api/v1/consultation-slots')
+      .set('Authorization', `Bearer ${clinicianToken}`)
+      .send({ startsAt })
+      .expect(201);
+    expect(slot.body.status).toBe('AVAILABLE');
+
+    const available = await request(app.getHttpServer())
+      .get('/api/v1/consultation-slots/available')
+      .set('Authorization', `Bearer ${token}`)
+      .expect(200);
+    expect(available.body).toHaveLength(1);
+
+    const booked = await request(app.getHttpServer())
+      .post(`/api/v1/consultations/${consultation.body.id}/book-slot`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({ slotId: slot.body.id })
+      .expect(201);
+    expect(booked.body.status).toBe('BOOKED');
+
+    const scheduled = await prisma.consultation.findUniqueOrThrow({ where: { id: consultation.body.id } });
+    expect(scheduled.status).toBe('SCHEDULED');
+    expect(scheduled.scheduledAt?.toISOString()).toBe(startsAt);
+    expect(scheduled.specialistUserId).not.toBeNull();
+  });
+
+  it('rejects booking an already-booked slot', async () => {
+    const { token, profile } = await setupPatient('+966500006090');
+    const { token: otherToken, profile: otherProfile } = await setupPatient('+966500006091');
+    const clinicianToken = await registerAndLogin(app, prisma, '+966500006092', 'CLINICIAN');
+
+    const first = await request(app.getHttpServer())
+      .post(`/api/v1/patients/${profile.id}/consultations`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({ type: 'VIDEO', reasonNote: 'x' })
+      .expect(201);
+    const second = await request(app.getHttpServer())
+      .post(`/api/v1/patients/${otherProfile.id}/consultations`)
+      .set('Authorization', `Bearer ${otherToken}`)
+      .send({ type: 'VIDEO', reasonNote: 'y' })
+      .expect(201);
+
+    const slot = await request(app.getHttpServer())
+      .post('/api/v1/consultation-slots')
+      .set('Authorization', `Bearer ${clinicianToken}`)
+      .send({ startsAt: new Date(Date.now() + 48 * 60 * 60 * 1000).toISOString() })
+      .expect(201);
+
+    await request(app.getHttpServer())
+      .post(`/api/v1/consultations/${first.body.id}/book-slot`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({ slotId: slot.body.id })
+      .expect(201);
+
+    await request(app.getHttpServer())
+      .post(`/api/v1/consultations/${second.body.id}/book-slot`)
+      .set('Authorization', `Bearer ${otherToken}`)
+      .send({ slotId: slot.body.id })
+      .expect(409);
+  });
 });

@@ -21,6 +21,7 @@ export async function resetDatabase(prisma: PrismaService): Promise<void> {
     prisma.notificationPreference.deleteMany(),
     prisma.notificationSetting.deleteMany(),
     prisma.complaint.deleteMany(),
+    prisma.consultationSlot.deleteMany(),
     prisma.consultation.deleteMany(),
     prisma.auditLog.deleteMany(),
     prisma.sampleSamplePart.deleteMany(),
