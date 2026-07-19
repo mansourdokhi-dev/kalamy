@@ -1,5 +1,5 @@
 import { apiRequest } from '../client';
-import { getMyConsultations, requestConsultation } from '../consultations';
+import { getMyConsultations, requestConsultation, getAvailableSlots, bookSlot } from '../consultations';
 
 jest.mock('../client', () => ({
   ...jest.requireActual('../client'),
@@ -49,5 +49,22 @@ describe('consultations API functions', () => {
       auth: true,
     });
     expect(result.id).toBe('c2');
+  });
+
+  it('getAvailableSlots fetches the available-slots endpoint', async () => {
+    (apiRequest as jest.Mock).mockResolvedValue([{ id: 's1', startsAt: '2026-08-01T10:00:00.000Z', durationMinutes: 30, status: 'AVAILABLE' }]);
+    const result = await getAvailableSlots();
+    expect(apiRequest).toHaveBeenCalledWith('/api/v1/consultation-slots/available', { auth: true });
+    expect(result[0].id).toBe('s1');
+  });
+
+  it('bookSlot POSTs the slotId to the consultation book-slot endpoint', async () => {
+    (apiRequest as jest.Mock).mockResolvedValue({ id: 's1', status: 'BOOKED' });
+    await bookSlot('c1', 's1');
+    expect(apiRequest).toHaveBeenCalledWith('/api/v1/consultations/c1/book-slot', {
+      method: 'POST',
+      body: { slotId: 's1' },
+      auth: true,
+    });
   });
 });

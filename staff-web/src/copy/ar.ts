@@ -361,5 +361,13 @@ export const ar = {
     meetingLinkLabel: 'رابط الاجتماع',
     outcomeNotesLabel: 'ملاحظات النتيجة',
     saveButton: 'حفظ',
+    availabilityTitle: 'مواعيدي المتاحة للاستشارة',
+    addSlotLabel: 'إضافة موعد متاح',
+    publishSlotButton: 'نشر الموعد',
+    noSlots: 'لم تنشر أي مواعيد بعد',
+    slotStatuses: {
+      AVAILABLE: 'متاح',
+      BOOKED: 'محجوز',
+    },
   },
 };

@@ -158,6 +158,7 @@ model User {
   interventionsExecuted     SpeechSample[]           @relation("SpeechSampleInterventionExecutedBy")
   consultationsRequested    Consultation[]           @relation("ConsultationRequestedBy")
   consultationsAsSpecialist Consultation[]           @relation("ConsultationSpecialist")
+  consultationSlots         ConsultationSlot[]       @relation("ConsultationSlotStaff")
   complaintsSubmitted       Complaint[]              @relation("ComplaintSubmitter")
   complaintsAboutMe         Complaint[]              @relation("ComplaintRelatedClinician")
   supervisorUser            User?                    @relation("ClinicianSupervisor", fields: [supervisorUserId], references: [id])
@@ -570,10 +571,34 @@ model Consultation {
   outcomeNotes             String?
   completedAt              DateTime?
   cancelledAt              DateTime?
+  bookedSlot               ConsultationSlot?
   createdAt                DateTime           @default(now())
   updatedAt                DateTime           @updatedAt
 
   @@index([patientProfileId])
+}
+
+// A time slot a staff member publishes as available for a free consultation.
+// A patient books one for their consultation, which sets the consultation's
+// scheduledAt and flips the slot to BOOKED.
+model ConsultationSlot {
+  id              String                 @id @default(uuid())
+  staffUserId     String
+  staffUser       User                   @relation("ConsultationSlotStaff", fields: [staffUserId], references: [id])
+  startsAt        DateTime
+  durationMinutes Int                    @default(30)
+  status          ConsultationSlotStatus @default(AVAILABLE)
+  consultationId  String?                @unique
+  consultation    Consultation?          @relation(fields: [consultationId], references: [id])
+  createdAt       DateTime               @default(now())
+  updatedAt       DateTime               @updatedAt
+
+  @@index([status, startsAt])
+}
+
+enum ConsultationSlotStatus {
+  AVAILABLE
+  BOOKED
 }
 
 enum ConsultationType {

@@ -34,3 +34,18 @@ export function listConsultations(patientId: string): Promise<Consultation[]> {
 export function updateConsultation(consultationId: string, input: UpdateConsultationInput): Promise<Consultation> {
   return apiRequest<Consultation>(`/api/v1/consultations/${consultationId}`, { method: 'PATCH', body: input, auth: true });
 }
+
+export interface ConsultationSlot {
+  id: string;
+  startsAt: string;
+  durationMinutes: number;
+  status: 'AVAILABLE' | 'BOOKED';
+}
+
+export function listMySlots(): Promise<ConsultationSlot[]> {
+  return apiRequest<ConsultationSlot[]>('/api/v1/consultation-slots/mine', { auth: true });
+}
+
+export function createSlot(startsAt: string): Promise<ConsultationSlot> {
+  return apiRequest<ConsultationSlot>('/api/v1/consultation-slots', { method: 'POST', body: { startsAt }, auth: true });
+}
