@@ -13,6 +13,7 @@ import { ComplaintsPage } from './pages/ComplaintsPage';
 import { AdminReportsPage } from './pages/AdminReportsPage';
 import { StaffAccountsPage } from './pages/StaffAccountsPage';
 import { MyCliniciansPage } from './pages/MyCliniciansPage';
+import { QuestionnairesPage } from './pages/QuestionnairesPage';
 
 export default function App() {
   return (
@@ -97,6 +98,16 @@ export default function App() {
               <RequireAuth>
                 <AppShell>
                   <MyCliniciansPage />
+                </AppShell>
+              </RequireAuth>
+            }
+          />
+          <Route
+            path="/questionnaires"
+            element={
+              <RequireAuth>
+                <AppShell>
+                  <QuestionnairesPage />
                 </AppShell>
               </RequireAuth>
             }

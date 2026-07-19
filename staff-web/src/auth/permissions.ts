@@ -37,3 +37,13 @@ export function canManageConsultation(role: StaffRole): boolean {
 export function canMessagePatient(role: StaffRole): boolean {
   return role === 'CLINICIAN';
 }
+
+// MANAGE_QUESTIONNAIRE — author/activate questionnaire templates.
+export function canManageQuestionnaires(role: StaffRole): boolean {
+  return role === 'CLINICIAN' || role === 'ADMIN';
+}
+
+// VIEW_QUESTIONNAIRE — read a patient's submitted responses.
+export function canViewQuestionnaires(role: StaffRole): boolean {
+  return role === 'CLINICIAN' || role === 'SUPERVISOR' || role === 'ADMIN';
+}

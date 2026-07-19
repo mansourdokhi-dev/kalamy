@@ -73,6 +73,7 @@ export const ar = {
     viewNotifications: 'الإشعارات',
     viewConsultations: 'الاستشارة المجانية',
     viewMessages: 'المحادثة مع الفريق',
+    viewQuestionnaires: 'الاستبيانات',
     logout: 'تسجيل الخروج',
   },
   levelContent: {
@@ -222,6 +223,15 @@ export const ar = {
     bookAppointmentTitle: 'احجز موعدًا',
     noSlotsAvailable: 'لا توجد مواعيد متاحة حاليًا',
     bookButton: 'احجز',
+  },
+  questionnaires: {
+    title: 'الاستبيانات',
+    empty: 'لا توجد استبيانات متاحة حاليًا',
+    requiredMark: '*',
+    submitButton: 'إرسال الإجابات',
+    submittedMessage: 'تم إرسال إجاباتك. شكرًا لك.',
+    selectPrompt: 'اختر',
+    scalePlaceholder: 'أدخل رقمًا',
   },
   messages: {
     title: 'المحادثة مع الفريق العلاجي',
