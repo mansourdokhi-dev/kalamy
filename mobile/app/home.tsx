@@ -209,6 +209,7 @@ export default function HomeScreen() {
         <Button title={ar.program.viewComplaints} onPress={() => router.push('/program/complaints')} />
         <Button title={ar.program.viewNotifications} onPress={() => router.push('/program/notifications')} />
         <Button title={ar.program.viewConsultations} onPress={() => router.push('/program/consultations')} />
+        <Button title={ar.program.viewMessages} onPress={() => router.push('/program/messages')} />
       </View>
 
       <View style={{ marginTop: 24 }}>

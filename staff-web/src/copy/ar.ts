@@ -370,4 +370,13 @@ export const ar = {
       BOOKED: 'محجوز',
     },
   },
+  messages: {
+    sectionTitle: 'المحادثة مع المريض',
+    empty: 'لا توجد رسائل بعد',
+    inputLabel: 'اكتب رسالة',
+    sendButton: 'إرسال',
+    fromMe: 'أنا',
+    fromPatient: 'المريض',
+    readLabel: 'تم الاطلاع',
+  },
 };

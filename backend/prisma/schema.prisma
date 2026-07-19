@@ -159,6 +159,7 @@ model User {
   consultationsRequested    Consultation[]           @relation("ConsultationRequestedBy")
   consultationsAsSpecialist Consultation[]           @relation("ConsultationSpecialist")
   consultationSlots         ConsultationSlot[]       @relation("ConsultationSlotStaff")
+  sentMessages              PatientMessage[]         @relation("PatientMessageSender")
   complaintsSubmitted       Complaint[]              @relation("ComplaintSubmitter")
   complaintsAboutMe         Complaint[]              @relation("ComplaintRelatedClinician")
   supervisorUser            User?                    @relation("ClinicianSupervisor", fields: [supervisorUserId], references: [id])
@@ -228,6 +229,7 @@ model PatientProfile {
   treatmentPlans TreatmentPlan[]
   trainingCycles TrainingCycle72h[]
   consultations  Consultation[]
+  messages       PatientMessage[]
 }
 
 model PatientClinicalInfo {
@@ -599,6 +601,22 @@ model ConsultationSlot {
 enum ConsultationSlotStatus {
   AVAILABLE
   BOOKED
+}
+
+// A message in the two-way thread between a patient (or their caregiver) and
+// the clinical team. Scoped per patient profile; sender is whoever wrote it.
+// readAt is stamped when the *other* party opens the thread.
+model PatientMessage {
+  id               String         @id @default(uuid())
+  patientProfileId String
+  patientProfile   PatientProfile @relation(fields: [patientProfileId], references: [id])
+  senderUserId     String
+  senderUser       User           @relation("PatientMessageSender", fields: [senderUserId], references: [id])
+  body             String
+  readAt           DateTime?
+  createdAt        DateTime       @default(now())
+
+  @@index([patientProfileId, createdAt])
 }
 
 enum ConsultationType {

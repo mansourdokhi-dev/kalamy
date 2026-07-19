@@ -44,6 +44,8 @@ export enum Permission {
   VIEW_CONSULTATION = 'VIEW_CONSULTATION',
   VIEW_OWN_NOTIFICATIONS = 'VIEW_OWN_NOTIFICATIONS',
   MANAGE_NOTIFICATION_SETTINGS = 'MANAGE_NOTIFICATION_SETTINGS',
+  VIEW_MESSAGE = 'VIEW_MESSAGE',
+  SEND_MESSAGE = 'SEND_MESSAGE',
 }
 
 export const ROLE_PERMISSIONS: Record<Role, Permission[]> = {
@@ -66,6 +68,8 @@ export const ROLE_PERMISSIONS: Record<Role, Permission[]> = {
     Permission.REQUEST_CONSULTATION,
     Permission.VIEW_CONSULTATION,
     Permission.VIEW_OWN_NOTIFICATIONS,
+    Permission.VIEW_MESSAGE,
+    Permission.SEND_MESSAGE,
   ],
   CAREGIVER: [
     Permission.VIEW_PATIENT_PROFILE,
@@ -86,6 +90,8 @@ export const ROLE_PERMISSIONS: Record<Role, Permission[]> = {
     Permission.REQUEST_CONSULTATION,
     Permission.VIEW_CONSULTATION,
     Permission.VIEW_OWN_NOTIFICATIONS,
+    Permission.VIEW_MESSAGE,
+    Permission.SEND_MESSAGE,
   ],
   CLINICIAN: [
     Permission.CREATE_PATIENT_PROFILE,
@@ -116,6 +122,8 @@ export const ROLE_PERMISSIONS: Record<Role, Permission[]> = {
     Permission.MANAGE_CONSULTATION,
     Permission.VIEW_CONSULTATION,
     Permission.VIEW_OWN_NOTIFICATIONS,
+    Permission.VIEW_MESSAGE,
+    Permission.SEND_MESSAGE,
   ],
   SUPERVISOR: [
     Permission.VIEW_PATIENT_PROFILE,
