@@ -1,6 +1,7 @@
 import { INestApplication } from '@nestjs/common';
 import request from 'supertest';
 import { createTestApp, resetDatabase } from './utils/test-app';
+import { waitForAuditLogs } from './utils/audit';
 import { PrismaService } from '../src/prisma/prisma.service';
 
 async function registerAndLogin(
@@ -165,8 +166,8 @@ describe('Questionnaires (e2e)', () => {
       .set('Authorization', `Bearer ${token}`)
       .expect(200);
 
-    const logs = await prisma.auditLog.findMany({
-      where: { action: `GET /api/v1/patients/${profile.id}/questionnaire-responses` },
+    const logs = await waitForAuditLogs(prisma, {
+      action: `GET /api/v1/patients/${profile.id}/questionnaire-responses`,
     });
     expect(logs).toHaveLength(1);
     expect(logs[0].userId).toBe(userId);

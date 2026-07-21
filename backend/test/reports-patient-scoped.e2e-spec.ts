@@ -1,6 +1,7 @@
 import { INestApplication } from '@nestjs/common';
 import request from 'supertest';
 import { createTestApp, resetDatabase } from './utils/test-app';
+import { waitForAuditLogs } from './utils/audit';
 import { PrismaService } from '../src/prisma/prisma.service';
 
 describe('Reports: patient-scoped (assessment results, medical)', () => {
@@ -169,8 +170,8 @@ describe('Reports: patient-scoped (assessment results, medical)', () => {
       .set('Authorization', `Bearer ${patientToken}`)
       .expect(200);
 
-    const logs = await prisma.auditLog.findMany({
-      where: { action: `GET /api/v1/reports/patients/${profileId}/assessment-results` },
+    const logs = await waitForAuditLogs(prisma, {
+      action: `GET /api/v1/reports/patients/${profileId}/assessment-results`,
     });
     expect(logs).toHaveLength(1);
     expect(logs[0].userId).not.toBe(clinicianUser.id);
@@ -188,8 +189,8 @@ describe('Reports: patient-scoped (assessment results, medical)', () => {
       .set('Authorization', `Bearer ${clinicianToken}`)
       .expect(200);
 
-    const logs = await prisma.auditLog.findMany({
-      where: { action: `GET /api/v1/reports/patients/${profileId}/medical` },
+    const logs = await waitForAuditLogs(prisma, {
+      action: `GET /api/v1/reports/patients/${profileId}/medical`,
     });
     expect(logs).toHaveLength(1);
     expect(logs[0].userId).toBe(clinicianUser.id);

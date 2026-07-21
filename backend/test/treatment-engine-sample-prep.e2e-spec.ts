@@ -1,6 +1,7 @@
 import { INestApplication } from '@nestjs/common';
 import request from 'supertest';
 import { createTestApp, resetDatabase } from './utils/test-app';
+import { waitForAuditLogs } from './utils/audit';
 import { PrismaService } from '../src/prisma/prisma.service';
 import * as fs from 'fs';
 import * as path from 'path';
@@ -429,8 +430,8 @@ describe('Treatment Engine — Sample preparation (e2e)', () => {
         .get(`/api/v1/patients/${patientId}/cycles/current/sample-session/attempts/${attemptId}/media`)
         .set('Authorization', `Bearer ${patientToken}`);
 
-      const logs = await prisma.auditLog.findMany({
-        where: { action: `GET /api/v1/patients/${patientId}/cycles/current/sample-session/attempts/${attemptId}/media` },
+      const logs = await waitForAuditLogs(prisma, {
+        action: `GET /api/v1/patients/${patientId}/cycles/current/sample-session/attempts/${attemptId}/media`,
       });
       expect(logs).toHaveLength(1);
       expect(logs[0].entityId).toBe(patientId);
