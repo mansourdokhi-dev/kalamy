@@ -6,7 +6,7 @@ import {
   NotFoundException,
   UnauthorizedException,
 } from '@nestjs/common';
-import { OtpPurpose, Role, UserStatus } from '@prisma/client';
+import { OtpPurpose, Prisma, Role, User, UserStatus } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { OtpService } from './otp.service';
 import { PasswordService } from '../../common/security/password.service';
@@ -37,20 +37,39 @@ export class AuthService {
     if (existing) {
       throw new ConflictException('Mobile number already registered');
     }
+    if (dto.email) {
+      const existingEmail = await this.prisma.user.findUnique({ where: { email: dto.email } });
+      if (existingEmail) {
+        throw new ConflictException('Email already registered');
+      }
+    }
 
     const passwordHash = await this.passwordService.hash(dto.password);
 
-    const user = await this.prisma.user.create({
-      data: {
-        fullName: dto.fullName,
-        mobile: dto.mobile,
-        email: dto.email,
-        passwordHash,
-        role: dto.role,
-        status: UserStatus.PENDING_VERIFICATION,
-        termsAcceptedAt: dto.acceptedTerms ? new Date() : null,
-      },
-    });
+    let user: User;
+    try {
+      user = await this.prisma.user.create({
+        data: {
+          fullName: dto.fullName,
+          mobile: dto.mobile,
+          email: dto.email,
+          passwordHash,
+          role: dto.role,
+          status: UserStatus.PENDING_VERIFICATION,
+          termsAcceptedAt: dto.acceptedTerms ? new Date() : null,
+        },
+      });
+    } catch (error) {
+      // Safety net for the TOCTOU race between the pre-checks above and this
+      // insert (two concurrent registrations with the same mobile/email): map
+      // the unique-constraint violation to a clean 409 instead of a 500.
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
+        const target = error.meta?.target;
+        const field = Array.isArray(target) && target.some((t) => String(t).includes('email')) ? 'Email' : 'Mobile number';
+        throw new ConflictException(`${field} already registered`);
+      }
+      throw error;
+    }
 
     const code = await this.otpService.issue(user.id, OtpPurpose.REGISTRATION);
     // A delivery failure must never block registration itself — the code is
