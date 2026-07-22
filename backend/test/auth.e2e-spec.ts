@@ -85,6 +85,27 @@ describe('Auth: register + verify', () => {
     expect(response.body.code).toBe('CONFLICT');
   });
 
+  it('rejects registration with a duplicate email with a clean 409 (not a 500)', async () => {
+    await request(app.getHttpServer()).post('/api/v1/auth/register').send({
+      fullName: 'First User',
+      mobile: '+966500000021',
+      email: 'shared@example.com',
+      password: 'password123',
+      role: 'PATIENT',
+    });
+
+    const response = await request(app.getHttpServer()).post('/api/v1/auth/register').send({
+      fullName: 'Second User',
+      mobile: '+966500000022',
+      email: 'shared@example.com',
+      password: 'password456',
+      role: 'PATIENT',
+    });
+
+    expect(response.status).toBe(409);
+    expect(response.body.code).toBe('CONFLICT');
+  });
+
   it('rejects registration with a role other than PATIENT or CAREGIVER', async () => {
     const response = await request(app.getHttpServer()).post('/api/v1/auth/register').send({
       fullName: 'Sneaky Admin',
